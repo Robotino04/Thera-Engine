@@ -18,6 +18,12 @@ enum class PieceColor{
 	Black,
 };
 
+static PieceColor opposite(PieceColor c){
+	if(c == PieceColor::White) return PieceColor::Black;
+	else if(c == PieceColor::Black) return PieceColor::White;
+	else return PieceColor::None;
+}
+
 struct Piece{
 	PieceType type;
 	PieceColor color;
