@@ -1,5 +1,6 @@
 ﻿#include "ChessBot/Board.hpp"
 #include "ChessBot/Utils.hpp"
+#include "ChessBot/Move.hpp"
 
 #include "ANSI/ANSI.hpp"
 
@@ -62,7 +63,7 @@ void printBoard(ChessBot::Board const& board, Options const& options){
 				<< " ";
 		}
 		std::cout
-			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << static_cast<int>(8-y) << " "
+			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << static_cast<int>(8-y) << " "
 			<< ANSI::reset() << " \n";
 	}
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
@@ -98,13 +99,24 @@ int main(int argc, const char** argv){
 	board.loadFromFEN(ChessBot::Utils::startingFEN);
 
 	printBoard(board, options);
+	std::cout << "Enter move or type \"exit\".\n";
+	while (true){
+		std::cout << "Move: " << std::flush;
 
-	// for (int i=0;i<8;i++){
-	// 	std::cout << ANSI::set24BitColor(255, 210, 153, ANSI::Background) << "                " << ANSI::reset(ANSI::Background) << "\n";
-	// }
-	// for (int i=0;i<8;i++){
-	// 	std::cout << ANSI::set24BitColor(130, 77, 39, ANSI::Background) << "                " << ANSI::reset(ANSI::Background) << "\n";
-	// }
+		std::string moveStr;
+		std::cin >> moveStr;
+
+		if (moveStr == "exit") break;
+		
+		ChessBot::Move move;
+		if (!move.fromString(moveStr)){
+			std::cout << "Invalid Move!\n";
+			continue;
+		}
+
+		board.applyMove(move);
+		printBoard(board, options);
+	}
 
 	std::cout << ANSI::reset();
 	return 0;
