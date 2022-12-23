@@ -18,19 +18,27 @@ enum class PieceColor{
 	Black,
 };
 
-static PieceColor opposite(PieceColor c){
-	if(c == PieceColor::White) return PieceColor::Black;
-	else if(c == PieceColor::Black) return PieceColor::White;
+/**
+ * @brief Return the opposite of the given color.
+ * 
+ * @param c the color to invert
+ * @return PieceColor 
+ */
+static PieceColor opposite(PieceColor color){
+	if(color == PieceColor::White) return PieceColor::Black;
+	else if(color == PieceColor::Black) return PieceColor::White;
 	else return PieceColor::None;
 }
 
 struct Piece{
-	PieceType type;
-	PieceColor color;
+	PieceType type = PieceType::None;
+	PieceColor color = PieceColor::None;
 
 	bool operator ==(Piece const& other) const{
 		return this->type == other.type && this->color == other.color;
 	}
+
+	static const Piece Empty;
 };
 
 }

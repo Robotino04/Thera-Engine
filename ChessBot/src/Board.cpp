@@ -1,15 +1,13 @@
 #include "ChessBot/Board.hpp"
+#include "ChessBot/Utils.hpp"
 
 #include <stdexcept>
+#include <assert.h>
 
 namespace ChessBot{
 
-static uint8_t coordToIndex(uint8_t x, uint8_t y){
-	return x + y * 8;
-}
-
 Piece& Board::at(uint8_t x, uint8_t y){
-	return squares.at(coordToIndex(x, y));
+	return squares.at(Utils::coordToIndex(x, y));
 }
 
 Piece& Board::at(uint8_t index){
@@ -18,7 +16,7 @@ Piece& Board::at(uint8_t index){
 
 
 Piece const& Board::at(uint8_t x, uint8_t y) const{
-	return squares.at(coordToIndex(x, y));
+	return squares.at(Utils::coordToIndex(x, y));
 }
 
 Piece const& Board::at(uint8_t index) const{
@@ -85,6 +83,14 @@ void Board::loadFromFEN(std::string fen){
 
 	// TODO: Implement full FEN parsing (not just the piece positions)
 	
+}
+
+
+void Board::applyMove(Move const& move){
+	assert(move.startIndex != move.endIndex);
+
+	at(move.endIndex) = at(move.startIndex);
+	at(move.startIndex) = Piece::Empty;
 }
 
 }
