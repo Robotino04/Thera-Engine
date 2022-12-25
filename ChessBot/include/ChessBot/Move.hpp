@@ -6,7 +6,9 @@
 namespace ChessBot{
 
 struct Move{
-    uint8_t startIndex, endIndex;
+    Move(int8_t start, int8_t end): startIndex(start), endIndex(end){}
+    Move(): startIndex(0), endIndex(0){}
+    int8_t startIndex, endIndex;
 
     /**
      * @brief Parse a string as a move.
@@ -17,10 +19,8 @@ struct Move{
      *  "h7d4"
      * 
      * @param str the string to parse from
-     * @return true the string was correctly parsed
-     * @return false the string was invalid
      */
-    bool fromString(std::string const& str);
+    void fromString(std::string const& str);
 };
 
 }
