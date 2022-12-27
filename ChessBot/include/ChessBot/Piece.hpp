@@ -31,12 +31,18 @@ class Piece{
 		void setType(PieceType type){
 			raw = (raw & (0xFF ^ typeBitMask)) | static_cast<uint8_t>(type);
 		}
+		void setHasMoved(bool x){
+			setBit(hasMovedBit, x);
+		}
 
 		PieceColor getColor() const{
 			return static_cast<PieceColor>(getBit(colorBit));
 		}
 		PieceType getType() const{
 			return static_cast<PieceType>(raw & typeBitMask);
+		}
+		bool getHasMoved() const{
+			return getBit(hasMovedBit);
 		}
 	
 	private:
