@@ -85,22 +85,108 @@ void Board::loadFromFEN(std::string fen){
 		}
 	}
 	parse_turn:
-	if (fen.at(++charIndex) == 'w') colorToMove = PieceColor::White;
-	else colorToMove = PieceColor::Black;
+	charIndex++; // skip space
 
-	// TODO: Implement full FEN parsing (not just the piece positions)
+
+	if (fen.at(charIndex) == 'w') colorToMove = PieceColor::White;
+	else if(fen.at(charIndex) == 'b') colorToMove = PieceColor::Black;
+	else
+		throw std::invalid_argument(std::string("Invalid character '") + fen.at(charIndex) + "' in FEN string!");
+	charIndex ++; // consume side to move
+
+	canCastleLeft.fill(false);
+	canCastleRight.fill(false);
+
+	while (fen.at(++charIndex) != ' '){
+		switch(fen.at(charIndex)){
+			case 'k': canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = true; break;
+			case 'K': canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = true; break;
+			case 'q': canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = true; break;
+			case 'Q': canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = true; break;
+			case '-': goto parse_en_passant;
+			default:
+				throw std::invalid_argument(std::string("Invalid character '") + fen.at(charIndex-1) + "' in FEN string!");
+				break;
+		}
+	}
+	parse_en_passant:
+	charIndex++; // skip space
+
+	// TODO: Implement full FEN parsing
 	
 }
 
 void Board::applyMove(Move const& move){
+	applyMoveStatic(move);
+
+	// update State
+	colorToMove = Utils::oppositeColor(colorToMove);
+}
+
+void Board::applyMoveStatic(Move const& move){
 	assert(move.startIndex != move.endIndex);
+
+	switch(move.startIndex){
+		// rook moves
+		case Utils::coordToIndex(0,0): canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(7,0): canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+		case Utils::coordToIndex(0,7): canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(7,7): canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+	
+		// king moves
+		case Utils::coordToIndex(4, 0):
+			canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			break;
+		case Utils::coordToIndex(4, 7):
+			canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			break;
+	}
+	switch(move.endIndex){
+		// rook moves
+		case Utils::coordToIndex(0,0): canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(7,0): canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+		case Utils::coordToIndex(0,7): canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(7,7): canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+	
+		// king moves
+		case Utils::coordToIndex(4, 0):
+			canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			break;
+		case Utils::coordToIndex(4, 7):
+			canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			break;
+	}
 
 	at(move.endIndex) = at(move.startIndex);
 	at(move.startIndex).setType(PieceType::None);
+
+	at(move.startIndex).setHasMoved(true);
+	at(move.endIndex).setHasMoved(true);
+
+	// apply auxiliary moves
+	if (move.auxiliaryMove)
+		applyMoveStatic(*move.auxiliaryMove);
 }
 
 PieceColor Board::getColorToMove() const{
 	return colorToMove;
+}
+
+std::array<bool, 2> const& Board::getCastleLeft() const {
+	return canCastleLeft;
+}
+bool Board::getCastleLeft(PieceColor color) const{
+	return canCastleLeft.at(static_cast<uint8_t>(color));
+}
+std::array<bool, 2> const& Board::getCastleRight() const {
+	return canCastleRight;
+}
+bool Board::getCastleRight(PieceColor color) const{
+	return canCastleRight.at(static_cast<uint8_t>(color));
 }
 
 }

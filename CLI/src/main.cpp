@@ -9,6 +9,7 @@
 #include <map>
 #include <stdint.h>
 #include <stdexcept>
+#include <algorithm>
 
 struct RGB{
 	uint8_t red = 0, green = 0, blue = 0;
@@ -40,6 +41,11 @@ RGB overlay(RGB base, RGB transparent, float opacity){
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
 static const RGB highlightSquareSelected = {247, 92, 255};
+
+std::string setConditionalColor(bool condition){
+	if (condition) 	return ANSI::set4BitColor(ANSI::Green, ANSI::Background);
+	else 			return ANSI::set4BitColor(ANSI::Red, ANSI::Background);
+}
 
 void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
 	using namespace ChessBot;
@@ -90,8 +96,29 @@ void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareH
 				<< " ";
 		}
 		std::cout
-			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << static_cast<int>(8-y) << " "
-			<< ANSI::reset() << " \n";
+			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << static_cast<int>(8-y) << " " << ANSI::reset();
+
+		// print board stats
+		switch(y){
+			case 0:
+				std::cout << "  Castling: [White] [Black]";
+				break;
+			case 1:
+				std::cout << "            ";
+				std::cout << setConditionalColor(board.getCastleLeft(ChessBot::PieceColor::White)) << "[Q]";
+				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << setConditionalColor(board.getCastleRight(ChessBot::PieceColor::White)) << "[K]";
+				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << setConditionalColor(board.getCastleLeft(ChessBot::PieceColor::Black)) << "[Q]";
+				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << setConditionalColor(board.getCastleRight(ChessBot::PieceColor::Black)) << "[K]";
+
+				break;
+			default:
+				break;
+		}
+
+		std::cout << ANSI::reset() << " \n";
 	}
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
 }
@@ -123,8 +150,9 @@ int main(int argc, const char** argv){
 
 
 	ChessBot::Board board;
-	//board.loadFromFEN("8/2p2p2/1pb2k1p/4R3/p3pK2/7P/2P3P1/8 w - - 0 36");
-	board.loadFromFEN("1qbnr1k1/7p/8/8/8/8/P7/1K1RNBQ1 w - - 0 1");
+	board.loadFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
+	// board.loadFromFEN("1qbnr1k1/7p/8/8/8/8/P7/1K1RNBQ1 w - - 0 1");
+	// board.loadFromFEN(ChessBot::Utils::startingFEN);
 
 	std::array<RGB, 64> highlights;
 	highlights.fill(RGB());
@@ -148,7 +176,7 @@ int main(int argc, const char** argv){
 				break;
 			}
 			catch (std::invalid_argument){
-				std::cout << "Invalid Move!\n";
+				std::cout << "Invalid move!\n";
 			}
 		}
 
@@ -164,21 +192,48 @@ int main(int argc, const char** argv){
 		}
 		printBoard(board, highlights, options);
 
+		bool forceMove = false;
+
 		while(true){
 			std::cout << "Move end: " << std::flush;
 			std::cin >> moveStr;
 			if (moveStr == "exit") goto exit;
 			if (moveStr == "other") goto skipMove;
+			if (moveStr.size() == 3 && moveStr[2] == 'F') forceMove = true;
 			try{
-				userMove.endIndex = ChessBot::Utils::squareFromString(moveStr);
+				userMove.endIndex = ChessBot::Utils::squareFromString(moveStr.substr(0,2));
 				break;
 			}
 			catch (std::invalid_argument){
-				std::cout << "Invalid Move!\n";
+				std::cout << "Invalid move!\n";
 			}
 		}
 
-		board.applyMove(userMove);
+		if (forceMove){
+			if (board.getColorToMove() == board.at(userMove.startIndex).getColor())
+				board.applyMove(userMove);
+			else
+				board.applyMoveStatic(userMove);
+		}
+		else{
+			auto moveIt = std::find_if(
+				possibleMoves.begin(),
+				possibleMoves.end(),
+				[&](ChessBot::Move const& m){
+					return ChessBot::Move::isSameBaseMove(userMove, m);
+				}
+			);
+			if (moveIt != possibleMoves.end()){
+				// apply the found move since the user move
+				// won't have any auxiliary moves attached
+				board.applyMove(*moveIt);
+			}
+			else{
+				std::cout << "Impossible move!\n";
+			}
+		}
+		
+
 	skipMove:
 		highlights.fill(RGB());
 		printBoard(board, highlights, options);

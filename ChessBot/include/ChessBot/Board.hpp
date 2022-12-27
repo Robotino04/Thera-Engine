@@ -96,6 +96,64 @@ class Board{
 		Piece const& at(int8_t index) const;
 
 		/**
+		 * @brief Load a board position from a FEN string.
+		 * 
+		 * @see	https://de.wikipedia.org/wiki/Forsyth-Edwards-Notation
+		 * 
+		 * @param fen fen string
+		 */
+		void loadFromFEN(std::string fen);
+
+		/**
+		 * @brief Make a move on the board and update the state.
+		 * 
+		 * @param move
+		 */
+		void applyMove(Move const& move);
+
+		/**
+		 * @brief Make a move on the board and keep the state static. (don't change color to move, etc.)
+		 * 
+		 * @param move
+		 */
+		void applyMoveStatic(Move const& move);
+
+		/**
+		 * @brief Get the color that has to make a move.
+		 * 
+		 * @return PieceColor 
+		 */
+		PieceColor getColorToMove() const;
+
+		/**
+		 * @brief Get the castling rights for the left side (queen side).
+		 * 
+		 * @return std::array<bool, 2> const& array of [can black castle, can white castle]
+		 */
+		std::array<bool, 2> const& getCastleLeft() const;
+
+		/**
+		 * @brief Get the castling rights for the left side (queen side).
+		 * 
+		 * @return bool can [color] castle left
+		 */
+		bool getCastleLeft(PieceColor color) const;
+
+		/**
+		 * @brief Get the castling rights for the right side (king side).
+		 * 
+		 * @return std::array<bool, 2> const& array of [can black castle, can white castle]
+		 */
+		std::array<bool, 2> const& getCastleRight() const;
+
+		/**
+		 * @brief Get the castling rights for the right side (king side).
+		 * 
+		 * @return bool can [color] castle right
+		 */
+		bool getCastleRight(PieceColor color) const;
+
+		/**
 		 * @brief Return if given index and offset are still on the board.
 		 * 
 		 * @param index the base index
@@ -116,35 +174,12 @@ class Board{
 		static constexpr int8_t applyOffset(int8_t index, int8_t offset){
 			return mailboxBigToSmall.at(mailboxSmallToBig.at(index) + offset);
 		}
-
-		/**
-		 * @brief Load a board position from a FEN string.
-		 * 
-		 * @see	https://de.wikipedia.org/wiki/Forsyth-Edwards-Notation
-		 * 
-		 * @param fen fen string
-		 */
-		void loadFromFEN(std::string fen);
-
-		/**
-		 * @brief Make a mve on the board and update the state.
-		 * 
-		 * @param move
-		 */
-		void applyMove(Move const& move);
-
-		/**
-		 * @brief Get the color that has to make a move.
-		 * 
-		 * @return PieceColor 
-		 */
-		PieceColor getColorToMove() const;
-
 	private:
 		std::array<Piece, 10*12> squares;
 
 		PieceColor colorToMove = PieceColor::White;
-
+		std::array<bool, 2> canCastleLeft = {true, true};
+		std::array<bool, 2> canCastleRight = {true, true};
 		
 
 		static constexpr std::array<int, 10*12> mailboxBigToSmall = Detail::generateMailboxBigToSmall();

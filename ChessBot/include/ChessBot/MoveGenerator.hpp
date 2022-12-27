@@ -44,6 +44,20 @@ class MoveGenerator{
          */
         void generateAllSlidingMoves(Board& board);
 
+        /**
+         * @brief Generate king and knight moves.
+         * 
+         * @param board the position to operate on
+         * @param square the square to generate moves for
+         */
+        void generateKingKnightMoves(Board& board, int8_t square);
+
+        /**
+         * @brief Generate all king and knight moves.
+         * 
+         * @param board the position to operate on
+         */
+        void generateAllKingKnightMoves(Board& board);
 
     public:
         static const int maxMovesPerPosition = 218;
@@ -51,6 +65,10 @@ class MoveGenerator{
         static constexpr std::array<int8_t, 8> slidingPieceOffsets = {
             1, -1, 10, -10, // Rook
             9, -9, 11, -11, // Bishop
+        };
+        static constexpr std::array<int8_t, 16> kingKnightOffsets = {
+            1, -1, 10, -10, 9, -9, 11, -11,   // King
+            -21, -19, -8, 12, 21, 19, 8, -12, // Knight
         };
 
     private:
