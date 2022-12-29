@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 
-add_executable(CLI "src/main.cpp")
+file(GLOB_RECURSE CLI_SRC "*.cpp" "*.hpp" "*.tpp")
+
+add_executable(CLI ${CLI_SRC})
 
 target_link_libraries(CLI PUBLIC ChessBot ANSI)
 target_include_directories(CLI PUBLIC "include/")

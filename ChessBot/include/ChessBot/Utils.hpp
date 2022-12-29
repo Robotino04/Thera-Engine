@@ -5,14 +5,16 @@
 #include <string>
 #include <tuple>
 #include <stdexcept>
+#include <array>
 
 namespace ChessBot::Utils{
 
 inline const std::string startingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+inline constexpr std::array<PieceType, 4> promotionPieces = {PieceType::Bishop, PieceType::Knight, PieceType::Queen, PieceType::Rook};
 
 /**
  * @brief Test if x is in the range [begin, end] 
- * 
+ *  
  * @tparam T the type of value to test
  * @param x the value to test
  * @param begin begin of range (inclusive)
@@ -27,6 +29,26 @@ constexpr bool isInRange(T x, T begin, T end){
 }
 
 /**
+ * @brief Get the x coordinate of a 8x8 square index.
+ * 
+ * @param square 
+ * @return constexpr int8_t 
+ */
+constexpr int8_t getXCoord(int8_t square){
+    return square % 8;
+}
+
+/**
+ * @brief Get the y coordinate of a 8x8 square index.
+ * 
+ * @param square 
+ * @return constexpr int8_t 
+ */
+constexpr int8_t getYCoord(int8_t square){
+    return square / 8;
+}
+
+/**
  * @brief Convert x, y to an array index.
  * 
  * @param x X coordinate
@@ -36,6 +58,10 @@ constexpr bool isInRange(T x, T begin, T end){
  */
 constexpr int8_t coordToIndex(int8_t x, int8_t y, int8_t width=8){
 	return x + y * width;
+}
+
+constexpr bool isOnLine(int8_t square, int8_t line){
+    return isInRange(square, coordToIndex(0, line), coordToIndex(7, line));
 }
 
 /**
@@ -62,5 +88,12 @@ constexpr PieceColor oppositeColor(PieceColor color){
  * @return int8_t the index
  */
 int8_t squareFromString(std::string const& str);
+
+template<typename T>
+T sign(T x){
+    if (x > T(0)) return T(1);
+    if (x < T(0)) return T(-1);
+    return T(0);
+}
 
 }
