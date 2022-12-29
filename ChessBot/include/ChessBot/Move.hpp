@@ -3,12 +3,22 @@
 #include <stdint.h>
 #include <string>
 
+#include "ChessBot/Piece.hpp"
+
 namespace ChessBot{
 
 struct Move{
     Move(int8_t start, int8_t end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
     Move(): startIndex(0), endIndex(0), auxiliaryMove(nullptr){}
-    Move(Move const& move): startIndex(move.startIndex), endIndex(move.endIndex){
+    Move(Move const& move){
+        startIndex = move.startIndex;
+        endIndex = move.endIndex;
+        promotionType = move.promotionType;
+        enPassantFile = move.enPassantFile;
+        isEnPassant = move.isEnPassant;
+        isCastling = move.isCastling;
+        isDoublePawnMove = move.isDoublePawnMove;
+
         if (move.auxiliaryMove)
             auxiliaryMove = new Move(*move.auxiliaryMove);
     }
@@ -17,6 +27,11 @@ struct Move{
     }
     int8_t startIndex, endIndex;
     Move* auxiliaryMove = nullptr;
+    PieceType promotionType = PieceType::None;
+    int8_t enPassantFile = 0;
+    bool isEnPassant = false;
+    bool isCastling = false;
+    bool isDoublePawnMove = false;
 
     /**
      * @brief Parse a string as a move.

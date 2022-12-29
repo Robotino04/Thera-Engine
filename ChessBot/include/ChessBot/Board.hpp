@@ -6,6 +6,7 @@
 #include <array>
 #include <stdint.h>
 #include <string>
+#include <stack>
 
 namespace ChessBot{
 struct Move;
@@ -96,6 +97,23 @@ class Board{
 		Piece const& at(int8_t index) const;
 
 		/**
+		 * @brief Return if a square is empty
+		 * 
+		 * @param square 
+		 * @return bool
+		 */
+		bool isEmpty(int8_t square) const;
+
+		/**
+		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
+		 * 
+		 * @param square 
+		 * @return true 
+		 * @return false 
+		 */
+		bool isFriendly(int8_t square) const;
+
+		/**
 		 * @brief Load a board position from a FEN string.
 		 * 
 		 * @see	https://de.wikipedia.org/wiki/Forsyth-Edwards-Notation
@@ -117,6 +135,12 @@ class Board{
 		 * @param move
 		 */
 		void applyMoveStatic(Move const& move);
+
+		/**
+		 * @brief Rewind the last applied move.
+		 * 
+		 */
+		void rewindMove();
 
 		/**
 		 * @brief Get the color that has to make a move.
@@ -154,6 +178,13 @@ class Board{
 		bool getCastleRight(PieceColor color) const;
 
 		/**
+		 * @brief Get the en passant square.
+		 * 
+		 * @return int8_t 
+		 */
+		int8_t getEnPassantSquare();
+
+		/**
 		 * @brief Return if given index and offset are still on the board.
 		 * 
 		 * @param index the base index
@@ -175,14 +206,22 @@ class Board{
 			return mailboxBigToSmall.at(mailboxSmallToBig.at(index) + offset);
 		}
 	private:
-		std::array<Piece, 10*12> squares;
+		struct BoardState{
+			std::array<Piece, 10*12> squares;
 
-		PieceColor colorToMove = PieceColor::White;
-		std::array<bool, 2> canCastleLeft = {true, true};
-		std::array<bool, 2> canCastleRight = {true, true};
+			PieceColor colorToMove = PieceColor::White;
+			std::array<bool, 2> canCastleLeft = {true, true};
+			std::array<bool, 2> canCastleRight = {true, true};
+			int8_t enPassantSquare = 0;
+		};
+		BoardState currentState;
+		std::stack<BoardState> rewindStack;
+
 		
 
+		// converts from 10x12 to 8x8
 		static constexpr std::array<int, 10*12> mailboxBigToSmall = Detail::generateMailboxBigToSmall();
+		// converts from 8x8 to 10x12
 		static constexpr std::array<int, 8*8> mailboxSmallToBig = Detail::generateMailboxSmallToBig();
 };
 }

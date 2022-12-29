@@ -59,6 +59,29 @@ class MoveGenerator{
          */
         void generateAllKingKnightMoves(Board& board);
 
+        /**
+         * @brief Generate pawn moves.
+         * 
+         * @param board the position to operate on
+         * @param square the square to generate moves for
+         */
+        void generatePawnMoves(Board& board, int8_t square);
+
+        /**
+         * @brief Generate all pawn moves.
+         * 
+         * @param board the position to operate on
+         */
+        void generateAllPawnMoves(Board& board);
+
+        /**
+         * @brief Add a pawn move and apply promotions if needed.
+         * 
+         * @param startIndex the starting square
+         * @param endIndex the ending square
+         */
+        void addPawnMove(Move const& move, Board const& board);
+
     public:
         static const int maxMovesPerPosition = 218;
 
