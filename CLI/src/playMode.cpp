@@ -20,6 +20,7 @@
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
 static const RGB highlightSquareSelected = {247, 92, 255};
+static const RGB highlightBitboardPresent = {255, 242, 0};
 
 void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
 	using namespace ChessBot;
@@ -88,6 +89,11 @@ void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareH
 				std::cout << setConditionalColor(board.getCastleRight(ChessBot::PieceColor::Black), ANSI::Background) << "[K]";
 
 				break;
+			case 2:
+				if (options.shownBitboard.getType() != ChessBot::PieceType::None){
+					std::cout << "  Showing bitboard for " << ChessBot::Utils::pieceToString(options.shownBitboard, true);
+				}
+				break;
 			default:
 				break;
 		}
@@ -98,24 +104,88 @@ void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareH
 }
 
 struct MoveInputResult{
+	enum OperationType{
+		MakeMove,
+		UndoMove,
+		Continue,
+		ForceMove,
+		Exit,
+	};
+
 	ChessBot::Move move;
-	bool force = false;
-	bool redo = false;
-	bool exit = false;
+	OperationType op = OperationType::MakeMove;
 };
 
-void getUserMoveStart(MoveInputResult& result){
+void handleShowCommand(MoveInputResult& result, Options& options){
+	static const std::map<std::string, ChessBot::PieceType> stringToPieceType = {
+		{"p", ChessBot::PieceType::Pawn},
+		{"b", ChessBot::PieceType::Bishop},
+		{"n", ChessBot::PieceType::Knight},
+		{"r", ChessBot::PieceType::Rook},
+		{"q", ChessBot::PieceType::Queen},
+		{"k", ChessBot::PieceType::King},
+
+		{"pawn", 	ChessBot::PieceType::Pawn},
+		{"bishop", 	ChessBot::PieceType::Bishop},
+		{"knight", 	ChessBot::PieceType::Knight},
+		{"rook", 	ChessBot::PieceType::Rook},
+		{"queen", 	ChessBot::PieceType::Queen},
+		{"king", 	ChessBot::PieceType::King},
+	};
+	static const std::map<std::string, ChessBot::PieceColor> stringToPieceColor = {
+		{"white", 	ChessBot::PieceColor::White},
+		{"black", 	ChessBot::PieceColor::Black},
+		{"w", 		ChessBot::PieceColor::White},
+		{"b", 		ChessBot::PieceColor::Black},
+	};
+	result.op = MoveInputResult::Continue;
+
+	std::string buffer;
+
+	// parse color
+	std::cin >> buffer;
+	if (buffer == "none"){
+		options.shownBitboard.setType(ChessBot::PieceType::None);
+		return;
+	}
+
+	try{
+		options.shownBitboard.setColor(stringToPieceColor.at(buffer));
+	}
+	catch(std::out_of_range){
+		std::cout << "Invalid piece \"" << buffer << "\"!\n";
+	}
+
+	// parse type
+	std::cin >> buffer;
+	try{
+		options.shownBitboard.setType(stringToPieceType.at(buffer));
+	}
+	catch(std::out_of_range){
+		std::cout << "Invalid piece \"" << buffer << "\"!\n";
+	}
+}
+
+void getUserMoveStart(MoveInputResult& result, Options& options){
 	std::string buffer;
 	while(true){
 		std::cout << "Move start: " << std::flush;
 		std::cin >> buffer;
 		if (buffer == "exit"){
-			result.exit = true;
+			result.op = MoveInputResult::Exit;
+			return;
+		}
+		else if (buffer == "undo"){
+			result.op = MoveInputResult::UndoMove;
+			return;
+		}
+		else if (buffer == "show"){
+			handleShowCommand(result, options);
 			return;
 		}
 		else{
 			try{
-				result.move.startIndex = ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 4));
+				result.move.startIndex = ChessBot::Board::to10x12Coords(ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
 				break;
 			}
 			catch (std::invalid_argument){
@@ -125,25 +195,33 @@ void getUserMoveStart(MoveInputResult& result){
 	}
 }
 
-void getUserMoveEnd(MoveInputResult& result){
+void getUserMoveEnd(MoveInputResult& result, Options& options){
 	std::string buffer;
 	while(true){
 		std::cout << "Move end: " << std::flush;
 		std::cin >> buffer;
 		if (buffer == "exit"){
-			result.exit = true;
+			result.op = MoveInputResult::Exit;
 			return;
 		}
-		else if (buffer == "redo"){
-			result.redo = true;
+		else if (buffer == "change"){
+			result.op = MoveInputResult::Continue;
+			return;
+		}
+		else if (buffer == "undo"){
+			result.op = MoveInputResult::UndoMove;
+			return;
+		}
+		else if (buffer == "show"){
+			handleShowCommand(result, options);
 			return;
 		}
 		else{
 			if (buffer.at(buffer.size() - 1) == 'F'){
-				result.force = true;
+				result.op = MoveInputResult::ForceMove;
 			}
 			try{
-				result.move.endIndex = ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 4));
+				result.move.endIndex = ChessBot::Board::to10x12Coords(ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
 				return;
 			}
 			catch (std::invalid_argument){
@@ -151,6 +229,23 @@ void getUserMoveEnd(MoveInputResult& result){
 			}
 		}
 	}
+}
+
+void setBitboardHighlight(Options const& options, ChessBot::Board const& board, std::array<RGB, 64>& highlights){
+	if (options.shownBitboard.getType() != ChessBot::PieceType::None){
+		// highlight bitboard moves
+		for (auto square : board.getBitboard(options.shownBitboard)){
+			if (ChessBot::Board::isOnBoard10x12(square))
+				highlights.at(ChessBot::Board::to8x8Coords(square)) = highlightBitboardPresent;
+		}
+	}
+}
+
+void redrawGUI(Options const& options, ChessBot::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
+	std::cout << ANSI::clearScreen() << message << ANSI::reset() << "\n";
+	setBitboardHighlight(options, board, highlights);
+	printBoard(board, highlights, options);
+	highlights.fill(RGB());
 }
 
 int playMode(Options& options){
@@ -161,38 +256,54 @@ int playMode(Options& options){
 
 	std::array<RGB, 64> highlights;
 	highlights.fill(RGB());
-
-	printBoard(board, highlights, options);
+	options.shownBitboard = ChessBot::Piece(ChessBot::PieceType::Rook, ChessBot::PieceColor::White);
 
 	ChessBot::MoveGenerator generator;
 
-	std::cout << "Enter move or type \"exit\".\n";
-	std::cout << "Change your move by typing \"other\".\n";
+	std::string message =  	"Enter move or type 'exit'.\n"
+							"Change your move by typing 'change'.\n"
+							"Undo last move using 'undo'.";
 	while (true){
 		MoveInputResult userInput;
+
+		redrawGUI(options, board, highlights, message);
 		
-		getUserMoveStart(userInput);
-		if (userInput.exit) break;
-
-		auto possibleMoves = generator.generateMoves(board, userInput.move.startIndex);
-		std::cout << "Number of moves: " << possibleMoves.size() << "\n";
-
-
-		// highlight all moves
-			highlights.at(userInput.move.startIndex) = highlightSquareSelected;
-		for (auto const& move : possibleMoves){
-			highlights.at(move.endIndex) = highlightMovePossible;
+		getUserMoveStart(userInput, options);
+		if (userInput.op == MoveInputResult::Exit) break;
+		else if (userInput.op == MoveInputResult::UndoMove){
+			board.rewindMove();
+			message = ANSI::set4BitColor(ANSI::Blue) + "Undone move." + ANSI::reset();
+			continue;
 		}
-		printBoard(board, highlights, options);
+		else if (userInput.op == MoveInputResult::Continue)
+			continue;
 
+		auto possibleMoves = generator.generateMoves(board, ChessBot::Board::to8x8Coords(userInput.move.startIndex));
+		message = ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
 
-		getUserMoveEnd(userInput);
+		if (options.shownBitboard.getType() == ChessBot::PieceType::None){
+			// highlight all moves
+			highlights.at(ChessBot::Board::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
+			for (auto const& move : possibleMoves){
+				highlights.at(ChessBot::Board::to8x8Coords(move.endIndex)) = highlightMovePossible;
+			}
+		}
 
-		if (userInput.force){
-			if (board.getColorToMove() == board.at(userInput.move.startIndex).getColor())
+		redrawGUI(options, board, highlights, message);
+		
+		getUserMoveEnd(userInput, options);
+		if (userInput.op == MoveInputResult::Continue)
+			continue;
+		else if (userInput.op == MoveInputResult::ForceMove){
+			if (board.getColorToMove() == board.at10x12(userInput.move.startIndex).getColor())
 				board.applyMove(userInput.move);
 			else
 				board.applyMoveStatic(userInput.move);
+			message = ANSI::set4BitColor(ANSI::Blue) + "Forced move." + ANSI::reset();
+		}
+		else if (userInput.op == MoveInputResult::UndoMove){
+			board.rewindMove();
+			message = ANSI::set4BitColor(ANSI::Blue) + "Undone move." + ANSI::reset();
 		}
 		else{
 			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return ChessBot::Move::isSameBaseMove(userInput.move, other);});
@@ -202,14 +313,11 @@ int playMode(Options& options){
 				board.applyMove(*moveIt);
 			}
 			else{
-				std::cout << "Impossible move!\n";
+				message = ANSI::set4BitColor(ANSI::Red) + "Invalid move!" + ANSI::reset();
 			}
 		}
-		
-		highlights.fill(RGB());
-		printBoard(board, highlights, options);
 	}
 
-	std::cout << "Bye...\n" << ANSI::reset();
+	std::cout << ANSI::reset() << "Bye...\n";
 	return 0;
 }
