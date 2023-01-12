@@ -1,5 +1,5 @@
 #include "ChessBot/Move.hpp"
-#include "ChessBot/Utils.hpp"
+#include "ChessBot/Utils/ChessTerms.hpp"
 
 #include <stdexcept>
 
@@ -7,8 +7,8 @@ namespace ChessBot{
 
 void Move::fromString(std::string const& str){
     if (str.size() != 4) throw std::invalid_argument("\"" + str + "\" isn't a valid square");
-    startIndex = Utils::squareFromString(str.substr(0, 2));
-    endIndex = Utils::squareFromString(str.substr(2, 2));
+    startIndex = Utils::squareFromAlgebraicNotation(str.substr(0, 2));
+    endIndex = Utils::squareFromAlgebraicNotation(str.substr(2, 2));
 }
 
 bool Move::operator ==(Move const& other) const{

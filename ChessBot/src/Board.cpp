@@ -1,82 +1,77 @@
 #include "ChessBot/Board.hpp"
-#include "ChessBot/Utils.hpp"
 #include "ChessBot/Move.hpp"
+
+#include "ChessBot/Utils/Coordinates.hpp"
+#include "ChessBot/Utils/Math.hpp"
+#include "ChessBot/Utils/ChessTerms.hpp"
+#include "ChessBot/Utils/BuildType.hpp"
 
 #include <stdexcept>
 #include <assert.h>
+#include <map>
 
 namespace ChessBot{
 
 Piece& Board::at(int8_t x, int8_t y){
-	return currentState.squares.at(mailboxSmallToBig[Utils::coordToIndex(x, y)]);
+	return at(Utils::coordToIndex(x, y));
 }
 Piece& Board::at(int8_t x, int8_t y, int8_t offset){
-	return currentState.squares.at(mailboxSmallToBig[Utils::coordToIndex(x, y) + offset]);
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(to10x12Coords(Utils::coordToIndex(x, y) + offset));
+	else
+		return currentState.squares[to10x12Coords(Utils::coordToIndex(x, y) + offset)];
 }
 
 Piece& Board::at(int8_t index){
-	return currentState.squares.at(mailboxSmallToBig[index]);
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(to10x12Coords(index));
+	else
+		return currentState.squares[to10x12Coords(index)];
 }
-
 
 Piece const& Board::at(int8_t x, int8_t y) const{
-	return currentState.squares.at(mailboxSmallToBig[Utils::coordToIndex(x, y)]);
+	return at(Utils::coordToIndex(x, y));
 }
 Piece const& Board::at(int8_t x, int8_t y, int8_t offset) const{
-	return currentState.squares.at(mailboxSmallToBig[Utils::coordToIndex(x, y) + offset]);
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(to10x12Coords(Utils::coordToIndex(x, y) + offset));
+	else
+		return currentState.squares[to10x12Coords(Utils::coordToIndex(x, y) + offset)];
 }
 
 Piece const& Board::at(int8_t index) const{
-	return currentState.squares.at(mailboxSmallToBig[index]);
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(to10x12Coords(index));
+	else
+		return currentState.squares[to10x12Coords(index)];
 }
 
-bool Board::isEmpty(int8_t square) const{
-	return at(square).getType() == PieceType::None;
+bool Board::isOccupied(int8_t square) const{
+	return at(square).getType() != PieceType::None;
 }
+
 bool Board::isFriendly(int8_t square) const{
 	return at(square).getColor() == currentState.colorToMove;
 }
 
 void Board::loadFromFEN(std::string fen){
+	static const std::map<char, PieceType> fenCharsToPieceType = {
+		{'p', PieceType::Pawn},
+		{'b', PieceType::Bishop},
+		{'n', PieceType::Knight},
+		{'r', PieceType::Rook},
+		{'q', PieceType::Queen},
+		{'k', PieceType::King},
+
+	};
 	for (auto& piece : currentState.squares){
-		piece.setType(PieceType::None);
-		piece.setColor(PieceColor::White);
+		piece.clear();
 	}
 	int8_t x = 0, y = 0;
 	int charIndex = -1;
 	while(++charIndex < fen.size()){
 		char c = fen.at(charIndex);
 		switch (tolower(c)){
-			case 'p':
-				at(x, y).setType(PieceType::Pawn);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
-			case 'n':
-				at(x, y).setType(PieceType::Knight);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
-			case 'b':
-				at(x, y).setType(PieceType::Bishop);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
-			case 'r':
-				at(x, y).setType(PieceType::Rook);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
-			case 'q':
-				at(x, y).setType(PieceType::Queen);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
-			case 'k':
-				at(x, y).setType(PieceType::King);
-				at(x, y).setColor(tolower(c) == c ? PieceColor::Black : PieceColor::White);
-				x++;
-				break;
 			case '/':
 				y++;
 				x = 0;
@@ -87,7 +82,13 @@ void Board::loadFromFEN(std::string fen){
 			case ' ':
 				goto parse_turn;
 			default:
+				try{
+					placePiece(Utils::coordToIndex(x, y), Piece(fenCharsToPieceType.at(tolower(c)), islower(c) ? PieceColor::Black : PieceColor::White));
+					x++;
+				}
+				catch(std::out_of_range){
 				throw std::invalid_argument(std::string("Invalid character '") + c + "' in FEN string!");
+				}
 				break;
 		}
 	}
@@ -123,7 +124,7 @@ void Board::loadFromFEN(std::string fen){
 		throw std::invalid_argument(std::string("Invalid character '") + fen.at(charIndex) + "' in FEN string!");
 	}
 	if (fen.at(charIndex) != '-'){
-		currentState.enPassantSquare = Utils::squareFromString(fen.substr(charIndex, 2));
+		currentState.enPassantSquare = Utils::squareFromAlgebraicNotation(fen.substr(charIndex, 2));
 		charIndex += 1;
 	}
 	charIndex += 2; // skip sth and space
@@ -141,7 +142,7 @@ void Board::applyMove(Move const& move){
 	applyMoveStatic(move);
 
 	// update State
-	currentState.colorToMove = Utils::oppositeColor(currentState.colorToMove);
+	currentState.colorToMove = currentState.colorToMove.opposite();
 }
 
 void Board::applyMoveStatic(Move const& move){
@@ -150,8 +151,8 @@ void Board::applyMoveStatic(Move const& move){
 	switch(move.startIndex){
 		// rook moves
 		case Utils::coordToIndex(0,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(7,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-		case Utils::coordToIndex(0,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(0,7): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+		case Utils::coordToIndex(7,0): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
 		case Utils::coordToIndex(7,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
 	
 		// king moves
@@ -167,8 +168,8 @@ void Board::applyMoveStatic(Move const& move){
 	switch(move.endIndex){
 		// rook moves
 		case Utils::coordToIndex(0,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(7,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-		case Utils::coordToIndex(0,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Utils::coordToIndex(0,7): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+		case Utils::coordToIndex(7,0): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
 		case Utils::coordToIndex(7,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
 	
 		// king moves
@@ -183,15 +184,16 @@ void Board::applyMoveStatic(Move const& move){
 	}
 
 	at(move.endIndex) = at(move.startIndex);
-	at(move.startIndex).setType(PieceType::None);
+	at(move.startIndex).clear();
 
 	// promotion
-	if (move.promotionType != PieceType::None)
-		at(move.endIndex).setType(move.promotionType);
+	if (move.promotionType != PieceType::None){
+		placePiece(move.endIndex, Piece(move.promotionType, currentState.colorToMove));
+	}
 
 	// en passant
 	if (move.isEnPassant){
-		at(currentState.enPassantSquare).setType(PieceType::None);
+		removePiece(currentState.enPassantSquare);
 	}
 	if (move.isDoublePawnMove){
 		currentState.enPassantSquare = move.endIndex;
@@ -199,9 +201,6 @@ void Board::applyMoveStatic(Move const& move){
 	else{
 		currentState.enPassantSquare = -1;
 	}
-
-	at(move.startIndex).setHasMoved(true);
-	at(move.endIndex).setHasMoved(true);
 
 	// apply auxiliary moves
 	if (move.auxiliaryMove)
@@ -235,6 +234,15 @@ bool Board::getCastleRight(PieceColor color) const{
 
 int8_t Board::getEnPassantSquare(){
 	return currentState.enPassantSquare;
+}
+
+void Board::placePiece(int8_t square, Piece piece){
+	at(square) = piece;
+}
+
+void Board::removePiece(int8_t square){
+	Piece& piece = at(square);
+	piece.clear();
 }
 
 }

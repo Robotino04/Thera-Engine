@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ChessBot/Piece.hpp"
-#include "ChessBot/Utils.hpp"
+#include "ChessBot/Utils/Coordinates.hpp"
 
 #include <array>
 #include <stdint.h>
@@ -97,12 +97,12 @@ class Board{
 		Piece const& at(int8_t index) const;
 
 		/**
-		 * @brief Return if a square is empty
+		 * @brief Return if a square is occupied
 		 * 
 		 * @param square 
 		 * @return bool
 		 */
-		bool isEmpty(int8_t square) const;
+		bool isOccupied(int8_t square) const;
 
 		/**
 		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
@@ -184,16 +184,32 @@ class Board{
 		 */
 		int8_t getEnPassantSquare();
 
+		
 		/**
-		 * @brief Return if given index and offset are still on the board.
+		 * @brief Place a piece onto the board.
+		 * 
+		 * @param square the square 
+		 * @param piece the piece to place
+		 */
+		void placePiece(int8_t square, Piece piece);
+
+		/**
+		 * @brief Remove a piece from the board.
+		 * 
+		 * @param square the square
+		 */
+		void removePiece(int8_t square);
+
+		/**
+		 * @brief Return if given index(8x8) and offset(10x12) are still on the board.
 		 * 
 		 * @param index the base index
 		 * @param offset the offset
 		 * @return bool
 		 */
-		static constexpr bool isOnBoard(int8_t index, int8_t offset) {
-			return mailboxBigToSmall.at(mailboxSmallToBig.at(index) + offset) != -1;
-		};
+		static constexpr bool isOnBoard(int8_t index, int8_t offset=0) {
+			return applyOffset(index, offset) != -1;
+		}
 
 		/**
 		 * @brief Apply a 10x12 offset to 8x8 coordinates.
@@ -205,6 +221,14 @@ class Board{
 		static constexpr int8_t applyOffset(int8_t index, int8_t offset){
 			return mailboxBigToSmall.at(mailboxSmallToBig.at(index) + offset);
 		}
+
+		static constexpr int8_t to8x8Coords(int8_t index){
+			return mailboxBigToSmall.at(index);
+		}
+		static constexpr int8_t to10x12Coords(int8_t index){
+			return mailboxSmallToBig.at(index);
+		}
+
 	private:
 		struct BoardState{
 			std::array<Piece, 10*12> squares;

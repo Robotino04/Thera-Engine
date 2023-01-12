@@ -6,8 +6,7 @@ namespace ChessBot::Utils{
 
 class ScopeGuard{
     public:
-        ScopeGuard(std::function<void()> begin, std::function<void()> end): end(end){
-            begin();
+        ScopeGuard(std::function<void()> end): end(end){
         }
         ~ScopeGuard(){
             end();

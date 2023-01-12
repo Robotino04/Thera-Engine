@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#include "ChessBot/Utils/Bits.hpp"
+
 namespace ChessBot{
 
 enum class PieceType : uint8_t{
@@ -14,56 +16,93 @@ enum class PieceType : uint8_t{
 	King = 6,
 };
 
-enum class PieceColor: uint8_t{
-	White = 0,
-	Black = 1,
+class PieceColor{
+	public:
+  		enum Value : uint8_t{
+			White = 0,
+			Black = 1,
+		};
+
+	public:
+		PieceColor() = default;
+		constexpr PieceColor(Value color) : value(color) {}
+
+		// Allow switch and comparisons.
+		constexpr operator Value() const { return value; }
+
+		// Prevent usage: if(fruit)
+		explicit operator bool() const = delete;
+		constexpr bool operator ==(PieceColor other) const { return value == other.value; }
+		constexpr bool operator !=(PieceColor other) const { return value != other.value; }
+
+		constexpr bool operator ==(Value other) const { return value == other; }
+		constexpr bool operator !=(Value other) const { return value != other; }
+		
+		constexpr PieceColor opposite() const { return value == White ? Black : White; }
+
+	private:
+		Value value;
 };
 
 class Piece{
 	public:
-		bool operator ==(Piece const& other) const{
+		constexpr Piece(): raw(0) {}
+		constexpr Piece(PieceType type, PieceColor color){
+			setType(type);
+			setColor(color);
+		}
+
+		constexpr bool operator ==(Piece const& other) const{
 			return this->raw == other.raw;
 		}
 
-		void setColor(PieceColor color){
+		constexpr void setColor(PieceColor color){
 			setBit(colorBit, static_cast<uint8_t>(color));
 		}
-		void setType(PieceType type){
-			raw = (raw & (0xFF ^ typeBitMask)) | static_cast<uint8_t>(type);
+		constexpr void setType(PieceType type){
+			raw = (raw & (~typeBitMask)) | static_cast<uint8_t>(type);
 		}
-		void setHasMoved(bool x){
-			setBit(hasMovedBit, x);
+		constexpr void clear(){
+			raw = 0;
 		}
 
-		PieceColor getColor() const{
-			return static_cast<PieceColor>(getBit(colorBit));
+		constexpr PieceColor getColor() const{
+			return static_cast<PieceColor::Value>(getBit(colorBit));
 		}
-		PieceType getType() const{
+		constexpr PieceType getType() const{
 			return static_cast<PieceType>(raw & typeBitMask);
 		}
-		bool getHasMoved() const{
-			return getBit(hasMovedBit);
+
+		constexpr uint8_t getRaw() const{
+			return raw;
 		}
+
 	
 	private:
 
-		inline void setBit(int bit, int8_t value){
-			raw = (raw & ~(1 << bit)) | ((value & 1) << bit);
+		constexpr  void setBit(int bit, uint8_t value){
+			raw = Utils::setBit(raw, bit, value);
 		}
-		inline uint8_t getBit(int bit) const{
-			return (raw >> bit) & 1;
+		constexpr  uint8_t getBit(int bit) const{
+			return Utils::getBit(raw, bit);
 		}
 		
 
-		uint8_t raw;
+		/*
+		Layout:
+			76543210
+			XXXXCTTT
 
-		static constexpr uint8_t colorBit = 7;
-		static constexpr uint8_t castleBit = 4;
-		static constexpr uint8_t hasMovedBit = 3;
+			C: piece color
+			T: piece type
+			X: unused
+		*/
+
+		uint8_t raw = 0;
+
+		static constexpr uint8_t colorBit = 3;
 
 		static constexpr uint8_t colorBitMask = 1 << colorBit;
-		static constexpr uint8_t castleBitMask = 1 << castleBit;
-		static constexpr uint8_t hasMovedBitMask = 1 << hasMovedBit;
 		static constexpr uint8_t typeBitMask = 0b111;
 };
 static_assert(sizeof(Piece) == 1);
