@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChessBot/Piece.hpp"
+#include "ChessBot/Bitboard.hpp"
 #include "ChessBot/Utils/Coordinates.hpp"
 
 #include <array>
@@ -69,6 +70,14 @@ class Board{
 		Piece& at(int8_t index);
 
 		/**
+		 * @brief Return the piece at (index).
+		 * 
+		 * @param index index
+		 * @return Piece& piece
+		 */
+		Piece& at10x12(int8_t index);
+
+		/**
 		 * @brief Return the piece at (x, y).
 		 * 
 		 * @param x X coordinate
@@ -97,9 +106,17 @@ class Board{
 		Piece const& at(int8_t index) const;
 
 		/**
+		 * @brief Return the piece at (index).
+		 * 
+		 * @param index index
+		 * @return Piece& piece
+		 */
+		Piece const& at10x12(int8_t index) const;
+		
+		/**
 		 * @brief Return if a square is occupied
 		 * 
-		 * @param square 
+		 * @param square
 		 * @return bool
 		 */
 		bool isOccupied(int8_t square) const;
@@ -184,7 +201,21 @@ class Board{
 		 */
 		int8_t getEnPassantSquare();
 
-		
+		/**
+		 * @brief Get the bitboard to place a particular piece. 
+		 * 
+		 * @param piece the piece
+		 * @return Bitboard<12>& the bitboard containing these pieces
+		 */
+		Bitboard<12>& getBitboard(Piece piece);
+		/**
+		 * @brief Get the bitboard to place a particular piece. 
+		 * 
+		 * @param piece the piece
+		 * @return Bitboard<12> const& the bitboard containing these pieces
+		 */
+		Bitboard<12> const& getBitboard(Piece piece) const;
+
 		/**
 		 * @brief Place a piece onto the board.
 		 * 
@@ -201,14 +232,32 @@ class Board{
 		void removePiece(int8_t square);
 
 		/**
+		 * @brief Remove castlings.
+		 * 
+		 * @param movedSquare the square whose piece got moved
+		 */
+		void removeCastlings(int8_t movedSquare);
+
+		/**
 		 * @brief Return if given index(8x8) and offset(10x12) are still on the board.
 		 * 
 		 * @param index the base index
 		 * @param offset the offset
 		 * @return bool
 		 */
-		static constexpr bool isOnBoard(int8_t index, int8_t offset=0) {
+		static constexpr bool isOnBoard8x8(int8_t index, int8_t offset=0) {
 			return applyOffset(index, offset) != -1;
+		}
+		
+		/**
+		 * @brief Return if given index(10x12) and offset(10x12) are still on the board.
+		 * 
+		 * @param index the base index
+		 * @param offset the offset
+		 * @return bool
+		 */
+		static constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
+			return mailboxBigToSmall.at(index + offset) != -1;
 		}
 
 		/**
@@ -232,6 +281,9 @@ class Board{
 	private:
 		struct BoardState{
 			std::array<Piece, 10*12> squares;
+			// size 16 to only use one index instead of two (for color and type)
+			std::array<Bitboard<12>, 16> pieceBitboards;
+			Bitboard<32> allPieceBitboard;
 
 			PieceColor colorToMove = PieceColor::White;
 			std::array<bool, 2> canCastleLeft = {true, true};

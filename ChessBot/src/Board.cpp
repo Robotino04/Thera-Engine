@@ -29,6 +29,13 @@ Piece& Board::at(int8_t index){
 		return currentState.squares[to10x12Coords(index)];
 }
 
+Piece& Board::at10x12(int8_t index){
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(index);
+	else
+		return currentState.squares[index];
+}
+
 Piece const& Board::at(int8_t x, int8_t y) const{
 	return at(Utils::coordToIndex(x, y));
 }
@@ -46,12 +53,19 @@ Piece const& Board::at(int8_t index) const{
 		return currentState.squares[to10x12Coords(index)];
 }
 
+Piece const& Board::at10x12(int8_t index) const {
+	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
+		return currentState.squares.at(index);
+	else
+		return currentState.squares[index];
+}
+
 bool Board::isOccupied(int8_t square) const{
-	return at(square).getType() != PieceType::None;
+	return at10x12(square).getType() != PieceType::None;
 }
 
 bool Board::isFriendly(int8_t square) const{
-	return at(square).getColor() == currentState.colorToMove;
+	return at10x12(square).getColor() == currentState.colorToMove;
 }
 
 void Board::loadFromFEN(std::string fen){
@@ -62,11 +76,15 @@ void Board::loadFromFEN(std::string fen){
 		{'r', PieceType::Rook},
 		{'q', PieceType::Queen},
 		{'k', PieceType::King},
-
 	};
 	for (auto& piece : currentState.squares){
 		piece.clear();
 	}
+	currentState.allPieceBitboard.clear();
+	for (auto& bitboard : currentState.pieceBitboards){
+		bitboard.clear();
+	}
+
 	int8_t x = 0, y = 0;
 	int charIndex = -1;
 	while(++charIndex < fen.size()){
@@ -81,15 +99,19 @@ void Board::loadFromFEN(std::string fen){
 				break;
 			case ' ':
 				goto parse_turn;
-			default:
+			default:{
+				Piece piece;
 				try{
-					placePiece(Utils::coordToIndex(x, y), Piece(fenCharsToPieceType.at(tolower(c)), islower(c) ? PieceColor::Black : PieceColor::White));
-					x++;
+					piece = Piece(fenCharsToPieceType.at(tolower(c)), islower(c) ? PieceColor::Black : PieceColor::White);
 				}
 				catch(std::out_of_range){
-				throw std::invalid_argument(std::string("Invalid character '") + c + "' in FEN string!");
+					throw std::invalid_argument(std::string("Invalid character '") + c + "' in FEN string!");
 				}
+
+				placePiece(Board::to10x12Coords(Utils::coordToIndex(x, y)), piece);
+				x++;
 				break;
+			}
 		}
 	}
 	parse_turn:
@@ -148,43 +170,20 @@ void Board::applyMove(Move const& move){
 void Board::applyMoveStatic(Move const& move){
 	assert(move.startIndex != move.endIndex);
 
-	switch(move.startIndex){
-		// rook moves
-		case Utils::coordToIndex(0,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(0,7): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-		case Utils::coordToIndex(7,0): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(7,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-	
-		// king moves
-		case Utils::coordToIndex(4, 0):
-			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false;
-			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false;
-			break;
-		case Utils::coordToIndex(4, 7):
-			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false;
-			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false;
-			break;
-	}
-	switch(move.endIndex){
-		// rook moves
-		case Utils::coordToIndex(0,0): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(0,7): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-		case Utils::coordToIndex(7,0): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
-		case Utils::coordToIndex(7,7): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
-	
-		// king moves
-		case Utils::coordToIndex(4, 0):
-			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false;
-			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false;
-			break;
-		case Utils::coordToIndex(4, 7):
-			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false;
-			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false;
-			break;
-	}
+	removeCastlings(move.startIndex);
+	removeCastlings(move.endIndex);
 
-	at(move.endIndex) = at(move.startIndex);
-	at(move.startIndex).clear();
+	// apply the move to the bitboards
+	if (currentState.allPieceBitboard.isOccupied(move.endIndex)){
+		// capture
+		getBitboard(at10x12(move.endIndex)).removePiece(move.endIndex);
+	}
+	currentState.allPieceBitboard.applyMove(move);
+	getBitboard(at10x12(move.startIndex)).applyMove(move);
+
+	// apply the move to the square centric representation
+	at10x12(move.endIndex) = at10x12(move.startIndex);
+	at10x12(move.startIndex).clear();
 
 	// promotion
 	if (move.promotionType != PieceType::None){
@@ -216,6 +215,13 @@ PieceColor Board::getColorToMove() const{
 	return currentState.colorToMove;
 }
 
+Bitboard<12>& Board::getBitboard(Piece piece){
+	return currentState.pieceBitboards.at(piece.getRaw());
+}
+Bitboard<12> const& Board::getBitboard(Piece piece) const {
+	return currentState.pieceBitboards.at(piece.getRaw());
+}
+
 std::array<bool, 2> const& Board::getCastleLeft() const {
 	return currentState.canCastleLeft;
 }
@@ -237,12 +243,39 @@ int8_t Board::getEnPassantSquare(){
 }
 
 void Board::placePiece(int8_t square, Piece piece){
-	at(square) = piece;
+	at10x12(square) = piece;
+
+	getBitboard(piece).placePiece(square);
+	currentState.allPieceBitboard.placePiece(square);
 }
 
 void Board::removePiece(int8_t square){
-	Piece& piece = at(square);
+	Piece& piece = at10x12(square);
+
+	currentState.allPieceBitboard.removePiece(square);
+	getBitboard(piece).removePiece(square);
+
 	piece.clear();
+}
+
+void Board::removeCastlings(int8_t movedSquare){
+	switch(movedSquare){
+		// rook moves
+		case Board::to10x12Coords(Utils::coordToIndex(0,0)): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Board::to10x12Coords(Utils::coordToIndex(0,7)): currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+		case Board::to10x12Coords(Utils::coordToIndex(7,0)): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false; break;
+		case Board::to10x12Coords(Utils::coordToIndex(7,7)): currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false; break;
+
+		// king moves
+		case Board::to10x12Coords(Utils::coordToIndex(4, 0)):
+			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::Black)) = false;
+			break;
+		case Board::to10x12Coords(Utils::coordToIndex(4, 7)):
+			currentState.canCastleLeft.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			currentState.canCastleRight.at(static_cast<uint8_t>(PieceColor::White)) = false;
+			break;
+	}
 }
 
 }

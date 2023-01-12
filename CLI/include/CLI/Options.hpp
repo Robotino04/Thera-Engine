@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ChessBot/Utils/ChessTerms.hpp"
+#include "ChessBot/Piece.hpp"
 
 #include <string>
 
@@ -15,4 +16,5 @@ struct Options {
 	int perftDepth = 1;
 	std::string fen = ChessBot::Utils::startingFEN;
 	bool bulkCounting = false;
+	ChessBot::Piece shownBitboard;
 };
