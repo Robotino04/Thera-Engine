@@ -2,9 +2,11 @@
 #include "CLI/IO.hpp"
 
 #include "ChessBot/Board.hpp"
-#include "ChessBot/Utils.hpp"
 #include "ChessBot/Move.hpp"
 #include "ChessBot/MoveGenerator.hpp"
+
+#include "ChessBot/Utils/Coordinates.hpp"
+#include "ChessBot/Utils/ChessTerms.hpp"
 
 #include "ANSI/ANSI.hpp"
 
@@ -13,6 +15,7 @@
 #include <stdexcept>
 #include <algorithm>
 #include <iostream>
+#include <functional>
 
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
@@ -94,7 +97,63 @@ void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareH
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
 }
 
-int playMode(Options const& options){
+struct MoveInputResult{
+	ChessBot::Move move;
+	bool force = false;
+	bool redo = false;
+	bool exit = false;
+};
+
+void getUserMoveStart(MoveInputResult& result){
+	std::string buffer;
+	while(true){
+		std::cout << "Move start: " << std::flush;
+		std::cin >> buffer;
+		if (buffer == "exit"){
+			result.exit = true;
+			return;
+		}
+		else{
+			try{
+				result.move.startIndex = ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 4));
+				break;
+			}
+			catch (std::invalid_argument){
+				std::cout << "Invalid move!\n";
+			}
+		}
+	}
+}
+
+void getUserMoveEnd(MoveInputResult& result){
+	std::string buffer;
+	while(true){
+		std::cout << "Move end: " << std::flush;
+		std::cin >> buffer;
+		if (buffer == "exit"){
+			result.exit = true;
+			return;
+		}
+		else if (buffer == "redo"){
+			result.redo = true;
+			return;
+		}
+		else{
+			if (buffer.at(buffer.size() - 1) == 'F'){
+				result.force = true;
+			}
+			try{
+				result.move.endIndex = ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 4));
+				return;
+			}
+			catch (std::invalid_argument){
+				std::cout << "Invalid move!\n";
+			}
+		}
+	}
+}
+
+int playMode(Options& options){
 	ChessBot::Board board;
 	board.loadFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1");
 	// board.loadFromFEN("1qbnr1k1/7p/8/8/8/8/P7/1K1RNBQ1 w - - 0 1");
@@ -110,65 +169,33 @@ int playMode(Options const& options){
 	std::cout << "Enter move or type \"exit\".\n";
 	std::cout << "Change your move by typing \"other\".\n";
 	while (true){
-		std::string moveStr;
-		ChessBot::Move userMove;
+		MoveInputResult userInput;
 		
-		while(true){
-			std::cout << "Move start: " << std::flush;
-			std::cin >> moveStr;
-			if (moveStr == "exit") goto exit;
-			try{
-				userMove.startIndex = ChessBot::Utils::squareFromString(moveStr);
-				break;
-			}
-			catch (std::invalid_argument){
-				std::cout << "Invalid move!\n";
-			}
-		}
+		getUserMoveStart(userInput);
+		if (userInput.exit) break;
 
-
-		auto possibleMoves = generator.generateMoves(board, userMove.startIndex);
+		auto possibleMoves = generator.generateMoves(board, userInput.move.startIndex);
 		std::cout << "Number of moves: " << possibleMoves.size() << "\n";
 
 
 		// highlight all moves
-		highlights.at(userMove.startIndex) = highlightSquareSelected;
+			highlights.at(userInput.move.startIndex) = highlightSquareSelected;
 		for (auto const& move : possibleMoves){
 			highlights.at(move.endIndex) = highlightMovePossible;
 		}
 		printBoard(board, highlights, options);
 
-		bool forceMove = false;
 
-		while(true){
-			std::cout << "Move end: " << std::flush;
-			std::cin >> moveStr;
-			if (moveStr == "exit") goto exit;
-			if (moveStr == "other") goto skipMove;
-			if (moveStr.size() == 3 && moveStr[2] == 'F') forceMove = true;
-			try{
-				userMove.endIndex = ChessBot::Utils::squareFromString(moveStr.substr(0,2));
-				break;
-			}
-			catch (std::invalid_argument){
-				std::cout << "Invalid move!\n";
-			}
-		}
+		getUserMoveEnd(userInput);
 
-		if (forceMove){
-			if (board.getColorToMove() == board.at(userMove.startIndex).getColor())
-				board.applyMove(userMove);
+		if (userInput.force){
+			if (board.getColorToMove() == board.at(userInput.move.startIndex).getColor())
+				board.applyMove(userInput.move);
 			else
-				board.applyMoveStatic(userMove);
+				board.applyMoveStatic(userInput.move);
 		}
 		else{
-			auto moveIt = std::find_if(
-				possibleMoves.begin(),
-				possibleMoves.end(),
-				[&](ChessBot::Move const& m){
-					return ChessBot::Move::isSameBaseMove(userMove, m);
-				}
-			);
+			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return ChessBot::Move::isSameBaseMove(userInput.move, other);});
 			if (moveIt != possibleMoves.end()){
 				// apply the found move since the user move
 				// won't have any auxiliary moves attached
@@ -179,12 +206,9 @@ int playMode(Options const& options){
 			}
 		}
 		
-
-	skipMove:
 		highlights.fill(RGB());
 		printBoard(board, highlights, options);
 	}
-exit:
 
 	std::cout << "Bye...\n" << ANSI::reset();
 	return 0;

@@ -1,6 +1,7 @@
 #include "ChessBot/MoveGenerator.hpp"
 #include "ChessBot/Board.hpp"
-#include "ChessBot/Utils.hpp"
+#include "ChessBot/Utils/ChessTerms.hpp"
+#include "ChessBot/Utils/Coordinates.hpp"
 
 namespace ChessBot{
 
@@ -45,7 +46,7 @@ void MoveGenerator::generateSlidingMoves(Board& board, int8_t square){
             if (board.at(pos).getType() == PieceType::None)
                 // normal move
                 generatedMoves.emplace_back(square, pos);
-            else if (board.at(pos).getColor() == Utils::oppositeColor(board.getColorToMove())){
+            else if (board.at(pos).getColor() == board.getColorToMove().opposite()){
                 // capture
                 generatedMoves.emplace_back(square, pos);
                 break;
@@ -81,7 +82,7 @@ void MoveGenerator::generateKingKnightMoves(Board& board, int8_t square){
             if (board.at(pos).getType() == PieceType::None)
                 // normal move
                 generatedMoves.emplace_back(square, pos);
-            else if (board.at(pos).getColor() == Utils::oppositeColor(board.getColorToMove())){
+            else if (board.at(pos).getColor() == board.getColorToMove().opposite()){
                 // capture
                 generatedMoves.emplace_back(square, pos);
             }
@@ -127,7 +128,7 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
     const int8_t direction = board.at(square).getColor() == PieceColor::White ? -1 : 1;
     const int8_t direction10x12 = board.at(square).getColor() == PieceColor::White ? -10 : 10;
 
-    if (board.isEmpty(Board::applyOffset(square, direction10x12))){
+    if (!board.isOccupied(Board::applyOffset(square, direction10x12))){
         // normal move
         Move move;
         move.startIndex = square;
@@ -135,7 +136,7 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
         addPawnMove(move, board);
 
         // double move
-        if (Utils::isOnLine(square, baseLine) && board.isEmpty(Board::applyOffset(square, direction10x12*2))){
+        if (Utils::isOnRow(square, baseLine) && !board.isOccupied(Board::applyOffset(square, direction10x12*2))){
             Move move;
             move.startIndex = square;
             move.endIndex = Board::applyOffset(square, direction10x12*2);
@@ -146,14 +147,14 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
     }
 
     // captures
-    if (Board::isOnBoard(square, direction10x12-1) && !board.isEmpty(Board::applyOffset(square, direction10x12-1)) && !board.isFriendly(Board::applyOffset(square, direction10x12-1))){
+    if (Board::isOnBoard(square, direction10x12-1) && board.isOccupied(Board::applyOffset(square, direction10x12-1)) && !board.isFriendly(Board::applyOffset(square, direction10x12-1))){
         // left
         Move move;
         move.startIndex = square;
         move.endIndex = Board::applyOffset(square, direction10x12-1);
         addPawnMove(move, board);
     }
-    if (Board::isOnBoard(square, direction10x12+1) && !board.isEmpty(Board::applyOffset(square, direction10x12+1)) && !board.isFriendly(Board::applyOffset(square, direction10x12+1))){
+    if (Board::isOnBoard(square, direction10x12+1) && board.isOccupied(Board::applyOffset(square, direction10x12+1)) && !board.isFriendly(Board::applyOffset(square, direction10x12+1))){
         // right
         Move move;
         move.startIndex = square;
@@ -190,7 +191,7 @@ void MoveGenerator::generateAllPawnMoves(Board& board){
 void MoveGenerator::addPawnMove(Move const& move, Board const& board){
     const int8_t targetLine = board.at(move.startIndex).getColor() == PieceColor::White ? 0 : 7;
 
-    if (Utils::isOnLine(move.endIndex, targetLine)){
+    if (Utils::isOnRow(move.endIndex, targetLine)){
         // promotion
         for (PieceType promoitionType : Utils::promotionPieces){
             Move& newMove = generatedMoves.emplace_back(move);

@@ -2,4 +2,4 @@
 
 #include "CLI/Options.hpp"
 
-int perftMode(Options const& options);
+int perftMode(Options& options);

@@ -5,8 +5,9 @@
 
 #include "ChessBot/Board.hpp"
 #include "ChessBot/MoveGenerator.hpp"
-#include "ChessBot/Utils.hpp"
 #include "ChessBot/Utils/ScopeGuard.hpp"
+#include "ChessBot/Utils/Coordinates.hpp"
+#include "ChessBot/Utils/ChessTerms.hpp"
 
 #include <iostream>
 #include <cmath>
@@ -37,12 +38,10 @@ std::vector<ChessBot::Move> filterMoves(std::vector<ChessBot::Move> const& moves
     std::vector<ChessBot::Move> newMoves;
     newMoves.reserve(moves.size());
     for (auto const& move : moves){
-        ChessBot::Utils::ScopeGuard boardRestore(
-            [&](){board.applyMove(move);}, 
-            [&](){board.rewindMove();}
-        );
+        board.applyMove(move);
+        ChessBot::Utils::ScopeGuard boardRestore([&](){board.rewindMove();});
         
-        auto kings = findPiece(ChessBot::PieceType::King, ChessBot::Utils::oppositeColor(board.getColorToMove()), board);
+        auto kings = findPiece(ChessBot::PieceType::King, board.getColorToMove().opposite(), board);
         if (move.isCastling){
             bool isInvalid = false;
             for (int8_t square = move.startIndex; square != move.endIndex; square += ChessBot::Utils::sign(move.endIndex-move.startIndex)){
@@ -93,7 +92,7 @@ int perft(int depth, bool bulkCounting, ChessBot::Board& board, ChessBot::MoveGe
     return numNodes;
 }
 
-int perftMode(Options const& options){
+int perftMode(Options& options){
     std::string fen = options.fen;
     if (fen == "start"){
         fen = ChessBot::Utils::startingFEN;

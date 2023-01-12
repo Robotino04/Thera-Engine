@@ -2,4 +2,4 @@
 
 #include "CLI/Options.hpp"
 
-int playMode(Options const& options);
+int playMode(Options& options);
