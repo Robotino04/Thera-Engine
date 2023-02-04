@@ -2,9 +2,9 @@
 
 #include <stdint.h>
 
-#include "ChessBot/Utils/Bits.hpp"
+#include "Thera/Utils/Bits.hpp"
 
-namespace ChessBot{
+namespace Thera{
 
 enum class PieceType : uint8_t{
 	None = 0,

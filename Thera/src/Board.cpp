@@ -1,17 +1,17 @@
-#include "ChessBot/Board.hpp"
-#include "ChessBot/Move.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/Move.hpp"
 
-#include "ChessBot/Utils/Coordinates.hpp"
-#include "ChessBot/Utils/Math.hpp"
-#include "ChessBot/Utils/ChessTerms.hpp"
-#include "ChessBot/Utils/BuildType.hpp"
-#include "ChessBot/Utils/ScopeGuard.hpp"
+#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Utils/Math.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/Utils/BuildType.hpp"
+#include "Thera/Utils/ScopeGuard.hpp"
 
 #include <stdexcept>
 #include <assert.h>
 #include <map>
 
-namespace ChessBot{
+namespace Thera{
 
 Piece& Board::at(int8_t x, int8_t y){
 	return at(Utils::coordToIndex(x, y));

@@ -1,10 +1,10 @@
-#include "ChessBot/Board.hpp"
-#include "ChessBot/MoveGenerator.hpp"
-#include "ChessBot/Utils/ScopeGuard.hpp"
-#include "ChessBot/Utils/Coordinates.hpp"
-#include "ChessBot/Utils/ChessTerms.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/MoveGenerator.hpp"
+#include "Thera/Utils/ScopeGuard.hpp"
+#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
-bool isSquareAttacked(int8_t square, ChessBot::Board& board, ChessBot::MoveGenerator& generator){
+bool isSquareAttacked(int8_t square, Thera::Board& board, Thera::MoveGenerator& generator){
     auto moves = generator.generateAllMoves(board);
     for (auto const& move : moves){
         if (move.endIndex == square)
@@ -13,28 +13,28 @@ bool isSquareAttacked(int8_t square, ChessBot::Board& board, ChessBot::MoveGener
     return false;
 }
 
-std::vector<int8_t> findPiece(ChessBot::PieceType type, ChessBot::PieceColor color, ChessBot::Board const& board){
+std::vector<int8_t> findPiece(Thera::PieceType type, Thera::PieceColor color, Thera::Board const& board){
     std::vector<int8_t> indices;
     indices.reserve(16);
     for (int index=0; index < 64; index++){
         if (board.at(index).getType() == type && board.at(index).getColor() == color){
-            indices.push_back(ChessBot::Board::to10x12Coords(index));
+            indices.push_back(Thera::Board::to10x12Coords(index));
         }
     }
     return indices;
 }
 
-std::vector<ChessBot::Move> filterMoves(std::vector<ChessBot::Move> const& moves, ChessBot::Board& board, ChessBot::MoveGenerator& generator){
-    std::vector<ChessBot::Move> newMoves;
+std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Thera::Board& board, Thera::MoveGenerator& generator){
+    std::vector<Thera::Move> newMoves;
     newMoves.reserve(moves.size());
     for (auto const& move : moves){
         board.applyMove(move);
-        ChessBot::Utils::ScopeGuard boardRestore([&](){board.rewindMove();});
+        Thera::Utils::ScopeGuard boardRestore([&](){board.rewindMove();});
         
-        auto kings = findPiece(ChessBot::PieceType::King, board.getColorToMove().opposite(), board);
+        auto kings = findPiece(Thera::PieceType::King, board.getColorToMove().opposite(), board);
         if (move.isCastling){
             bool isInvalid = false;
-            for (int8_t square = move.startIndex; square != move.endIndex; square += ChessBot::Utils::sign(move.endIndex-move.startIndex)){
+            for (int8_t square = move.startIndex; square != move.endIndex; square += Thera::Utils::sign(move.endIndex-move.startIndex)){
                 if (isSquareAttacked(square, board, generator)){
                     isInvalid = true;
                     break;
@@ -49,7 +49,7 @@ std::vector<ChessBot::Move> filterMoves(std::vector<ChessBot::Move> const& moves
     return newMoves;
 }
 
-int perft(int depth, bool bulkCounting, std::function<void(ChessBot::Move const&, int)> printFn, ChessBot::Board& board, ChessBot::MoveGenerator& generator, bool isInitialCall){
+int perft(int depth, bool bulkCounting, std::function<void(Thera::Move const&, int)> printFn, Thera::Board& board, Thera::MoveGenerator& generator, bool isInitialCall){
     if (depth == 0) return 1;
 
     int numNodes = 0;

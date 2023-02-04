@@ -1,8 +1,8 @@
-#include "ChessBot/Bitboard.hpp"
-#include "ChessBot/Board.hpp"
-#include "ChessBot/Utils/Bits.hpp"
+#include "Thera/Bitboard.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/Utils/Bits.hpp"
 
-namespace ChessBot{
+namespace Thera{
 
 /**
  * @brief Forces the compiler to generate Bitboard implementations from 1 -> 64 pieces.

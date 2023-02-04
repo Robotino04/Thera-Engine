@@ -2,7 +2,7 @@
 
 #include <functional>
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 class ScopeGuard{
     public:

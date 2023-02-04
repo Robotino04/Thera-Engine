@@ -1,15 +1,15 @@
 #pragma once
 
-#include "ChessBot/Piece.hpp"
-#include "ChessBot/Utils/Math.hpp"
-#include "ChessBot/Utils/Coordinates.hpp"
+#include "Thera/Piece.hpp"
+#include "Thera/Utils/Math.hpp"
+#include "Thera/Utils/Coordinates.hpp"
 
 #include <string>
 #include <array>
 #include <stdexcept>
 #include <string>
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 inline const std::string startingFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 inline constexpr std::array<PieceType, 4> promotionPieces = {PieceType::Bishop, PieceType::Knight, PieceType::Queen, PieceType::Rook};

@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 
 /**
