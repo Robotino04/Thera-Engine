@@ -8,16 +8,15 @@
 #include <iostream>
 
 void printHelp(std::string const& argv0){
-	std::cout
-		<< ANSI::reset() << "Usage: " << argv0 << " [options]\n"
-		<< "Options:"
-		<< "\n\t-h/--help\t\tPrints this helping text"
-		<< "\n\t-i\t\t\tPrint pieces in inverted colors"
-		<< "\n\t-m/--mode [mode]\tRun in given mode. Possible values: \"play\",\" perft\" Default: \"play\""
-		<< "\n\t-d/--depth [n]\t\tSet the depth for perft mode"
-		<< "\n\t--bulk [fen]\t\tSet perft to bulk counting"
-		<< "\n\t--fen [fen]\t\tSet the FEN string for perft and play mode"
-		<< "\n";
+	std::cout << ANSI::reset() << "Usage: " << argv0 << " [options]\n" << 
+R"(Options:
+	-h/--help           Print this helping text
+	-i                  Print pieces in inverted colors
+	-m/--mode [mode]    Run in given mode. Possible values: "play"," perft" Default: "play"
+	-d/--depth [n]		Set the depth for perft mode
+	--bulk [fen]		Set perft to bulk counting
+	--fen [fen]			Set the FEN string for perft and play mode
+)";
 }
 
 

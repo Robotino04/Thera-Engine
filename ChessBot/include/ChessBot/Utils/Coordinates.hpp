@@ -8,7 +8,7 @@ namespace ChessBot::Utils{
 
 
 /**
- * @brief Get the x coordinate of a 8x8 square index.
+ * @brief Get the x coordinate of an 8x8 square index.
  * 
  * @param square 
  * @return constexpr int8_t 
@@ -18,13 +18,26 @@ constexpr int8_t getXCoord(int8_t square){
 }
 
 /**
- * @brief Get the y coordinate of a 8x8 square index.
+ * @brief Get the y coordinate of an 8x8 square index.
  * 
  * @param square 
  * @return constexpr int8_t 
  */
 constexpr int8_t getYCoord(int8_t square){
     return square / 8;
+}
+
+/**
+ * @brief Get the x, y coordinates of an 8x8 square index.
+ * 
+ * @param square 
+ * @return constexpr std::pair<int8_t, int8_t> 
+ */
+constexpr std::pair<int8_t, int8_t> getCoords(int8_t square){
+    return {
+        getXCoord(square),
+        getYCoord(square)
+    };
 }
 
 /**
@@ -40,7 +53,7 @@ constexpr int8_t coordToIndex(int8_t x, int8_t y, int8_t width=8){
 }
 
 /**
- * @brief Return whether a square is on a given row.
+ * @brief Return whether a square(8x8) is on a given row.
  * 
  * Rows are counted from the bottom (white side) up starting at 0.
  * 

@@ -33,7 +33,7 @@ inline constexpr auto allPieces = Detail::generateAllPieces();
 
 
 /**
- * @brief Parse a square index from a string containing algebraic notation.
+ * @brief Parse a square index (8x8) from a string containing algebraic notation.
  * 
  * Examples:
  *  "e4"
@@ -44,6 +44,14 @@ inline constexpr auto allPieces = Detail::generateAllPieces();
  * @return int8_t the index
  */
 int8_t squareFromAlgebraicNotation(std::string const& str);
+
+/**
+ * @brief Generate a string containing algebraic notation for a square (8x8).
+ * 
+ * @param square 
+ * @return std::string 
+ */
+std::string squareToAlgebraicNotation(int8_t square);
 
 /**
  * @brief Convert a piece color to a human readable string. ("white", "black")

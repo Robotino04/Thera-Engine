@@ -114,7 +114,7 @@ class Board{
 		Piece const& at10x12(int8_t index) const;
 		
 		/**
-		 * @brief Return if a square is occupied
+		 * @brief Return if a square(8x8) is occupied
 		 * 
 		 * @param square
 		 * @return bool
@@ -138,6 +138,15 @@ class Board{
 		 * @param fen fen string
 		 */
 		void loadFromFEN(std::string fen);
+
+		/**
+		 * @brief Store the board position to a FEN string.
+		 * 
+		 * @see	https://de.wikipedia.org/wiki/Forsyth-Edwards-Notation
+		 * 
+		 * @return std::string the fen string
+		 */
+		std::string storeToFEN() const;
 
 		/**
 		 * @brief Make a move on the board and update the state.
@@ -199,10 +208,10 @@ class Board{
 		 * 
 		 * @return int8_t 
 		 */
-		int8_t getEnPassantSquare();
+		int8_t getEnPassantSquare() const;
 
 		/**
-		 * @brief Get the bitboard to place a particular piece. 
+		 * @brief Get the bitboard containing a particular piece. 
 		 * 
 		 * @param piece the piece
 		 * @return Bitboard<12>& the bitboard containing these pieces
@@ -215,6 +224,20 @@ class Board{
 		 * @return Bitboard<12> const& the bitboard containing these pieces
 		 */
 		Bitboard<12> const& getBitboard(Piece piece) const;
+
+		/**
+		 * @brief Get the bitboard containing all pieces 
+		 * 
+		 * @return Bitboard<32>& the bitboard containing all pieces
+		 */
+		Bitboard<32>& getAllPieceBitboard();
+
+		/**
+		 * @brief Get the bitboard containing all pieces 
+		 * 
+		 * @return Bitboard<32> const& the bitboard containing all pieces
+		 */
+		Bitboard<32> const& getAllPieceBitboard() const;
 
 		/**
 		 * @brief Place a piece onto the board.
