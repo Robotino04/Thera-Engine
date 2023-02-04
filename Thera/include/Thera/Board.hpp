@@ -1,15 +1,15 @@
 #pragma once
 
-#include "ChessBot/Piece.hpp"
-#include "ChessBot/Bitboard.hpp"
-#include "ChessBot/Utils/Coordinates.hpp"
+#include "Thera/Piece.hpp"
+#include "Thera/Bitboard.hpp"
+#include "Thera/Utils/Coordinates.hpp"
 
 #include <array>
 #include <stdint.h>
 #include <string>
 #include <stack>
 
-namespace ChessBot{
+namespace Thera{
 struct Move;
 
 namespace Detail{

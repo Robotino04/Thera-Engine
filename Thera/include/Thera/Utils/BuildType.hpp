@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 /**
  * @brief An enum representing the different build types in the current translation unit.

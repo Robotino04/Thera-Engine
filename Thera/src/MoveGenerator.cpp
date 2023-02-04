@@ -1,9 +1,9 @@
-#include "ChessBot/MoveGenerator.hpp"
-#include "ChessBot/Board.hpp"
-#include "ChessBot/Utils/ChessTerms.hpp"
-#include "ChessBot/Utils/Coordinates.hpp"
+#include "Thera/MoveGenerator.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/Utils/Coordinates.hpp"
 
-namespace ChessBot{
+namespace Thera{
 
 std::vector<Move> MoveGenerator::generateAllMoves(Board& board){
     generatedMoves.clear();

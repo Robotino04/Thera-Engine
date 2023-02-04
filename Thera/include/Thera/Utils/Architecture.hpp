@@ -1,6 +1,6 @@
 #pragma once
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 enum class Architecture{
     x86_64,

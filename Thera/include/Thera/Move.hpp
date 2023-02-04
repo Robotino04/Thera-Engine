@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <string>
 
-#include "ChessBot/Piece.hpp"
+#include "Thera/Piece.hpp"
 
-namespace ChessBot{
+namespace Thera{
 
 struct Move{
     Move(int8_t start, int8_t end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}

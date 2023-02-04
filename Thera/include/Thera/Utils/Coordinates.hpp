@@ -1,10 +1,10 @@
 #pragma once
 
-#include "ChessBot/Utils/Math.hpp"
+#include "Thera/Utils/Math.hpp"
 
 #include <stdint.h>
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 
 /**

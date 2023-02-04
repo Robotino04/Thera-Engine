@@ -1,6 +1,6 @@
-#include "ChessBot/Utils/ChessTerms.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 int8_t squareFromAlgebraicNotation(std::string const& str){
     if (str.size() != 2) throw std::invalid_argument("\"" + str + "\" isn't a valid square");

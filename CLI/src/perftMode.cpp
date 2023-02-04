@@ -4,26 +4,26 @@
 
 #include "ANSI/ANSI.hpp"
 
-#include "ChessBot/Board.hpp"
-#include "ChessBot/MoveGenerator.hpp"
-#include "ChessBot/Utils/ScopeGuard.hpp"
-#include "ChessBot/Utils/Coordinates.hpp"
-#include "ChessBot/Utils/ChessTerms.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/MoveGenerator.hpp"
+#include "Thera/Utils/ScopeGuard.hpp"
+#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
 #include <iostream>
 #include <cmath>
 #include <chrono>
 
 
-void printMove(ChessBot::Move const& move, int numSubmoves){
+void printMove(Thera::Move const& move, int numSubmoves){
     std::cout
-        << ChessBot::Utils::squareToAlgebraicNotation(ChessBot::Board::to8x8Coords(move.startIndex))
-        << ChessBot::Utils::squareToAlgebraicNotation(ChessBot::Board::to8x8Coords(move.endIndex));
+        << Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.startIndex))
+        << Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.endIndex));
     switch (move.promotionType){
-        case ChessBot::PieceType::Bishop: std::cout << "b"; break;
-        case ChessBot::PieceType::Knight: std::cout << "n"; break;
-        case ChessBot::PieceType::Rook: std::cout << "r"; break;
-        case ChessBot::PieceType::Queen: std::cout << "q"; break;
+        case Thera::PieceType::Bishop: std::cout << "b"; break;
+        case Thera::PieceType::Knight: std::cout << "n"; break;
+        case Thera::PieceType::Rook: std::cout << "r"; break;
+        case Thera::PieceType::Queen: std::cout << "q"; break;
         default: break;
     }
     std::cout << ": " << numSubmoves << "\n";
@@ -33,14 +33,14 @@ void printMove(ChessBot::Move const& move, int numSubmoves){
 int perftMode(Options& options){
     std::string fen = options.fen;
     if (fen == "start"){
-        fen = ChessBot::Utils::startingFEN;
+        fen = Thera::Utils::startingFEN;
     }
 
     std::cout << "Running perft(" << options.perftDepth << ") for \"" << fen << "\"";
     std::cout << " (bulk counting " << setConditionalColor(options.bulkCounting, ANSI::Foreground) << (options.bulkCounting? "enabled" : "disabled") << ANSI::reset(ANSI::Foreground) << ")\n";
 
-    ChessBot::Board board;
-    ChessBot::MoveGenerator generator;
+    Thera::Board board;
+    Thera::MoveGenerator generator;
 
     board.loadFromFEN(fen);
 

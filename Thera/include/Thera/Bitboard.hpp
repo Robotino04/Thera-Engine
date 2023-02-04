@@ -1,16 +1,16 @@
 #pragma once
 
-#include "ChessBot/Move.hpp"
+#include "Thera/Move.hpp"
 
-#include "ChessBot/Utils/BuildType.hpp"
-#include "ChessBot/Utils/Math.hpp"
+#include "Thera/Utils/BuildType.hpp"
+#include "Thera/Utils/Math.hpp"
 
 #include <array>
 #include <stdint.h>
 #include <stdexcept>
 #include <bit>
 
-namespace ChessBot{
+namespace Thera{
 
 class Board;
 

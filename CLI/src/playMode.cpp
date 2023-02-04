@@ -2,12 +2,12 @@
 #include "CLI/IO.hpp"
 #include "CLI/perft.hpp"
 
-#include "ChessBot/Board.hpp"
-#include "ChessBot/Move.hpp"
-#include "ChessBot/MoveGenerator.hpp"
+#include "Thera/Board.hpp"
+#include "Thera/Move.hpp"
+#include "Thera/MoveGenerator.hpp"
 
-#include "ChessBot/Utils/Coordinates.hpp"
-#include "ChessBot/Utils/ChessTerms.hpp"
+#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
 #include "ANSI/ANSI.hpp"
 
@@ -24,8 +24,8 @@ static const RGB highlightMovePossible = {82, 255, 220};
 static const RGB highlightSquareSelected = {247, 92, 255};
 static const RGB highlightBitboardPresent = {255, 242, 0};
 
-void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
-	using namespace ChessBot;
+void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
+	using namespace Thera;
 
 	const RGB whiteBoardColor = {255, 210, 153};
 	const RGB blackBoardColor = {130, 77, 39};
@@ -83,18 +83,18 @@ void printBoard(ChessBot::Board const& board, std::array<RGB, 64> const& squareH
 				break;
 			case 1:
 				std::cout << "          ";
-				std::cout << setConditionalColor(board.getCastleLeft(ChessBot::PieceColor::White), ANSI::Background) << "[Q]";
+				std::cout << setConditionalColor(board.getCastleLeft(Thera::PieceColor::White), ANSI::Background) << "[Q]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleRight(ChessBot::PieceColor::White), ANSI::Background) << "[K]";
+				std::cout << setConditionalColor(board.getCastleRight(Thera::PieceColor::White), ANSI::Background) << "[K]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleLeft(ChessBot::PieceColor::Black), ANSI::Background) << "[Q]";
+				std::cout << setConditionalColor(board.getCastleLeft(Thera::PieceColor::Black), ANSI::Background) << "[Q]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleRight(ChessBot::PieceColor::Black), ANSI::Background) << "[K]";
+				std::cout << setConditionalColor(board.getCastleRight(Thera::PieceColor::Black), ANSI::Background) << "[K]";
 
 				break;
 			case 3:
-				if (options.shownBitboard.getType() != ChessBot::PieceType::None){
-					std::cout << "Showing bitboard for " << ChessBot::Utils::pieceToString(options.shownBitboard, true);
+				if (options.shownBitboard.getType() != Thera::PieceType::None){
+					std::cout << "Showing bitboard for " << Thera::Utils::pieceToString(options.shownBitboard, true);
 				}
 				else{
 					std::cout << "Showing no bitboard";
@@ -122,32 +122,32 @@ struct MoveInputResult{
 		Exit,
 	};
 
-	ChessBot::Move move;
+	Thera::Move move;
 	OperationType op = OperationType::MakeMove;
 	int perftDepth=0;
 };
 
 void handleShowCommand(MoveInputResult& result, Options& options){
-	static const std::map<std::string, ChessBot::PieceType> stringToPieceType = {
-		{"p", ChessBot::PieceType::Pawn},
-		{"b", ChessBot::PieceType::Bishop},
-		{"n", ChessBot::PieceType::Knight},
-		{"r", ChessBot::PieceType::Rook},
-		{"q", ChessBot::PieceType::Queen},
-		{"k", ChessBot::PieceType::King},
+	static const std::map<std::string, Thera::PieceType> stringToPieceType = {
+		{"p", Thera::PieceType::Pawn},
+		{"b", Thera::PieceType::Bishop},
+		{"n", Thera::PieceType::Knight},
+		{"r", Thera::PieceType::Rook},
+		{"q", Thera::PieceType::Queen},
+		{"k", Thera::PieceType::King},
 
-		{"pawn", 	ChessBot::PieceType::Pawn},
-		{"bishop", 	ChessBot::PieceType::Bishop},
-		{"knight", 	ChessBot::PieceType::Knight},
-		{"rook", 	ChessBot::PieceType::Rook},
-		{"queen", 	ChessBot::PieceType::Queen},
-		{"king", 	ChessBot::PieceType::King},
+		{"pawn", 	Thera::PieceType::Pawn},
+		{"bishop", 	Thera::PieceType::Bishop},
+		{"knight", 	Thera::PieceType::Knight},
+		{"rook", 	Thera::PieceType::Rook},
+		{"queen", 	Thera::PieceType::Queen},
+		{"king", 	Thera::PieceType::King},
 	};
-	static const std::map<std::string, ChessBot::PieceColor> stringToPieceColor = {
-		{"white", 	ChessBot::PieceColor::White},
-		{"black", 	ChessBot::PieceColor::Black},
-		{"w", 		ChessBot::PieceColor::White},
-		{"b", 		ChessBot::PieceColor::Black},
+	static const std::map<std::string, Thera::PieceColor> stringToPieceColor = {
+		{"white", 	Thera::PieceColor::White},
+		{"black", 	Thera::PieceColor::Black},
+		{"w", 		Thera::PieceColor::White},
+		{"b", 		Thera::PieceColor::Black},
 	};
 	result.op = MoveInputResult::Continue;
 
@@ -156,13 +156,13 @@ void handleShowCommand(MoveInputResult& result, Options& options){
 	// parse color
 	std::cin >> buffer;
 	if (buffer == "none"){
-		options.shownBitboard.setType(ChessBot::PieceType::None);
-		options.shownBitboard.setColor(ChessBot::PieceColor::White);
+		options.shownBitboard.setType(Thera::PieceType::None);
+		options.shownBitboard.setColor(Thera::PieceColor::White);
 		return;
 	}
 	else if (buffer == "all"){
-		options.shownBitboard.setType(ChessBot::PieceType::None);
-		options.shownBitboard.setColor(ChessBot::PieceColor::Black);
+		options.shownBitboard.setType(Thera::PieceType::None);
+		options.shownBitboard.setColor(Thera::PieceColor::Black);
 		return;
 	}
 
@@ -225,7 +225,7 @@ void getUserMoveStart(MoveInputResult& result, Options& options){
 		}
 		else{
 			try{
-				result.move.startIndex = ChessBot::Board::to10x12Coords(ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
+				result.move.startIndex = Thera::Board::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
 				break;
 			}
 			catch (std::invalid_argument){
@@ -261,7 +261,7 @@ void getUserMoveEnd(MoveInputResult& result, Options& options){
 				result.op = MoveInputResult::ForceMove;
 			}
 			try{
-				result.move.endIndex = ChessBot::Board::to10x12Coords(ChessBot::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
+				result.move.endIndex = Thera::Board::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
 				return;
 			}
 			catch (std::invalid_argument){
@@ -272,23 +272,23 @@ void getUserMoveEnd(MoveInputResult& result, Options& options){
 }
 
 template<int N>
-void setBitboardHighlight(ChessBot::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
+void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
 	for (int i=0; i<64; i++){
-		if (bitboard[ChessBot::Board::to10x12Coords(i)] && ChessBot::Board::isOnBoard8x8(i))
+		if (bitboard[Thera::Board::to10x12Coords(i)] && Thera::Board::isOnBoard8x8(i))
 			highlights.at(i) = highlightBitboardPresent;
 	}
 }
 
-void setBitboardHighlight(Options const& options, ChessBot::Board const& board, std::array<RGB, 64>& highlights){
-	if (options.shownBitboard.getType() != ChessBot::PieceType::None || options.shownBitboard.getColor() != ChessBot::PieceColor::Black){
+void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
+	if (options.shownBitboard.getType() != Thera::PieceType::None || options.shownBitboard.getColor() != Thera::PieceColor::Black){
 		setBitboardHighlight(board.getBitboard(options.shownBitboard), highlights);
 	}
-	else if (options.shownBitboard == ChessBot::Piece(ChessBot::PieceType::None, ChessBot::PieceColor::Black)){
+	else if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::Black)){
 		setBitboardHighlight(board.getAllPieceBitboard(), highlights);
 	}
 }
 
-void redrawGUI(Options const& options, ChessBot::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
+void redrawGUI(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
 	std::cout << ANSI::clearScreen() << message << ANSI::reset() << "\n";
 	setBitboardHighlight(options, board, highlights);
 	printBoard(board, highlights, options);
@@ -296,14 +296,14 @@ void redrawGUI(Options const& options, ChessBot::Board const& board, std::array<
 }
 
 int playMode(Options& options){
-	ChessBot::Board board;
+	Thera::Board board;
 	board.loadFromFEN(options.fen);
 
 	std::array<RGB, 64> highlights;
 	highlights.fill(RGB());
-	options.shownBitboard = ChessBot::Piece(ChessBot::PieceType::None, ChessBot::PieceColor::White);
+	options.shownBitboard = Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White);
 
-	ChessBot::MoveGenerator generator;
+	Thera::MoveGenerator generator;
 
 	std::string message =  	"Enter move or type 'exit'.\n"
 							"Change your move by typing 'change'.\n"
@@ -326,15 +326,15 @@ int playMode(Options& options){
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Perft){
-			const auto messageLoggingMovePrint = [&](ChessBot::Move const& move, int numSubmoves){
+			const auto messageLoggingMovePrint = [&](Thera::Move const& move, int numSubmoves){
 				message
-					+= ChessBot::Utils::squareToAlgebraicNotation(ChessBot::Board::to8x8Coords(move.startIndex))
-					+  ChessBot::Utils::squareToAlgebraicNotation(ChessBot::Board::to8x8Coords(move.endIndex));
+					+= Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.startIndex))
+					+  Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.endIndex));
 				switch (move.promotionType){
-					case ChessBot::PieceType::Bishop: message += "b"; break;
-					case ChessBot::PieceType::Knight: message += "n"; break;
-					case ChessBot::PieceType::Rook:   message += "r"; break;
-					case ChessBot::PieceType::Queen:  message += "q"; break;
+					case Thera::PieceType::Bishop: message += "b"; break;
+					case Thera::PieceType::Knight: message += "n"; break;
+					case Thera::PieceType::Rook:   message += "r"; break;
+					case Thera::PieceType::Queen:  message += "q"; break;
 					default: break;
 				}
 				message += ": " + std::to_string(numSubmoves) + "\n";
@@ -345,7 +345,7 @@ int playMode(Options& options){
 			int nodesSearched = perft(userInput.perftDepth, true, messageLoggingMovePrint, board, generator);
 
 			// write the perft output to a file for easier debugging
-			std::ofstream logFile("/tmp/chessBot.txt", std::ofstream::trunc);
+			std::ofstream logFile("/tmp/thera.txt", std::ofstream::trunc);
 			if (!logFile.is_open()){
 				message += ANSI::set4BitColor(ANSI::Red) + "Unable to open logfile! Ignoring." + ANSI::reset(ANSI::Foreground) + "\n";
 			}
@@ -361,14 +361,14 @@ int playMode(Options& options){
 		else if (userInput.op == MoveInputResult::Continue)
 			continue;
 
-		auto possibleMoves = generator.generateMoves(board, ChessBot::Board::to8x8Coords(userInput.move.startIndex));
+		auto possibleMoves = generator.generateMoves(board, Thera::Board::to8x8Coords(userInput.move.startIndex));
 		message = ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
 
-		if (options.shownBitboard == ChessBot::Piece(ChessBot::PieceType::None, ChessBot::PieceColor::White)){
+		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
 			// highlight all moves
-			highlights.at(ChessBot::Board::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
+			highlights.at(Thera::Board::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
 			for (auto const& move : possibleMoves){
-				highlights.at(ChessBot::Board::to8x8Coords(move.endIndex)) = highlightMovePossible;
+				highlights.at(Thera::Board::to8x8Coords(move.endIndex)) = highlightMovePossible;
 			}
 		}
 
@@ -389,7 +389,7 @@ int playMode(Options& options){
 			message = ANSI::set4BitColor(ANSI::Blue) + "Undone move." + ANSI::reset();
 		}
 		else{
-			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return ChessBot::Move::isSameBaseMove(userInput.move, other);});
+			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(userInput.move, other);});
 			if (moveIt != possibleMoves.end()){
 				// apply the found move since the user move
 				// won't have any auxiliary moves attached

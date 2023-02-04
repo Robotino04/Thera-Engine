@@ -1,12 +1,12 @@
 #pragma once
 
-#include "ChessBot/Move.hpp"
+#include "Thera/Move.hpp"
 
 #include <vector>
 #include <array>
 
 
-namespace ChessBot{
+namespace Thera{
 struct Board;
 
 class MoveGenerator{

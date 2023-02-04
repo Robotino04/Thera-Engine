@@ -2,7 +2,7 @@
 
 #include <concepts>
 
-namespace ChessBot::Utils{
+namespace Thera::Utils{
 
 template<typename T>
 [[nodiscard]] constexpr T setBit(T value, int bit, T bitValue){
