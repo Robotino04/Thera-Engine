@@ -14,6 +14,13 @@ int8_t squareFromAlgebraicNotation(std::string const& str){
     return Utils::coordToIndex(x, y);
 }
 
+std::string squareToAlgebraicNotation(int8_t square){
+    auto [x, y] = Utils::getCoords(square);
+    if (!Utils::isInRange<int8_t>(x, 0, 7) || !Utils::isInRange<int8_t>(y, 0, 7)) throw std::invalid_argument(std::to_string(square) + " isn't a valid square");
+
+    return std::string(1, 'a' + x) + std::string(1, '8' - y);
+}
+
 std::string pieceColorToString(PieceColor color){
     switch(color){
         case PieceColor::White: return "white";

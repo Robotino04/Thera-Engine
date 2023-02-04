@@ -5,6 +5,7 @@
 #include "ChessBot/Utils/Math.hpp"
 #include "ChessBot/Utils/ChessTerms.hpp"
 #include "ChessBot/Utils/BuildType.hpp"
+#include "ChessBot/Utils/ScopeGuard.hpp"
 
 #include <stdexcept>
 #include <assert.h>
@@ -65,7 +66,7 @@ bool Board::isOccupied(int8_t square) const{
 }
 
 bool Board::isFriendly(int8_t square) const{
-	return at10x12(square).getColor() == currentState.colorToMove;
+	return at10x12(square).getColor() == getColorToMove();
 }
 
 void Board::loadFromFEN(std::string fen){
@@ -145,7 +146,10 @@ void Board::loadFromFEN(std::string fen){
 	if (!(Utils::isInRange(fen.at(charIndex), 'a', 'h') || fen.at(charIndex) == '-')){
 		throw std::invalid_argument(std::string("Invalid character '") + fen.at(charIndex) + "' in FEN string!");
 	}
-	if (fen.at(charIndex) != '-'){
+	if (fen.at(charIndex) == '-'){
+		currentState.enPassantSquare = -1;
+	}
+	else{
 		currentState.enPassantSquare = Utils::squareFromAlgebraicNotation(fen.substr(charIndex, 2));
 		charIndex += 1;
 	}
@@ -156,6 +160,65 @@ void Board::loadFromFEN(std::string fen){
 
 	while (!rewindStack.empty()) rewindStack.pop();
 }
+std::string Board::storeToFEN() const{
+	static const std::map<PieceType, char> pieceTypeToFenChars = {
+		{PieceType::Pawn, 'p'},
+		{PieceType::Bishop, 'b'},
+		{PieceType::Knight, 'n'},
+		{PieceType::Rook, 'r'},
+		{PieceType::Queen, 'q'},
+		{PieceType::King, 'k'},
+	};
+
+	std::string fen = "";
+
+	for (int i=0; i<64; i++){
+		try{
+			char c = pieceTypeToFenChars.at(at(i).getType());
+			if (at(i).getColor() == PieceColor::White){
+				c = std::toupper(c);
+			}
+
+			fen += c;
+		}
+		catch(std::out_of_range){
+			// square is empty
+			if (Utils::isInRange(fen.back(), '0', '7')){
+				fen.back()++;
+			}
+			else{
+				fen += '1';
+			}
+		}
+
+		if ((i + 1) % 8 == 0 && i<63){
+			fen += '/';
+		}
+	}
+
+	fen += ' ';
+	fen += getColorToMove() == PieceColor::White ? 'w' : 'b';
+
+	fen += ' ';
+	if (getCastleLeft(PieceColor::White)) fen += 'K';
+	if (getCastleRight(PieceColor::White)) fen += 'Q';
+	if (getCastleLeft(PieceColor::Black)) fen += 'k';
+	if (getCastleRight(PieceColor::Black)) fen += 'q';
+
+	if (!(getCastleLeft(PieceColor::White) || getCastleRight(PieceColor::White) || getCastleLeft(PieceColor::Black) || getCastleRight(PieceColor::Black))){
+		fen += '-';
+	}
+
+	fen += ' ';
+	if (getEnPassantSquare() != -1){
+		fen += Utils::squareToAlgebraicNotation(Board::to8x8Coords(getEnPassantSquare()));
+	}
+	else{
+		fen += '-';
+	}
+
+	return fen;
+}
 
 void Board::applyMove(Move const& move){
 	// save the current state
@@ -164,7 +227,7 @@ void Board::applyMove(Move const& move){
 	applyMoveStatic(move);
 
 	// update State
-	currentState.colorToMove = currentState.colorToMove.opposite();
+	currentState.colorToMove = getColorToMove().opposite();
 }
 
 void Board::applyMoveStatic(Move const& move){
@@ -187,15 +250,18 @@ void Board::applyMoveStatic(Move const& move){
 
 	// promotion
 	if (move.promotionType != PieceType::None){
-		placePiece(move.endIndex, Piece(move.promotionType, currentState.colorToMove));
+		removePiece(move.endIndex);
+		placePiece(move.endIndex, Piece(move.promotionType, getColorToMove()));
 	}
 
 	// en passant
 	if (move.isEnPassant){
-		removePiece(currentState.enPassantSquare);
+		removePiece(getEnPassantSquare());
+		currentState.enPassantSquare = -1;
 	}
 	if (move.isDoublePawnMove){
-		currentState.enPassantSquare = move.endIndex;
+		// get the "jumped" square
+		currentState.enPassantSquare = (move.startIndex + move.endIndex) / 2;
 	}
 	else{
 		currentState.enPassantSquare = -1;
@@ -207,6 +273,9 @@ void Board::applyMoveStatic(Move const& move){
 }
 
 void Board::rewindMove(){
+	if (rewindStack.empty())
+		throw std::runtime_error("Tried to rewind move, but no moves were made.");
+	
 	currentState = rewindStack.top();
 	rewindStack.pop();
 }
@@ -220,6 +289,12 @@ Bitboard<12>& Board::getBitboard(Piece piece){
 }
 Bitboard<12> const& Board::getBitboard(Piece piece) const {
 	return currentState.pieceBitboards.at(piece.getRaw());
+}
+Bitboard<32>& Board::getAllPieceBitboard(){
+	return currentState.allPieceBitboard;
+}
+Bitboard<32> const& Board::getAllPieceBitboard() const{
+	return currentState.allPieceBitboard;
 }
 
 std::array<bool, 2> const& Board::getCastleLeft() const {
@@ -238,7 +313,7 @@ bool Board::getCastleRight(PieceColor color) const{
 	return currentState.canCastleRight.at(static_cast<uint8_t>(color));
 }
 
-int8_t Board::getEnPassantSquare(){
+int8_t Board::getEnPassantSquare() const{
 	return currentState.enPassantSquare;
 }
 

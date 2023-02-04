@@ -119,8 +119,23 @@ void MoveGenerator::generateKingKnightMoves(Board& board, int8_t square){
 }
 
 void MoveGenerator::generateAllKingKnightMoves(Board& board){
-    for (int8_t i = 0; i<64; i++)
-        generateKingKnightMoves(board, i);
+    // TODO: use bitwise operations to remove code duplication
+    {
+        auto const& bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
+        const auto squares = bitboard.getPieces8x8();
+
+        for (auto squareIt = squares.begin(); squareIt != std::next(squares.begin(), bitboard.getNumPieces()); squareIt++)
+            generateKingKnightMoves(board, *squareIt);
+        
+    }
+    {
+        auto const& bitboard = board.getBitboard({PieceType::Knight, board.getColorToMove()});
+        const auto squares = bitboard.getPieces8x8();
+
+        for (auto squareIt = squares.begin(); squareIt != std::next(squares.begin(), bitboard.getNumPieces()); squareIt++)
+            generateKingKnightMoves(board, *squareIt);
+        
+    }
 }
 
 void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
@@ -167,7 +182,7 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
     }
 
     // en passant
-    if (Board::isOnBoard8x8(square, -1) && board.getEnPassantSquare() == Board::applyOffset(square, -1)){
+    if (Board::isOnBoard8x8(square, -1) && board.getEnPassantSquare() == Board::to10x12Coords(Board::applyOffset(square, -1))){
         // left
         Move move;
         move.startIndex = Board::to10x12Coords(square);
@@ -175,7 +190,7 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
         move.isEnPassant = true;
         addPawnMove(move, board);
     }
-    else if (Board::isOnBoard8x8(square, 1) && board.getEnPassantSquare() == Board::applyOffset(square, 1)){
+    else if (Board::isOnBoard8x8(square, 1) && board.getEnPassantSquare() == Board::to10x12Coords(Board::applyOffset(square, 1))){
         // right
         Move move;
         move.startIndex = Board::to10x12Coords(square);
@@ -188,14 +203,18 @@ void MoveGenerator::generatePawnMoves(Board& board, int8_t square){
 }
 
 void MoveGenerator::generateAllPawnMoves(Board& board){
-    for (int8_t i = 0; i<64; i++)
-        generatePawnMoves(board, i);
+    auto const& bitboard = board.getBitboard({PieceType::Pawn, board.getColorToMove()});
+    const auto squares = bitboard.getPieces8x8();
+
+    for (auto squareIt = squares.begin(); squareIt != std::next(squares.begin(), bitboard.getNumPieces()); squareIt++)
+        generatePawnMoves(board, *squareIt);
 }
 
 void MoveGenerator::addPawnMove(Move const& move, Board const& board){
     const int8_t targetLine = board.at10x12(move.startIndex).getColor() == PieceColor::White ? 0 : 7;
+    
 
-    if (Utils::isOnRow(move.endIndex, targetLine)){
+    if (Utils::isOnRow(Board::to8x8Coords(move.endIndex), targetLine)){
         // promotion
         for (PieceType promoitionType : Utils::promotionPieces){
             Move& newMove = generatedMoves.emplace_back(move);
