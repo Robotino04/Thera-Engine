@@ -104,7 +104,7 @@ namespace Detail{
  * @param offset the offset
  * @return bool
  */
-static constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
+constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
     return Detail::mailboxBigToSmall.at(index + offset) != -1;
 }
 
@@ -115,14 +115,14 @@ static constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
  * @param offset the 10x12 offset
  * @return constexpr int8_t the new 8x8 coordinates
  */
-static constexpr int8_t applyOffset(int8_t index, int8_t offset){
+constexpr int8_t applyOffset(int8_t index, int8_t offset){
     return Detail::mailboxBigToSmall.at(Detail::mailboxSmallToBig.at(index) + offset);
 }
 
-static constexpr int8_t to8x8Coords(int8_t index){
+constexpr int8_t to8x8Coords(int8_t index){
     return Detail::mailboxBigToSmall.at(index);
 }
-static constexpr int8_t to10x12Coords(int8_t index){
+constexpr int8_t to10x12Coords(int8_t index){
     return Detail::mailboxSmallToBig.at(index);
 }
 
@@ -133,7 +133,7 @@ static constexpr int8_t to10x12Coords(int8_t index){
  * @param offset the offset
  * @return bool
  */
-static constexpr bool isOnBoard8x8(int8_t index, int8_t offset=0) {
+constexpr bool isOnBoard8x8(int8_t index, int8_t offset=0) {
     return applyOffset(index, offset) != -1;
 }
 

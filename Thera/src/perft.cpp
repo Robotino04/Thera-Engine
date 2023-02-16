@@ -22,18 +22,6 @@ bool isSquareAttacked(int8_t square, Thera::Board& board, Thera::MoveGenerator& 
 }
 
 // TODO: replace to use bitboards
-std::vector<int8_t> findPiece(Thera::PieceType type, Thera::PieceColor color, Thera::Board const& board){
-    std::vector<int8_t> indices;
-    indices.reserve(16);
-    for (int index=0; index < 64; index++){
-        if (board.at(index).getType() == type && board.at(index).getColor() == color){
-            indices.push_back(Thera::Utils::to10x12Coords(index));
-        }
-    }
-    return indices;
-}
-
-// TODO: replace to use bitboards
 std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Thera::Board& board, Thera::MoveGenerator& generator){
     std::vector<Thera::Move> newMoves;
     newMoves.reserve(moves.size());
@@ -42,9 +30,10 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
             board.applyMove(move);
             Thera::Utils::ScopeGuard rewindBoard_guard([&](){board.rewindMove();});
 
-            const auto kings = findPiece(Thera::PieceType::King, board.getColorToMove().opposite(), board);
-            if (kings.size() == 0) continue;
-            const bool isInCheck = isSquareAttacked(kings.at(0), board, generator);
+            const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToMove().opposite()});
+            if (!kingBitboard.hasPieces()) continue;
+            const auto kingSquare = Utils::to10x12Coords(kingBitboard.getPieces8x8().at(0));
+            const bool isInCheck = isSquareAttacked(kingSquare, board, generator);
             if (isInCheck) continue;
         }
 

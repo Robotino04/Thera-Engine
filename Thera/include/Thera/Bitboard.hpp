@@ -28,7 +28,7 @@ class Board;
  */
 template<int N>
 class Bitboard{
-    static_assert(Utils::isInRange(N, 1, 64), "Bitboards can only store up to 64 pieces.");
+    static_assert(Utils::isInRange(N, 0, 64), "Bitboards can only store up to 64 pieces.");
     friend class Board;
     
     public:
@@ -51,6 +51,25 @@ class Bitboard{
                 const size_t bitIndex = 0;
         };
         friend Reference;
+
+        constexpr Bitboard(){
+            clear();
+        }
+
+        constexpr Bitboard(__uint128_t raw){
+            clear();
+            bits = raw;
+            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
+                numPieces = std::popcount(raw);
+                const auto pieces = getPieces8x8();
+                numPieces = 0;
+                for (int i=0; i<numPieces; i++){
+                    placePiece(Utils::to10x12Coords(pieces.at(i)));
+                }
+                if (std::popcount(bits) != numPieces)
+                    throw std::runtime_error("Desync between bitboard and numPieces detected.");
+            }
+        }
 
 
         constexpr void clear(){
@@ -99,7 +118,7 @@ class Bitboard{
          * 
          * @param square 
          */
-        void removePiece(int8_t square){
+        constexpr void removePiece(int8_t square){
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
                 if (!isOccupied(square))
                     throw std::invalid_argument("Tried to remove piece from empty square.");
@@ -151,7 +170,7 @@ class Bitboard{
          * 
          * @return constexpr std::array<int8_t, N> list of 8x8 square indices with first numPieces pieces valid
          */
-        std::array<int8_t, N> getPieces8x8() const{
+        constexpr std::array<int8_t, N> getPieces8x8() const{
             uint64_t x = 0;
             for (int8_t i=0; i<64; i++){
                 x = (x << 1) | isOccupied(Utils::to10x12Coords(i));
@@ -167,8 +186,6 @@ class Bitboard{
 
             std::array<int8_t, N> result;
             auto list = result.begin();
-
-
 
             if (x) do {
                 int8_t idx = bitScanForward(x); // square index from 0..63
@@ -192,16 +209,22 @@ class Bitboard{
         }
 
         constexpr int getNumPieces() const{
-            return numPieces;
+            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
+                if (std::popcount(bits) != numPieces)
+                    throw std::runtime_error("Desync between bitboard and numPieces detected.");
+            }
+            return std::popcount(bits);
         }
 
-        uint64_t getBoard8x8() const{
+        constexpr uint64_t getBoard8x8() const{
             uint64_t board = 0;
             for (int i=0; i<64; i++){
                 board = Utils::setBit<uint64_t>(board, i, (*this)[Utils::to10x12Coords(i)]);
             }
             return board;
         }
+
+
 
         constexpr bool operator[] (int8_t bitIdx) const{
             return Utils::getBit(bits, bitIdx);
@@ -218,6 +241,23 @@ class Bitboard{
         }
         constexpr void clearBit(int8_t bitIndex){
             bits &= ~(__uint128_t(1) << bitIndex);
+        }
+
+        constexpr bool hasPieces() const{
+            return bits;
+        }
+
+        template<int otherN>
+        constexpr Bitboard<std::min(64, N + otherN)> operator | (Bitboard<otherN> const& other){
+            return {this->bits | other.bits};
+        }
+        template<int otherN>
+        constexpr Bitboard<std::min(64, std::min(N, otherN))> operator & (Bitboard<otherN> const& other){
+            return {this->bits & other.bits};
+        }
+        template<int otherN>
+        constexpr Bitboard<std::min(64, N + otherN)> operator ^ (Bitboard<otherN> const& other){
+            return {this->bits ^ other.bits};
         }
 
     private:
