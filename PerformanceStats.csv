@@ -1,3 +1,4 @@
 Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Release; Change
 0;          89.1486;            93.1059;            9.68924;                10.3497;            Baseline
-1;          85.5227;            89.6024;            9.12634;                9.12634;            Replaced findPiece with bitboard function
+1;          85.5227;            89.6024;            9.12634;                9.59932;            Replaced findPiece with bitboard function
+2;          89.6592;            95.0132;            9.34531;                9.79329;            Used bitwise operations for king and knight. Moved sanity checks in Bitboard to constexpr.

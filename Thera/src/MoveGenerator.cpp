@@ -119,22 +119,12 @@ void MoveGenerator::generateKingKnightMoves(Board& board, int8_t square){
 }
 
 void MoveGenerator::generateAllKingKnightMoves(Board& board){
-    // TODO: use bitwise operations to remove code duplication
-    {
-        auto const& bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
-        const auto squares = bitboard.getPieces8x8();
+    auto const bitboard = board.getBitboard({PieceType::King, board.getColorToMove()}) | board.getBitboard({PieceType::Knight, board.getColorToMove()});
+    const auto squares = bitboard.getPieces8x8();
+    const auto numPieces = bitboard.getNumPieces();
 
-        for (auto squareIt = squares.begin(); squareIt != std::next(squares.begin(), bitboard.getNumPieces()); squareIt++)
-            generateKingKnightMoves(board, *squareIt);
-        
-    }
-    {
-        auto const& bitboard = board.getBitboard({PieceType::Knight, board.getColorToMove()});
-        const auto squares = bitboard.getPieces8x8();
-
-        for (auto squareIt = squares.begin(); squareIt != std::next(squares.begin(), bitboard.getNumPieces()); squareIt++)
-            generateKingKnightMoves(board, *squareIt);
-        
+    for (int i=0; i<numPieces; i++){
+        generateKingKnightMoves(board, squares.at(i));
     }
 }
 
