@@ -12,30 +12,7 @@
 namespace Thera{
 struct Move;
 
-namespace Detail{
-	constexpr std::array<int, 10*12> generateMailboxBigToSmall(){
-		std::array<int, 10*12> result = {};
-		for (auto& x : result) x = -1;
 
-		for (int x=0; x<8; x++){
-			for (int y=0; y<8; y++){
-				result[Utils::coordToIndex(x+1, y+2, 10)] = Utils::coordToIndex(x, y);
-			}
-		}
-		return result;
-	}
-	constexpr std::array<int, 8*8> generateMailboxSmallToBig(){
-		std::array<int, 8*8> result = {};
-		for (auto& x : result) x = -1;
-
-		for (int x=0; x<8; x++){
-			for (int y=0; y<8; y++){
-				result[Utils::coordToIndex(x, y)] = Utils::coordToIndex(x+1, y+2, 10);
-			}
-		}
-		return result;
-	}
-}
 
 /**
  * @brief A chess board representation.
@@ -211,6 +188,13 @@ class Board{
 		int8_t getEnPassantSquare() const;
 
 		/**
+		 * @brief Get the en passant square to capture.
+		 * 
+		 * @return int8_t 
+		 */
+		int8_t getEnPassantSquareToCapture() const;
+
+		/**
 		 * @brief Get the bitboard containing a particular piece. 
 		 * 
 		 * @param piece the piece
@@ -262,44 +246,12 @@ class Board{
 		void removeCastlings(int8_t movedSquare);
 
 		/**
-		 * @brief Return if given index(8x8) and offset(10x12) are still on the board.
+		 * @brief Change the color to move.
 		 * 
-		 * @param index the base index
-		 * @param offset the offset
-		 * @return bool
-		 */
-		static constexpr bool isOnBoard8x8(int8_t index, int8_t offset=0) {
-			return applyOffset(index, offset) != -1;
-		}
-		
-		/**
-		 * @brief Return if given index(10x12) and offset(10x12) are still on the board.
+		 * Essentially views the board from the opposite side.
 		 * 
-		 * @param index the base index
-		 * @param offset the offset
-		 * @return bool
 		 */
-		static constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
-			return mailboxBigToSmall.at(index + offset) != -1;
-		}
-
-		/**
-		 * @brief Apply a 10x12 offset to 8x8 coordinates.
-		 * 
-		 * @param index the base index
-		 * @param offset the 10x12 offset
-		 * @return constexpr int8_t the new 8x8 coordinates
-		 */
-		static constexpr int8_t applyOffset(int8_t index, int8_t offset){
-			return mailboxBigToSmall.at(mailboxSmallToBig.at(index) + offset);
-		}
-
-		static constexpr int8_t to8x8Coords(int8_t index){
-			return mailboxBigToSmall.at(index);
-		}
-		static constexpr int8_t to10x12Coords(int8_t index){
-			return mailboxSmallToBig.at(index);
-		}
+		void switchPerspective();
 
 	private:
 		struct BoardState{
@@ -311,16 +263,10 @@ class Board{
 			PieceColor colorToMove = PieceColor::White;
 			std::array<bool, 2> canCastleLeft = {true, true};
 			std::array<bool, 2> canCastleRight = {true, true};
-			int8_t enPassantSquare = 0;
+			int8_t enPassantSquare = -1;
+			int8_t enPassantSquareToCapture = -1;
 		};
 		BoardState currentState;
 		std::stack<BoardState> rewindStack;
-
-		
-
-		// converts from 10x12 to 8x8
-		static constexpr std::array<int, 10*12> mailboxBigToSmall = Detail::generateMailboxBigToSmall();
-		// converts from 8x8 to 10x12
-		static constexpr std::array<int, 8*8> mailboxSmallToBig = Detail::generateMailboxSmallToBig();
 };
 }

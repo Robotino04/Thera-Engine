@@ -1,24 +1,26 @@
 #include "CLI/perftMode.hpp"
 #include "CLI/IO.hpp"
-#include "CLI/perft.hpp"
 
 #include "ANSI/ANSI.hpp"
 
 #include "Thera/Board.hpp"
 #include "Thera/MoveGenerator.hpp"
+
 #include "Thera/Utils/ScopeGuard.hpp"
 #include "Thera/Utils/Coordinates.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
+
+#include "Thera/perft.hpp"
 
 #include <iostream>
 #include <cmath>
 #include <chrono>
 
 
-void printMove(Thera::Move const& move, int numSubmoves){
+static void printMove(Thera::Move const& move, int numSubmoves){
     std::cout
-        << Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.startIndex))
-        << Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.endIndex));
+        << Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.startIndex))
+        << Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.endIndex));
     switch (move.promotionType){
         case Thera::PieceType::Bishop: std::cout << "b"; break;
         case Thera::PieceType::Knight: std::cout << "n"; break;
@@ -28,7 +30,6 @@ void printMove(Thera::Move const& move, int numSubmoves){
     }
     std::cout << ": " << numSubmoves << "\n";
 }
-
 
 int perftMode(Options& options){
     std::string fen = options.fen;
@@ -45,7 +46,7 @@ int perftMode(Options& options){
     board.loadFromFEN(fen);
 
     auto start = std::chrono::high_resolution_clock::now();
-    int numNodes = perft(options.perftDepth, options.bulkCounting, printMove, board, generator);
+    auto numNodes = Thera::perft(board, generator, options.perftDepth, options.bulkCounting, printMove);
     auto stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = stop - start;

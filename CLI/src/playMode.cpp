@@ -1,6 +1,5 @@
 #include "CLI/playMode.hpp"
 #include "CLI/IO.hpp"
-#include "CLI/perft.hpp"
 
 #include "Thera/Board.hpp"
 #include "Thera/Move.hpp"
@@ -8,6 +7,8 @@
 
 #include "Thera/Utils/Coordinates.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
+
+#include "Thera/perft.hpp"
 
 #include "ANSI/ANSI.hpp"
 
@@ -24,29 +25,30 @@ static const RGB highlightMovePossible = {82, 255, 220};
 static const RGB highlightSquareSelected = {247, 92, 255};
 static const RGB highlightBitboardPresent = {255, 242, 0};
 
-void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
-	using namespace Thera;
+static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
 
 	const RGB whiteBoardColor = {255, 210, 153};
 	const RGB blackBoardColor = {130, 77, 39};
 	const RGB whitePieceColor = {120, 120, 120};
 	const RGB blackPieceColor = {0, 0, 0};
 
-	static const std::map<std::pair<PieceColor, PieceType>, std::string> pieces = {
-		{{PieceColor::White, PieceType::None}, " "},
-		{{PieceColor::Black, PieceType::None}, " "},
-		{{PieceColor::White, PieceType::Pawn}, "♙"},
-		{{PieceColor::Black, PieceType::Pawn}, "♟︎"},
-		{{PieceColor::White, PieceType::Bishop}, "♗"},
-		{{PieceColor::Black, PieceType::Bishop}, "♝"},
-		{{PieceColor::White, PieceType::Knight}, "♘"},
-		{{PieceColor::Black, PieceType::Knight}, "♞"},
-		{{PieceColor::White, PieceType::Rook}, "♖"},
-		{{PieceColor::Black, PieceType::Rook}, "♜"},
-		{{PieceColor::White, PieceType::Queen}, "♕"},
-		{{PieceColor::Black, PieceType::Queen}, "♛"},
-		{{PieceColor::White, PieceType::King}, "♔"},
-		{{PieceColor::Black, PieceType::King}, "♚"},
+	using PC = Thera::PieceColor;
+	using PT = Thera::PieceType;
+	static const std::map<std::pair<PC, PT>, std::string> pieces = {
+		{{PC::White, PT::None}, " "},
+		{{PC::Black, PT::None}, " "},
+		{{PC::White, PT::Pawn}, "♙"},
+		{{PC::Black, PT::Pawn}, "♟︎"},
+		{{PC::White, PT::Bishop}, "♗"},
+		{{PC::Black, PT::Bishop}, "♝"},
+		{{PC::White, PT::Knight}, "♘"},
+		{{PC::Black, PT::Knight}, "♞"},
+		{{PC::White, PT::Rook}, "♖"},
+		{{PC::Black, PT::Rook}, "♜"},
+		{{PC::White, PT::Queen}, "♕"},
+		{{PC::Black, PT::Queen}, "♛"},
+		{{PC::White, PT::King}, "♔"},
+		{{PC::Black, PT::King}, "♚"},
 	};
 
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
@@ -55,15 +57,15 @@ void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squareHigh
 		for(uint8_t x=0; x<8; x++){
 			RGB boardColor = (x + y)%2 ? blackBoardColor : whiteBoardColor;
 			
-			if (squareHighlights.at(Utils::coordToIndex(x, y)) != RGB::Black)
-				boardColor = overlay(boardColor, squareHighlights.at(Utils::coordToIndex(x, y)), highlightOpacity);
+			if (squareHighlights.at(Thera::Utils::coordToIndex(x, y)) != RGB::Black)
+				boardColor = overlay(boardColor, squareHighlights.at(Thera::Utils::coordToIndex(x, y)), highlightOpacity);
 
 			// set the board color
 			std::cout << ANSI::set24BitColor(boardColor.red, boardColor.green, boardColor.blue, ANSI::Background);
 
 			// set the piece color
-			const RGB pieceColor = board.at(x, y).getColor() == PieceColor::White ? whitePieceColor : blackPieceColor;
-			if (board.at(x, y).getType() != PieceType::None){
+			const RGB pieceColor = board.at(x, y).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
+			if (board.at(x, y).getType() != Thera::PieceType::None){
 				std::cout << ANSI::set24BitColor(pieceColor.red, pieceColor.green, pieceColor.blue, ANSI::Foreground);
 			}
 
@@ -120,14 +122,17 @@ struct MoveInputResult{
 		ForceMove,
 		Perft,
 		Exit,
+		LoadFEN,
 	};
 
 	Thera::Move move;
 	OperationType op = OperationType::MakeMove;
 	int perftDepth=0;
+	bool failed = false;
+	std::string message;
 };
 
-void handleShowCommand(MoveInputResult& result, Options& options){
+static void handleShowCommand(MoveInputResult& result, Options& options){
 	static const std::map<std::string, Thera::PieceType> stringToPieceType = {
 		{"p", Thera::PieceType::Pawn},
 		{"b", Thera::PieceType::Bishop},
@@ -170,7 +175,8 @@ void handleShowCommand(MoveInputResult& result, Options& options){
 		options.shownBitboard.setColor(stringToPieceColor.at(buffer));
 	}
 	catch(std::out_of_range){
-		std::cout << "Invalid piece \"" << buffer << "\"!\n";
+		result.message = "Invalid color \"" + buffer + "\"!";
+		result.failed = true;
 		return;
 	}
 
@@ -180,12 +186,13 @@ void handleShowCommand(MoveInputResult& result, Options& options){
 		options.shownBitboard.setType(stringToPieceType.at(buffer));
 	}
 	catch(std::out_of_range){
-		std::cout << "Invalid piece \"" << buffer << "\"!\n";
+		result.message = "Invalid piece \"" + buffer + "\"!";
+		result.failed = true;
 		return;
 	}
 }
 
-void handlePerftCommand(MoveInputResult& result, Options& options){
+static void handlePerftCommand(MoveInputResult& result, Options& options){
 	std::string buffer;
 
 	result.op = MoveInputResult::Perft;
@@ -196,90 +203,116 @@ void handlePerftCommand(MoveInputResult& result, Options& options){
 		result.perftDepth = std::stoi(buffer);
 	}
 	catch(std::invalid_argument){
-		std::cout << "Invalid depth \"" << buffer << "\"!\n";
+		result.message = "Invalid depth \"" + buffer + "\"!";
 		result.op = MoveInputResult::Continue;
+		result.failed = true;
 		return;
 	}
 }
 
-void getUserMoveStart(MoveInputResult& result, Options& options){
+static void handleFenCommand(MoveInputResult& result, Options& options){
+	result.op = MoveInputResult::LoadFEN;
+
 	std::string buffer;
-	while(true){
-		std::cout << "Move start: " << std::flush;
-		std::cin >> buffer;
-		if (buffer == "exit"){
-			result.op = MoveInputResult::Exit;
-			return;
-		}
-		else if (buffer == "undo"){
-			result.op = MoveInputResult::UndoMove;
-			return;
-		}
-		else if (buffer == "show"){
-			handleShowCommand(result, options);
-			return;
-		}
-		else if (buffer == "perft"){
-			handlePerftCommand(result, options);
-			return;
-		}
-		else{
-			try{
-				result.move.startIndex = Thera::Board::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
-				break;
-			}
-			catch (std::invalid_argument){
-				std::cout << "Invalid move!\n";
-			}
-		}
+	std::getline(std::cin, buffer);
+	buffer = buffer.substr(1); // remove the leading space
+
+	try{
+		Thera::Board testBoard;
+		testBoard.loadFromFEN(buffer);
+		options.fen = buffer;
 	}
+	catch(std::invalid_argument){
+		result.message = "Invalid FEN string: \"" + buffer + "\"";
+		result.op = MoveInputResult::Continue;
+		result.failed = true;
+		return;
+	}
+	
 }
 
-void getUserMoveEnd(MoveInputResult& result, Options& options){
+static void getUserMoveStart(MoveInputResult& result, Options& options){
 	std::string buffer;
-	while(true){
-		std::cout << "Move end: " << std::flush;
-		std::cin >> buffer;
-		if (buffer == "exit"){
-			result.op = MoveInputResult::Exit;
+	std::cout << "Move start: " << std::flush;
+	std::cin >> buffer;
+	if (buffer == "exit"){
+		result.op = MoveInputResult::Exit;
+		return;
+	}
+	else if (buffer == "undo"){
+		result.op = MoveInputResult::UndoMove;
+		return;
+	}
+	else if (buffer == "show"){
+		handleShowCommand(result, options);
+		return;
+	}
+	else if (buffer == "perft"){
+		handlePerftCommand(result, options);
+		return;
+	}
+	else if (buffer == "fen"){
+		handleFenCommand(result, options);
+		return;
+	}
+	else{
+		try{
+			result.move.startIndex = Thera::Utils::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
 			return;
 		}
-		else if (buffer == "change"){
-			result.op = MoveInputResult::Continue;
+		catch (std::invalid_argument){
+			result.message = "Invalid command or move!";
+			result.failed = true;
 			return;
-		}
-		else if (buffer == "undo"){
-			result.op = MoveInputResult::UndoMove;
-			return;
-		}
-		else if (buffer == "show"){
-			handleShowCommand(result, options);
-			return;
-		}
-		else{
-			if (buffer.at(buffer.size() - 1) == 'F'){
-				result.op = MoveInputResult::ForceMove;
-			}
-			try{
-				result.move.endIndex = Thera::Board::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
-				return;
-			}
-			catch (std::invalid_argument){
-				std::cout << "Invalid move!\n";
-			}
 		}
 	}
+	result.failed = true;
+	result.message = "Invalid command or move!";
+}
+
+static void getUserMoveEnd(MoveInputResult& result, Options& options){
+	std::string buffer;
+	std::cout << "Move end: " << std::flush;
+	std::cin >> buffer;
+	if (buffer == "exit"){
+		result.op = MoveInputResult::Exit;
+		return;
+	}
+	else if (buffer == "change"){
+		result.op = MoveInputResult::Continue;
+		return;
+	}
+	else if (buffer == "undo"){
+		result.op = MoveInputResult::UndoMove;
+		return;
+	}
+	else{
+		if (buffer.at(buffer.size() - 1) == 'F'){
+			result.op = MoveInputResult::ForceMove;
+		}
+		try{
+			result.move.endIndex = Thera::Utils::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
+			return;
+		}
+		catch (std::invalid_argument){
+			result.message = "Invalid command or move!";
+			result.failed = true;
+			return;
+		}
+	}
+	result.failed = true;
+	result.message = "Invalid command or move!";
 }
 
 template<int N>
-void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
+static void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
 	for (int i=0; i<64; i++){
-		if (bitboard[Thera::Board::to10x12Coords(i)] && Thera::Board::isOnBoard8x8(i))
+		if (bitboard[Thera::Utils::to10x12Coords(i)] && Thera::Utils::isOnBoard8x8(i))
 			highlights.at(i) = highlightBitboardPresent;
 	}
 }
 
-void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
+static void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
 	if (options.shownBitboard.getType() != Thera::PieceType::None || options.shownBitboard.getColor() != Thera::PieceColor::Black){
 		setBitboardHighlight(board.getBitboard(options.shownBitboard), highlights);
 	}
@@ -288,7 +321,7 @@ void setBitboardHighlight(Options const& options, Thera::Board const& board, std
 	}
 }
 
-void redrawGUI(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
+static void redrawGUI(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
 	std::cout << ANSI::clearScreen() << message << ANSI::reset() << "\n";
 	setBitboardHighlight(options, board, highlights);
 	printBoard(board, highlights, options);
@@ -314,6 +347,12 @@ int playMode(Options& options){
 		redrawGUI(options, board, highlights, message);
 		
 		getUserMoveStart(userInput, options);
+		
+		if (userInput.failed){
+			message = ANSI::set4BitColor(ANSI::Red) + userInput.message + ANSI::reset();
+			continue;
+		}
+
 		if (userInput.op == MoveInputResult::Exit) break;
 		else if (userInput.op == MoveInputResult::UndoMove){
 			try{
@@ -325,11 +364,16 @@ int playMode(Options& options){
 			}
 			continue;
 		}
+		else if (userInput.op == MoveInputResult::LoadFEN){
+			board.loadFromFEN(options.fen);
+			message = ANSI::set4BitColor(ANSI::Blue) + "Loaded position from FEN." + ANSI::reset();
+			continue;
+		}
 		else if (userInput.op == MoveInputResult::Perft){
 			const auto messageLoggingMovePrint = [&](Thera::Move const& move, int numSubmoves){
 				message
-					+= Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.startIndex))
-					+  Thera::Utils::squareToAlgebraicNotation(Thera::Board::to8x8Coords(move.endIndex));
+					+= Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.startIndex))
+					+  Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.endIndex));
 				switch (move.promotionType){
 					case Thera::PieceType::Bishop: message += "b"; break;
 					case Thera::PieceType::Knight: message += "n"; break;
@@ -342,7 +386,7 @@ int playMode(Options& options){
 
 			message = "";
 
-			int nodesSearched = perft(userInput.perftDepth, true, messageLoggingMovePrint, board, generator);
+			int nodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, messageLoggingMovePrint);
 
 			// write the perft output to a file for easier debugging
 			std::ofstream logFile("/tmp/thera.txt", std::ofstream::trunc);
@@ -354,21 +398,21 @@ int playMode(Options& options){
 				logFile.close();
 			}
 
-			message += "Nodes searched: " + std::to_string(nodesSearched) + "\n";
+			message = "-------------------\n" + message + "Nodes searched: " + std::to_string(nodesSearched) + "\n";
 
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Continue)
 			continue;
 
-		auto possibleMoves = generator.generateMoves(board, Thera::Board::to8x8Coords(userInput.move.startIndex));
+		auto possibleMoves = generator.generateMoves(board, Thera::Utils::to8x8Coords(userInput.move.startIndex));
 		message = ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
 
 		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
 			// highlight all moves
-			highlights.at(Thera::Board::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
+			highlights.at(Thera::Utils::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
 			for (auto const& move : possibleMoves){
-				highlights.at(Thera::Board::to8x8Coords(move.endIndex)) = highlightMovePossible;
+				highlights.at(Thera::Utils::to8x8Coords(move.endIndex)) = highlightMovePossible;
 			}
 		}
 

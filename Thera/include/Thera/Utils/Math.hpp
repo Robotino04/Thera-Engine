@@ -4,7 +4,6 @@
 
 namespace Thera::Utils{
 
-
 /**
  * @brief Test if x is in the range [begin, end] 
  *  
