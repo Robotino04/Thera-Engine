@@ -57,18 +57,21 @@ class Bitboard{
         }
 
         constexpr Bitboard(__uint128_t raw){
-            clear();
-            bits = raw;
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
+
                 numPieces = std::popcount(raw);
+                bits = raw;
                 const auto pieces = getPieces8x8();
-                numPieces = 0;
-                for (int i=0; i<numPieces; i++){
+
+                clear();
+                for (int i=0; i<std::popcount(raw); i++){
                     placePiece(Utils::to10x12Coords(pieces.at(i)));
                 }
                 if (std::popcount(bits) != numPieces)
                     throw std::runtime_error("Desync between bitboard and numPieces detected.");
             }
+
+            bits = raw;
         }
 
 
@@ -103,12 +106,13 @@ class Bitboard{
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
                 if (isOccupied(square))
                     throw std::invalid_argument("Tried to place piece on already occupied square.");
+
+                occupiedSquares[numPieces] = square;
+                reverseOccupiedSquares[square] = numPieces;
+                numPieces++;
             }
             
-            occupiedSquares[numPieces] = square;
-            reverseOccupiedSquares[square] = numPieces;
             (*this)[square] = true;
-            numPieces++;
         }
 
         /**
@@ -124,18 +128,18 @@ class Bitboard{
                     throw std::invalid_argument("Tried to remove piece from empty square.");
                 if (!Utils::isOnBoard10x12(square))
                     throw std::invalid_argument("Tried to remove piece from outside the board.");
+
+                const int pieceIndex = reverseOccupiedSquares.at(square);
+
+                // move last entry in occupiedSquares to the empty spot
+                occupiedSquares.at(pieceIndex) = occupiedSquares.at(numPieces-1);
+                reverseOccupiedSquares.at(occupiedSquares.at(pieceIndex)) = pieceIndex;
+
+                reverseOccupiedSquares.at(square) = -1;
+                numPieces--;
             }
             
             (*this)[square] = false;
-
-            const int pieceIndex = reverseOccupiedSquares.at(square);
-
-            // move last entry in occupiedSquares to the empty spot
-            occupiedSquares.at(pieceIndex) = occupiedSquares.at(numPieces-1);
-            reverseOccupiedSquares.at(occupiedSquares.at(pieceIndex)) = pieceIndex;
-
-            reverseOccupiedSquares.at(square) = -1;
-            numPieces--;
         }
 
         /**
@@ -159,10 +163,12 @@ class Bitboard{
             clearBit(move.startIndex); // will remove the piece
             setBit(move.endIndex); // will place the piece
 
-            int pieceIndex = reverseOccupiedSquares.at(move.startIndex);
-            reverseOccupiedSquares.at(move.startIndex) = -1;
-            reverseOccupiedSquares.at(move.endIndex) = pieceIndex;
-            occupiedSquares.at(pieceIndex) = move.endIndex;
+            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
+                int pieceIndex = reverseOccupiedSquares.at(move.startIndex);
+                reverseOccupiedSquares.at(move.startIndex) = -1;
+                reverseOccupiedSquares.at(move.endIndex) = pieceIndex;
+                occupiedSquares.at(pieceIndex) = move.endIndex;
+            }
         }
 
         /**
@@ -293,6 +299,7 @@ class Bitboard{
         static_assert(requires {typename __uint128_t;});
         __uint128_t bits;
 
+        // these are only used in debug builds to aid in debugging
         std::array<int8_t, N> occupiedSquares;
         std::array<int, 10*12> reverseOccupiedSquares;
         int numPieces = 0;
