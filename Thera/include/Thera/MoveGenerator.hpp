@@ -26,7 +26,7 @@ class MoveGenerator{
          * @param square the square to generate moves for
          * @return std::vector<Move> the generated moves
          */
-        std::vector<Move> generateMoves(Board& board, int8_t square);
+        std::vector<Move> generateMoves(Board& board, Coordinate8x8 square);
 
     private:
         /**
@@ -35,7 +35,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board& board, int8_t square);
+        void generateSlidingMoves(Board& board, Coordinate8x8 square);
 
         /**
          * @brief Generate all bishop, rook and queen moves.
@@ -50,7 +50,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKingKnightMoves(Board& board, int8_t square);
+        void generateKingKnightMoves(Board& board, Coordinate8x8 square);
 
         /**
          * @brief Generate all king and knight moves.
@@ -65,7 +65,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generatePawnMoves(Board& board, int8_t square);
+        void generatePawnMoves(Board& board, Coordinate8x8 square);
 
         /**
          * @brief Generate all pawn moves.

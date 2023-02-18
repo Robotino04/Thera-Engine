@@ -2,12 +2,13 @@
 
 #include "Thera/Utils/Math.hpp"
 
+#include "Thera/TemporyryCoordinateTypes.hpp"
+
 #include <stdint.h>
 #include <utility>
 #include <array>
 
 namespace Thera::Utils{
-
 
 /**
  * @brief Get the x coordinate of an 8x8 square index.
@@ -15,8 +16,8 @@ namespace Thera::Utils{
  * @param square 
  * @return constexpr int8_t 
  */
-constexpr int8_t getXCoord(int8_t square){
-    return square % 8;
+constexpr int8_t getXCoord(Coordinate8x8 square){
+    return square.pos % 8;
 }
 
 /**
@@ -25,8 +26,8 @@ constexpr int8_t getXCoord(int8_t square){
  * @param square 
  * @return constexpr int8_t 
  */
-constexpr int8_t getYCoord(int8_t square){
-    return square / 8;
+constexpr int8_t getYCoord(Coordinate8x8 square){
+    return square.pos / 8;
 }
 
 /**
@@ -35,7 +36,7 @@ constexpr int8_t getYCoord(int8_t square){
  * @param square 
  * @return constexpr std::pair<int8_t, int8_t> 
  */
-constexpr std::pair<int8_t, int8_t> getCoords(int8_t square){
+constexpr std::pair<int8_t, int8_t> getCoords(Coordinate8x8 square){
     return {
         getXCoord(square),
         getYCoord(square)
@@ -47,11 +48,10 @@ constexpr std::pair<int8_t, int8_t> getCoords(int8_t square){
  * 
  * @param x X coordinate
  * @param y Y coordinate
- * @param width the grid width
- * @return int8_t index
+ * @return Coordinate8x8
  */
-constexpr int8_t coordToIndex(int8_t x, int8_t y, int8_t width=8){
-	return x + y * width;
+constexpr Coordinate8x8 coordToIndex(int8_t x, int8_t y){
+	return Coordinate8x8(x + y * 8);
 }
 
 /**
@@ -63,8 +63,8 @@ constexpr int8_t coordToIndex(int8_t x, int8_t y, int8_t width=8){
  * @param row the row
  * @return is the square on the given row
  */
-constexpr bool isOnRow(int8_t square, int8_t row){
-    return isInRange(square, coordToIndex(0, row), coordToIndex(7, row));
+constexpr bool isOnRow(Coordinate8x8 square, int8_t row){
+    return isInRange<int8_t>(square.pos, coordToIndex(0, row).pos, coordToIndex(7, row).pos);
 }
 
 namespace Detail{
@@ -74,7 +74,7 @@ namespace Detail{
 
 		for (int x=0; x<8; x++){
 			for (int y=0; y<8; y++){
-				result[Utils::coordToIndex(x+1, y+2, 10)] = Utils::coordToIndex(x, y);
+				result[(x+1) + (y+2)*10] = Utils::coordToIndex(x, y).pos;
 			}
 		}
 		return result;
@@ -85,7 +85,7 @@ namespace Detail{
 
 		for (int x=0; x<8; x++){
 			for (int y=0; y<8; y++){
-				result[Utils::coordToIndex(x, y)] = Utils::coordToIndex(x+1, y+2, 10);
+				result[Utils::coordToIndex(x, y).pos] = (x+1) + (y+2)*10;
 			}
 		}
 		return result;
@@ -96,7 +96,18 @@ namespace Detail{
     // converts from 8x8 to 10x12
     static constexpr std::array<int, 8*8> mailboxSmallToBig = Detail::generateMailboxSmallToBig();
 }
-		
+
+/**
+ * @brief Apply a 10x12 offset to 8x8 coordinates.
+ * 
+ * @param index the base index
+ * @param offset the 10x12 offset
+ * @return constexpr Coordinate10x12 the new 10x12 coordinates
+ */
+constexpr Coordinate10x12 applyOffset(Coordinate8x8 index, int8_t offset){
+    return Coordinate10x12(Coordinate10x12(index).pos + offset);
+}
+
 /**
  * @brief Return if given index(10x12) and offset(10x12) are still on the board.
  * 
@@ -104,37 +115,8 @@ namespace Detail{
  * @param offset the offset
  * @return bool
  */
-constexpr bool isOnBoard10x12(int8_t index, int8_t offset=0) {
-    return Detail::mailboxBigToSmall.at(index + offset) != -1;
-}
-
-/**
- * @brief Apply a 10x12 offset to 8x8 coordinates.
- * 
- * @param index the base index
- * @param offset the 10x12 offset
- * @return constexpr int8_t the new 8x8 coordinates
- */
-constexpr int8_t applyOffset(int8_t index, int8_t offset){
-    return Detail::mailboxBigToSmall.at(Detail::mailboxSmallToBig.at(index) + offset);
-}
-
-constexpr int8_t to8x8Coords(int8_t index){
-    return Detail::mailboxBigToSmall.at(index);
-}
-constexpr int8_t to10x12Coords(int8_t index){
-    return Detail::mailboxSmallToBig.at(index);
-}
-
-/**
- * @brief Return if given index(8x8) and offset(10x12) are still on the board.
- * 
- * @param index the base index
- * @param offset the offset
- * @return bool
- */
-constexpr bool isOnBoard8x8(int8_t index, int8_t offset=0) {
-    return applyOffset(index, offset) != -1;
+constexpr bool isOnBoard(Coordinate10x12 index, int8_t offset=0) {
+    return Detail::mailboxBigToSmall.at(index.pos + offset) != -1;
 }
 
 

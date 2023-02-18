@@ -12,7 +12,7 @@ namespace Thera{
 
 namespace Detail{
 // TODO: replace to use bitboards
-bool isSquareAttacked(int8_t square, Thera::Board& board, Thera::MoveGenerator& generator){
+bool isSquareAttacked(Coordinate10x12 square, Thera::Board& board, Thera::MoveGenerator& generator){
     auto moves = generator.generateAllMoves(board);
     for (auto const& move : moves){
         if (move.endIndex == square)
@@ -32,7 +32,7 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 
             const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToMove().opposite()});
             if (!kingBitboard.hasPieces()) continue;
-            const auto kingSquare = Utils::to10x12Coords(kingBitboard.getPieces8x8().at(0));
+            const auto kingSquare = Thera::Coordinate8x8(kingBitboard.getPieces8x8().at(0));
             const bool isInCheck = isSquareAttacked(kingSquare, board, generator);
             if (isInCheck) continue;
         }
@@ -40,11 +40,11 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
         if (move.isCastling){
             bool isInvalid = false;
 
-            const int8_t direction = Thera::Utils::sign(move.endIndex-move.startIndex);
-            for (int8_t square = move.startIndex; square != move.endIndex; square += direction){
-                board.applyMove(Thera::Move(move.startIndex, square));
+            const int8_t direction = Thera::Utils::sign(move.endIndex.pos - move.startIndex.pos);
+            for (int8_t square = move.startIndex.pos; square != move.endIndex.pos; square += direction){
+                board.applyMove(Thera::Move(move.startIndex, Coordinate10x12(square)));
                 Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
-                if (isSquareAttacked(square, board, generator)){
+                if (isSquareAttacked(Thera::Coordinate10x12(square), board, generator)){
                     isInvalid = true;
                     break;
                 }

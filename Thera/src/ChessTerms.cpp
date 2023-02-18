@@ -2,7 +2,7 @@
 
 namespace Thera::Utils{
 
-int8_t squareFromAlgebraicNotation(std::string const& str){
+Coordinate8x8 squareFromAlgebraicNotation(std::string const& str){
     if (str.size() != 2) throw std::invalid_argument("\"" + str + "\" isn't a valid square");
     if (!Utils::isInRange(str[0], 'a', 'h')) throw std::invalid_argument("\"" + str + "\" isn't a valid square");
     if (!Utils::isInRange(str[1], '1', '8')) throw std::invalid_argument("\"" + str + "\" isn't a valid square");
@@ -14,9 +14,9 @@ int8_t squareFromAlgebraicNotation(std::string const& str){
     return Utils::coordToIndex(x, y);
 }
 
-std::string squareToAlgebraicNotation(int8_t square){
+std::string squareToAlgebraicNotation(Coordinate8x8 square){
     auto [x, y] = Utils::getCoords(square);
-    if (!Utils::isInRange<int8_t>(x, 0, 7) || !Utils::isInRange<int8_t>(y, 0, 7)) throw std::invalid_argument(std::to_string(square) + " isn't a valid square");
+    if (!Utils::isInRange<int8_t>(x, 0, 7) || !Utils::isInRange<int8_t>(y, 0, 7)) throw std::invalid_argument(std::to_string(square.pos) + " isn't a valid square");
 
     return std::string(1, 'a' + x) + std::string(1, '8' - y);
 }

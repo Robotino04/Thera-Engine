@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <string>
 #include <stack>
+#include <optional>
 
 namespace Thera{
 struct Move;
@@ -21,58 +22,12 @@ struct Move;
 class Board{
 	public:
 		/**
-		 * @brief Return the piece at (x, y).
-		 * 
-		 * @param x X coordinate
-		 * @param y Y coordinate
-		 * @return Piece& piece
-		 */
-		Piece& at(int8_t x, int8_t y);
-		/**
-		 * @brief Return the piece at (x, y) + offset.
-		 * 
-		 * @param x X coordinate
-		 * @param y Y coordinate
-		 * @param offset an offset into the 10x12 board
-		 * @return Piece& piece
-		 */
-		Piece& at(int8_t x, int8_t y, int8_t offset);
-
-		/**
 		 * @brief Return the piece at (index).
 		 * 
 		 * @param index index
 		 * @return Piece& piece
 		 */
-		Piece& at(int8_t index);
-
-		/**
-		 * @brief Return the piece at (index).
-		 * 
-		 * @param index index
-		 * @return Piece& piece
-		 */
-		Piece& at10x12(int8_t index);
-
-		/**
-		 * @brief Return the piece at (x, y).
-		 * 
-		 * @param x X coordinate
-		 * @param y Y coordinate
-		 * @return Piece const& piece
-		 */
-		
-		Piece const& at(int8_t x, int8_t y) const;
-
-		/**
-		 * @brief Return the piece at (x, y) + offset.
-		 * 
-		 * @param x X coordinate
-		 * @param y Y coordinate
-		 * @param offset an offset into the 10x12 board
-		 * @return Piece& piece
-		 */
-		Piece const& at(int8_t x, int8_t y, int8_t offset) const;
+		Piece& at(Coordinate8x8 index);
 
 		/**
 		 * @brief Return the piece at (index).
@@ -80,23 +35,15 @@ class Board{
 		 * @param index index
 		 * @return Piece const& piece
 		 */
-		Piece const& at(int8_t index) const;
-
-		/**
-		 * @brief Return the piece at (index).
-		 * 
-		 * @param index index
-		 * @return Piece& piece
-		 */
-		Piece const& at10x12(int8_t index) const;
+		Piece const& at(Coordinate8x8 index) const;
 		
 		/**
-		 * @brief Return if a square(8x8) is occupied
+		 * @brief Return if a square(10x12) is occupied
 		 * 
 		 * @param square
 		 * @return bool
 		 */
-		bool isOccupied(int8_t square) const;
+		bool isOccupied(Coordinate10x12 square) const;
 
 		/**
 		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
@@ -105,7 +52,7 @@ class Board{
 		 * @return true 
 		 * @return false 
 		 */
-		bool isFriendly(int8_t square) const;
+		bool isFriendly(Coordinate10x12 square) const;
 
 		/**
 		 * @brief Load a board position from a FEN string.
@@ -183,16 +130,16 @@ class Board{
 		/**
 		 * @brief Get the en passant square.
 		 * 
-		 * @return int8_t 
+		 * @return std::optional<Coordinate10x12> 
 		 */
-		int8_t getEnPassantSquare() const;
+		std::optional<Coordinate10x12> getEnPassantSquare() const;
 
 		/**
 		 * @brief Get the en passant square to capture.
 		 * 
-		 * @return int8_t 
+		 * @return std::optional<Coordinate10x12> 
 		 */
-		int8_t getEnPassantSquareToCapture() const;
+		std::optional<Coordinate10x12> getEnPassantSquareToCapture() const;
 
 		/**
 		 * @brief Get the bitboard containing a particular piece. 
@@ -229,21 +176,21 @@ class Board{
 		 * @param square the square 
 		 * @param piece the piece to place
 		 */
-		void placePiece(int8_t square, Piece piece);
+		void placePiece(Coordinate10x12 square, Piece piece);
 
 		/**
 		 * @brief Remove a piece from the board.
 		 * 
 		 * @param square the square
 		 */
-		void removePiece(int8_t square);
+		void removePiece(Coordinate10x12 square);
 
 		/**
 		 * @brief Remove castlings.
 		 * 
 		 * @param movedSquare the square whose piece got moved
 		 */
-		void removeCastlings(int8_t movedSquare);
+		void removeCastlings(Coordinate8x8 movedSquare);
 
 		/**
 		 * @brief Change the color to move.
@@ -263,8 +210,8 @@ class Board{
 			PieceColor colorToMove = PieceColor::White;
 			std::array<bool, 2> canCastleLeft = {true, true};
 			std::array<bool, 2> canCastleRight = {true, true};
-			int8_t enPassantSquare = -1;
-			int8_t enPassantSquareToCapture = -1;
+			std::optional<Coordinate10x12> enPassantSquare;
+			std::optional<Coordinate10x12> enPassantSquareToCapture;
 		};
 		BoardState currentState;
 		std::stack<BoardState> rewindStack;

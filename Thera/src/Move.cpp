@@ -18,8 +18,8 @@ bool Move::operator ==(Move const& other) const{
     return eq;
 }
 bool Move::isSameBaseMove(Move const& a, Move const& b){
-    return  a.startIndex == b.startIndex &&
-            a.endIndex == b.endIndex;
+    return  a.startIndex.pos == b.startIndex.pos &&
+            a.endIndex.pos == b.endIndex.pos;
 }
 
 }

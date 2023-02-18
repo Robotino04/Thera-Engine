@@ -4,12 +4,13 @@
 #include <string>
 
 #include "Thera/Piece.hpp"
+#include "Thera/TemporyryCoordinateTypes.hpp"
 
 namespace Thera{
 
 struct Move{
-    Move(int8_t start, int8_t end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
-    Move(): startIndex(0), endIndex(0), auxiliaryMove(nullptr){}
+    Move(Coordinate10x12 start, Coordinate10x12 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
+    Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
     Move(Move const& move){
         startIndex = move.startIndex;
         endIndex = move.endIndex;
@@ -25,10 +26,10 @@ struct Move{
     ~Move(){
         if (auxiliaryMove) delete auxiliaryMove;
     }
-    int8_t startIndex, endIndex;
+    Coordinate10x12 startIndex, endIndex;
     Move* auxiliaryMove = nullptr;
     PieceType promotionType = PieceType::None;
-    int8_t enPassantFile = 0;
+    int8_t enPassantFile;
     bool isEnPassant = false;
     bool isCastling = false;
     bool isDoublePawnMove = false;

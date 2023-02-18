@@ -57,21 +57,21 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 		for(uint8_t x=0; x<8; x++){
 			RGB boardColor = (x + y)%2 ? blackBoardColor : whiteBoardColor;
 			
-			if (squareHighlights.at(Thera::Utils::coordToIndex(x, y)) != RGB::Black)
-				boardColor = overlay(boardColor, squareHighlights.at(Thera::Utils::coordToIndex(x, y)), highlightOpacity);
+			if (squareHighlights.at(Thera::Utils::coordToIndex(x, y).pos) != RGB::Black)
+				boardColor = overlay(boardColor, squareHighlights.at(Thera::Utils::coordToIndex(x, y).pos), highlightOpacity);
 
 			// set the board color
 			std::cout << ANSI::set24BitColor(boardColor.red, boardColor.green, boardColor.blue, ANSI::Background);
 
 			// set the piece color
-			const RGB pieceColor = board.at(x, y).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
-			if (board.at(x, y).getType() != Thera::PieceType::None){
+			const RGB pieceColor = board.at(Thera::Utils::coordToIndex(x, y)).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
+			if (board.at(Thera::Utils::coordToIndex(x, y)).getType() != Thera::PieceType::None){
 				std::cout << ANSI::set24BitColor(pieceColor.red, pieceColor.green, pieceColor.blue, ANSI::Foreground);
 			}
 
 			// print the piece
 			std::cout
-				<< pieces.at({board.at(x, y).getColor(), board.at(x, y).getType()})
+				<< pieces.at({board.at(Thera::Utils::coordToIndex(x, y)).getColor(), board.at(Thera::Utils::coordToIndex(x, y)).getType()})
 				<< " ";
 		}
 		std::cout
@@ -257,7 +257,7 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 	}
 	else{
 		try{
-			result.move.startIndex = Thera::Utils::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
+			result.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
 			return;
 		}
 		catch (std::invalid_argument){
@@ -291,7 +291,7 @@ static void getUserMoveEnd(MoveInputResult& result, Options& options){
 			result.op = MoveInputResult::ForceMove;
 		}
 		try{
-			result.move.endIndex = Thera::Utils::to10x12Coords(Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2)));
+			result.move.endIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
 			return;
 		}
 		catch (std::invalid_argument){
@@ -306,8 +306,8 @@ static void getUserMoveEnd(MoveInputResult& result, Options& options){
 
 template<int N>
 static void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
-	for (int i=0; i<64; i++){
-		if (bitboard[Thera::Utils::to10x12Coords(i)] && Thera::Utils::isOnBoard8x8(i))
+	for (int8_t i=0; i<64; i++){
+		if (bitboard[Thera::Coordinate8x8(i)] && Thera::Utils::isOnBoard(Thera::Coordinate8x8(i)))
 			highlights.at(i) = highlightBitboardPresent;
 	}
 }
@@ -372,8 +372,8 @@ int playMode(Options& options){
 		else if (userInput.op == MoveInputResult::Perft){
 			const auto messageLoggingMovePrint = [&](Thera::Move const& move, int numSubmoves){
 				message
-					+= Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.startIndex))
-					+  Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.endIndex));
+					+= Thera::Utils::squareToAlgebraicNotation(move.startIndex)
+					+  Thera::Utils::squareToAlgebraicNotation(move.endIndex);
 				switch (move.promotionType){
 					case Thera::PieceType::Bishop: message += "b"; break;
 					case Thera::PieceType::Knight: message += "n"; break;
@@ -405,14 +405,14 @@ int playMode(Options& options){
 		else if (userInput.op == MoveInputResult::Continue)
 			continue;
 
-		auto possibleMoves = generator.generateMoves(board, Thera::Utils::to8x8Coords(userInput.move.startIndex));
+		auto possibleMoves = generator.generateMoves(board, userInput.move.startIndex);
 		message = ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
 
 		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
 			// highlight all moves
-			highlights.at(Thera::Utils::to8x8Coords(userInput.move.startIndex)) = highlightSquareSelected;
+			highlights.at(((Thera::Coordinate8x8)userInput.move.startIndex).pos) = highlightSquareSelected;
 			for (auto const& move : possibleMoves){
-				highlights.at(Thera::Utils::to8x8Coords(move.endIndex)) = highlightMovePossible;
+				highlights.at(((Thera::Coordinate8x8)move.endIndex).pos) = highlightMovePossible;
 			}
 		}
 
@@ -422,7 +422,7 @@ int playMode(Options& options){
 		if (userInput.op == MoveInputResult::Continue)
 			continue;
 		else if (userInput.op == MoveInputResult::ForceMove){
-			if (board.getColorToMove() == board.at10x12(userInput.move.startIndex).getColor())
+			if (board.getColorToMove() == board.at(userInput.move.startIndex).getColor())
 				board.applyMove(userInput.move);
 			else
 				board.applyMoveStatic(userInput.move);

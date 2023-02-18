@@ -6,6 +6,8 @@
 #include "Thera/Utils/Math.hpp"
 #include "Thera/Utils/Coordinates.hpp"
 
+#include "Thera/TemporyryCoordinateTypes.hpp"
+
 #include <array>
 #include <stdint.h>
 #include <stdexcept>
@@ -65,7 +67,7 @@ class Bitboard{
 
                 clear();
                 for (int i=0; i<std::popcount(raw); i++){
-                    placePiece(Utils::to10x12Coords(pieces.at(i)));
+                    placePiece(Coordinate8x8(pieces.at(i)));
                 }
                 if (std::popcount(bits) != numPieces)
                     throw std::runtime_error("Desync between bitboard and numPieces detected.");
@@ -88,11 +90,11 @@ class Bitboard{
          * @return true 
          * @return false 
          */
-        constexpr bool isOccupied(int8_t square) const{
+        constexpr bool isOccupied(Coordinate10x12 square) const{
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug)
-                if (!Utils::isInRange<int8_t>(square, 0, 127))
+                if (!Utils::isInRange<int8_t>(square.pos, 0, 127))
                     throw std::out_of_range("Square index is outside the board");
-            return Utils::getBit(bits, square);
+            return Utils::getBit(bits, square.pos);
         }
 
         /**
@@ -102,13 +104,13 @@ class Bitboard{
          * 
          * @param square
          */
-        constexpr void placePiece(int8_t square){
+        constexpr void placePiece(Coordinate10x12 square){
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
                 if (isOccupied(square))
                     throw std::invalid_argument("Tried to place piece on already occupied square.");
 
-                occupiedSquares[numPieces] = square;
-                reverseOccupiedSquares[square] = numPieces;
+                occupiedSquares[numPieces] = square.pos;
+                reverseOccupiedSquares[square.pos] = numPieces;
                 numPieces++;
             }
             
@@ -122,20 +124,20 @@ class Bitboard{
          * 
          * @param square 
          */
-        constexpr void removePiece(int8_t square){
+        constexpr void removePiece(Coordinate10x12 square){
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
                 if (!isOccupied(square))
                     throw std::invalid_argument("Tried to remove piece from empty square.");
-                if (!Utils::isOnBoard10x12(square))
+                if (!Utils::isOnBoard(square))
                     throw std::invalid_argument("Tried to remove piece from outside the board.");
 
-                const int pieceIndex = reverseOccupiedSquares.at(square);
+                const int pieceIndex = reverseOccupiedSquares.at(square.pos);
 
                 // move last entry in occupiedSquares to the empty spot
                 occupiedSquares.at(pieceIndex) = occupiedSquares.at(numPieces-1);
                 reverseOccupiedSquares.at(occupiedSquares.at(pieceIndex)) = pieceIndex;
 
-                reverseOccupiedSquares.at(square) = -1;
+                reverseOccupiedSquares.at(square.pos) = -1;
                 numPieces--;
             }
             
@@ -154,20 +156,20 @@ class Bitboard{
                 if (!isOccupied(move.startIndex)){
                     throw std::runtime_error("Tried to make move starting on an empty square.");
                 }
-                if (!Utils::isInRange<int8_t>(move.startIndex, 0, reverseOccupiedSquares.size()))
+                if (!Utils::isInRange<int8_t>(move.startIndex.pos, 0, reverseOccupiedSquares.size()))
                     throw std::out_of_range("Move start index is outside the board");
-                if (!Utils::isInRange<int8_t>(move.endIndex, 0, reverseOccupiedSquares.size()))
+                if (!Utils::isInRange<int8_t>(move.endIndex.pos, 0, reverseOccupiedSquares.size()))
                     throw std::out_of_range("Move end index is outside the board");
             }
 
-            clearBit(move.startIndex); // will remove the piece
-            setBit(move.endIndex); // will place the piece
+            clearBit(move.startIndex.pos); // will remove the piece
+            setBit(move.endIndex.pos); // will place the piece
 
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
-                int pieceIndex = reverseOccupiedSquares.at(move.startIndex);
-                reverseOccupiedSquares.at(move.startIndex) = -1;
-                reverseOccupiedSquares.at(move.endIndex) = pieceIndex;
-                occupiedSquares.at(pieceIndex) = move.endIndex;
+                int pieceIndex = reverseOccupiedSquares.at(move.startIndex.pos);
+                reverseOccupiedSquares.at(move.startIndex.pos) = -1;
+                reverseOccupiedSquares.at(move.endIndex.pos) = pieceIndex;
+                occupiedSquares.at(pieceIndex) = move.endIndex.pos;
             }
         }
 
@@ -179,7 +181,7 @@ class Bitboard{
         constexpr std::array<int8_t, N> getPieces8x8() const{
             uint64_t x = 0;
             for (int8_t i=0; i<64; i++){
-                x = (x << 1) | isOccupied(Utils::to10x12Coords(i));
+                x = (x << 1) | isOccupied(Coordinate8x8(i));
             }
             x = Utils::reverseBits(x);
 
@@ -225,18 +227,18 @@ class Bitboard{
         constexpr uint64_t getBoard8x8() const{
             uint64_t board = 0;
             for (int i=0; i<64; i++){
-                board = Utils::setBit<uint64_t>(board, i, (*this)[Utils::to10x12Coords(i)]);
+                board = Utils::setBit<uint64_t>(board, i, (*this)[Coordinate8x8(i)]);
             }
             return board;
         }
 
 
 
-        constexpr bool operator[] (int8_t bitIdx) const{
-            return Utils::getBit(bits, bitIdx);
+        constexpr bool operator[] (Coordinate10x12 bitIdx) const{
+            return Utils::getBit(bits, bitIdx.pos);
         }
-        constexpr Reference operator[] (int8_t bitIdx){
-            return Reference(*this, bitIdx);
+        constexpr Reference operator[] (Coordinate10x12 bitIdx){
+            return Reference(*this, bitIdx.pos);
         }
         constexpr void flipBit(int8_t bitIndex){
             bits ^= __uint128_t(1) << bitIndex;

@@ -18,8 +18,8 @@
 
 static void printMove(Thera::Move const& move, int numSubmoves){
     std::cout
-        << Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.startIndex))
-        << Thera::Utils::squareToAlgebraicNotation(Thera::Utils::to8x8Coords(move.endIndex));
+        << Thera::Utils::squareToAlgebraicNotation(move.startIndex)
+        << Thera::Utils::squareToAlgebraicNotation(move.endIndex);
     switch (move.promotionType){
         case Thera::PieceType::Bishop: std::cout << "b"; break;
         case Thera::PieceType::Knight: std::cout << "n"; break;

@@ -41,9 +41,9 @@ inline constexpr auto allPieces = Detail::generateAllPieces();
  *  "f2"
  * 
  * @param str the string to parse from
- * @return int8_t the index
+ * @return Coordinate8x8
  */
-int8_t squareFromAlgebraicNotation(std::string const& str);
+Coordinate8x8 squareFromAlgebraicNotation(std::string const& str);
 
 /**
  * @brief Generate a string containing algebraic notation for a square (8x8).
@@ -51,7 +51,7 @@ int8_t squareFromAlgebraicNotation(std::string const& str);
  * @param square 
  * @return std::string 
  */
-std::string squareToAlgebraicNotation(int8_t square);
+std::string squareToAlgebraicNotation(Coordinate8x8 square);
 
 /**
  * @brief Convert a piece color to a human readable string. ("white", "black")
