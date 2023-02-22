@@ -18,23 +18,23 @@ namespace Thera{
 
 Piece& Board::at(Coordinate8x8 index){
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(Coordinate10x12(index).pos);
+		return currentState.squares.at(index.pos);
 	else
-		return currentState.squares[Coordinate10x12(index).pos];
+		return currentState.squares[index.pos];
 }
 
 Piece const& Board::at(Coordinate8x8 index) const{
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(Coordinate10x12(index).pos);
+		return currentState.squares.at(index.pos);
 	else
-		return currentState.squares[Coordinate10x12(index).pos];
+		return currentState.squares[index.pos];
 }
 
-bool Board::isOccupied(Coordinate10x12 square) const{
+bool Board::isOccupied(Coordinate8x8 square) const{
 	return at(square).getType() != PieceType::None;
 }
 
-bool Board::isFriendly(Coordinate10x12 square) const{
+bool Board::isFriendly(Coordinate8x8 square) const{
 	return at(square).getColor() == getColorToMove();
 }
 
@@ -243,7 +243,7 @@ void Board::applyMoveStatic(Move const& move){
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
-		currentState.enPassantSquare = Coordinate10x12((move.startIndex.pos + move.endIndex.pos) / 2);
+		currentState.enPassantSquare = Coordinate8x8((move.startIndex.pos + move.endIndex.pos) / 2);
 		currentState.enPassantSquareToCapture = move.endIndex;
 	}
 	else{
@@ -297,22 +297,22 @@ bool Board::getCastleRight(PieceColor color) const{
 	return currentState.canCastleRight.at(static_cast<uint8_t>(color));
 }
 
-std::optional<Coordinate10x12> Board::getEnPassantSquare() const{
+std::optional<Coordinate8x8> Board::getEnPassantSquare() const{
 	return currentState.enPassantSquare;
 }
 
-std::optional<Coordinate10x12> Board::getEnPassantSquareToCapture() const{
+std::optional<Coordinate8x8> Board::getEnPassantSquareToCapture() const{
 	return currentState.enPassantSquareToCapture;
 }
 
-void Board::placePiece(Coordinate10x12 square, Piece piece){
+void Board::placePiece(Coordinate8x8 square, Piece piece){
 	at(square) = piece;
 
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
 }
 
-void Board::removePiece(Coordinate10x12 square){
+void Board::removePiece(Coordinate8x8 square){
 	Piece& piece = at(square);
 
 	currentState.allPieceBitboard.removePiece(square);

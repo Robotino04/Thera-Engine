@@ -12,7 +12,7 @@ namespace Thera{
 
 namespace Detail{
 // TODO: replace to use bitboards
-bool isSquareAttacked(Coordinate10x12 square, Thera::Board& board, Thera::MoveGenerator& generator){
+bool isSquareAttacked(Coordinate8x8 square, Thera::Board& board, Thera::MoveGenerator& generator){
     auto moves = generator.generateAllMoves(board);
     for (auto const& move : moves){
         if (move.endIndex == square)
@@ -42,9 +42,9 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 
             const int8_t direction = Thera::Utils::sign(move.endIndex.pos - move.startIndex.pos);
             for (int8_t square = move.startIndex.pos; square != move.endIndex.pos; square += direction){
-                board.applyMove(Thera::Move(move.startIndex, Coordinate10x12(square)));
+                board.applyMove(Thera::Move(move.startIndex, Thera::Coordinate8x8(square)));
                 Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
-                if (isSquareAttacked(Thera::Coordinate10x12(square), board, generator)){
+                if (isSquareAttacked(Thera::Coordinate8x8(square), board, generator)){
                     isInvalid = true;
                     break;
                 }

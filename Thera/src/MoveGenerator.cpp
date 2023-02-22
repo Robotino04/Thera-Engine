@@ -37,7 +37,7 @@ void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square){
     else return;
     
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        Coordinate10x12 pos = square;
+        Coordinate8x8 pos = square;
         int8_t direction10x12 = MoveGenerator::slidingPieceOffsets.at(directionIdx);
 
         while (Utils::isOnBoard(pos, direction10x12)) {
@@ -150,7 +150,7 @@ void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
             Move move;
             move.startIndex = square;
             move.endIndex = Utils::applyOffset(square, direction10x12_times_two);
-            move.enPassantFile = Utils::getXCoord(Coordinate10x12(move.endIndex));
+            move.enPassantFile = Utils::getXCoord(move.endIndex);
             move.isDoublePawnMove = true;
             addPawnMove(move, board);
         }

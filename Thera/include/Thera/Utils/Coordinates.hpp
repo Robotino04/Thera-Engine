@@ -119,5 +119,4 @@ constexpr bool isOnBoard(Coordinate10x12 index, int8_t offset=0) {
     return Detail::mailboxBigToSmall.at(index.pos + offset) != -1;
 }
 
-
 }
