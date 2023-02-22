@@ -9,7 +9,7 @@
 namespace Thera{
 
 struct Move{
-    Move(Coordinate10x12 start, Coordinate10x12 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
+    Move(Coordinate8x8 start, Coordinate8x8 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
     Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
     Move(Move const& move){
         startIndex = move.startIndex;
@@ -26,7 +26,7 @@ struct Move{
     ~Move(){
         if (auxiliaryMove) delete auxiliaryMove;
     }
-    Coordinate10x12 startIndex, endIndex;
+    Coordinate8x8 startIndex, endIndex;
     Move* auxiliaryMove = nullptr;
     PieceType promotionType = PieceType::None;
     int8_t enPassantFile;

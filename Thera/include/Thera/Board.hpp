@@ -38,12 +38,12 @@ class Board{
 		Piece const& at(Coordinate8x8 index) const;
 		
 		/**
-		 * @brief Return if a square(10x12) is occupied
+		 * @brief Return if a square is occupied
 		 * 
 		 * @param square
 		 * @return bool
 		 */
-		bool isOccupied(Coordinate10x12 square) const;
+		bool isOccupied(Coordinate8x8 square) const;
 
 		/**
 		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
@@ -52,7 +52,7 @@ class Board{
 		 * @return true 
 		 * @return false 
 		 */
-		bool isFriendly(Coordinate10x12 square) const;
+		bool isFriendly(Coordinate8x8 square) const;
 
 		/**
 		 * @brief Load a board position from a FEN string.
@@ -130,16 +130,16 @@ class Board{
 		/**
 		 * @brief Get the en passant square.
 		 * 
-		 * @return std::optional<Coordinate10x12> 
+		 * @return std::optional<Coordinate8x8> 
 		 */
-		std::optional<Coordinate10x12> getEnPassantSquare() const;
+		std::optional<Coordinate8x8> getEnPassantSquare() const;
 
 		/**
 		 * @brief Get the en passant square to capture.
 		 * 
-		 * @return std::optional<Coordinate10x12> 
+		 * @return std::optional<Coordinate8x8> 
 		 */
-		std::optional<Coordinate10x12> getEnPassantSquareToCapture() const;
+		std::optional<Coordinate8x8> getEnPassantSquareToCapture() const;
 
 		/**
 		 * @brief Get the bitboard containing a particular piece. 
@@ -176,14 +176,14 @@ class Board{
 		 * @param square the square 
 		 * @param piece the piece to place
 		 */
-		void placePiece(Coordinate10x12 square, Piece piece);
+		void placePiece(Coordinate8x8 square, Piece piece);
 
 		/**
 		 * @brief Remove a piece from the board.
 		 * 
 		 * @param square the square
 		 */
-		void removePiece(Coordinate10x12 square);
+		void removePiece(Coordinate8x8 square);
 
 		/**
 		 * @brief Remove castlings.
@@ -210,8 +210,8 @@ class Board{
 			PieceColor colorToMove = PieceColor::White;
 			std::array<bool, 2> canCastleLeft = {true, true};
 			std::array<bool, 2> canCastleRight = {true, true};
-			std::optional<Coordinate10x12> enPassantSquare;
-			std::optional<Coordinate10x12> enPassantSquareToCapture;
+			std::optional<Coordinate8x8> enPassantSquare;
+			std::optional<Coordinate8x8> enPassantSquareToCapture;
 		};
 		BoardState currentState;
 		std::stack<BoardState> rewindStack;

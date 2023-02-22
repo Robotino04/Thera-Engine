@@ -57,6 +57,7 @@ struct Coordinate8x8{
     constexpr bool operator == (Coordinate8x8 const& other) const{
         return this->pos == other.pos;
     }
+    constexpr bool operator == (auto const& other) const;
 
 
     constexpr operator auto() const;
@@ -85,11 +86,21 @@ struct Coordinate10x12{
     constexpr bool operator == (Coordinate10x12 const& other) const{
         return this->pos == other.pos;
     }
+    constexpr bool operator == (Coordinate8x8 const& other) const;
 };
 
 
 constexpr Coordinate8x8::operator auto() const{
     return Coordinate10x12(_________Detail::mailboxSmallToBig.at(pos));
+}
+constexpr bool Coordinate8x8::operator == (auto const& other) const{
+    static_assert(std::is_same_v<decltype(other), Coordinate10x12>, "Can only compare to itself and Coordinate10x12");
+    return Coordinate10x12(*this) == other;
+}
+
+
+constexpr bool Coordinate10x12::operator == (Coordinate8x8 const& other) const{
+    return *this == Coordinate10x12(other);
 }
 
 }
