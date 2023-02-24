@@ -71,18 +71,15 @@ void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
     else return;
     
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        Coordinate8x8 pos = square;
-        int8_t direction10x12 = MoveGenerator::kingKnightOffsets.at(directionIdx);
+        auto const& target = kingKnightSquaresValid[square.pos][directionIdx];
 
-        if (Utils::isOnBoard(pos, direction10x12)) {
-            pos = Utils::applyOffset(pos, direction10x12);
-
-            if (board.at(pos).getType() == PieceType::None)
+        if (target.first) {
+            if (board.at(target.second).getType() == PieceType::None)
                 // normal move
-                generatedMoves.emplace_back(square, pos);
-            else if (board.at(pos).getColor() == board.getColorToMove().opposite()){
+                generatedMoves.emplace_back(square, target.second);
+            else if (board.at(target.second).getColor() == board.getColorToMove().opposite()){
                 // capture
-                generatedMoves.emplace_back(square, pos);
+                generatedMoves.emplace_back(square, target.second);
             }
         }
     }

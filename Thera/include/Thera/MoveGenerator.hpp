@@ -104,8 +104,8 @@ class MoveGenerator{
             - list of squares in this direction
 
         */
-        static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 8>>, slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
-            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 8>>, slidingPieceOffsets.size()>, 8*8> result = {};
+        static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
+            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, slidingPieceOffsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
                     for (int dirIdx = 0; dirIdx < slidingPieceOffsets.size(); dirIdx++){
@@ -117,6 +117,33 @@ class MoveGenerator{
                             squares.at(numSquares) = Utils::applyOffset(square, slidingPieceOffsets.at(dirIdx)*(numSquares+1));
                             numSquares++;
                         }
+                    }
+                }
+            }
+            return result;
+        }();
+
+        /*
+        contents: 
+        - squares:
+          - directions:
+            - is target valid
+            - target square
+
+        */
+        static constexpr std::array<std::array<std::pair<bool, Coordinate8x8>, kingKnightOffsets.size()>, 8*8> kingKnightSquaresValid = [](){
+            std::array<std::array<std::pair<bool, Coordinate8x8>, kingKnightOffsets.size()>, 8*8> result = {};
+            for (int x=0; x<8; x++){
+                for (int y=0; y<8; y++){
+                    for (int dirIdx = 0; dirIdx < kingKnightOffsets.size(); dirIdx++){
+                        bool& isPossible = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).first;
+                        
+                        Coordinate8x8 square = Utils::coordToIndex(x, y);
+                        const Coordinate10x12 targetSquare = Utils::applyOffset(square, kingKnightOffsets.at(dirIdx));
+
+                        isPossible = Utils::isOnBoard(targetSquare);
+                        if (isPossible)
+                            result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).second = targetSquare;
                     }
                 }
             }
