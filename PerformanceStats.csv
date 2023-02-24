@@ -5,3 +5,4 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 3;          144.261;            153.568;            10.3394;                10.6737;            Used type-safe coordinates
 4;          73.8069;            75.6982;            6.78846;                6.90691;            Removed most Coordinate10x12 uses
 5;          68.2585;            71.562;             6.11914;                6.30252;            Precomputed sliding piece movement limits
+6;          64.0732;            66.9646;            6.24967;                6.5348;             Precomputed king and knight movement limits
