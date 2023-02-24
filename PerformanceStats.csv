@@ -4,3 +4,4 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 2;          89.6592;            95.0132;            9.34531;                9.79329;            Used bitwise operations for king and knight. Moved sanity checks in Bitboard to constexpr
 3;          144.261;            153.568;            10.3394;                10.6737;            Used type-safe coordinates
 4;          73.8069;            75.6982;            6.78846;                6.90691;            Removed most Coordinate10x12 uses
+5;          68.2585;            71.562;             6.11914;                6.30252;            Precomputed sliding piece movement limits

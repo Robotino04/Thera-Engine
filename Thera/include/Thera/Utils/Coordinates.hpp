@@ -67,36 +67,6 @@ constexpr bool isOnRow(Coordinate8x8 square, int8_t row){
     return isInRange<int8_t>(square.pos, coordToIndex(0, row).pos, coordToIndex(7, row).pos);
 }
 
-namespace Detail{
-	constexpr std::array<int, 10*12> generateMailboxBigToSmall(){
-		std::array<int, 10*12> result = {};
-		for (auto& x : result) x = -1;
-
-		for (int x=0; x<8; x++){
-			for (int y=0; y<8; y++){
-				result[(x+1) + (y+2)*10] = Utils::coordToIndex(x, y).pos;
-			}
-		}
-		return result;
-	}
-	constexpr std::array<int, 8*8> generateMailboxSmallToBig(){
-		std::array<int, 8*8> result = {};
-		for (auto& x : result) x = -1;
-
-		for (int x=0; x<8; x++){
-			for (int y=0; y<8; y++){
-				result[Utils::coordToIndex(x, y).pos] = (x+1) + (y+2)*10;
-			}
-		}
-		return result;
-	}
-
-    // converts from 10x12 to 8x8
-    static constexpr std::array<int, 10*12> mailboxBigToSmall = Detail::generateMailboxBigToSmall();
-    // converts from 8x8 to 10x12
-    static constexpr std::array<int, 8*8> mailboxSmallToBig = Detail::generateMailboxSmallToBig();
-}
-
 /**
  * @brief Apply a 10x12 offset to 8x8 coordinates.
  * 

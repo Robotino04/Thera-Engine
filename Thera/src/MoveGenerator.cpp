@@ -37,11 +37,9 @@ void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square){
     else return;
     
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        Coordinate8x8 pos = square;
-        int8_t direction10x12 = MoveGenerator::slidingPieceOffsets.at(directionIdx);
 
-        while (Utils::isOnBoard(pos, direction10x12)) {
-            pos = Utils::applyOffset(pos, direction10x12);
+        for (int i=0; i<squaresInDirection[square.pos][directionIdx].first; i++) {
+            Coordinate8x8 pos = squaresInDirection[square.pos][directionIdx].second[i];
 
             if (board.at(pos).getType() == PieceType::None)
                 // normal move
@@ -120,7 +118,7 @@ void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
 
 void MoveGenerator::generateAllKingKnightMoves(Board& board){
     auto const bitboard = board.getBitboard({PieceType::King, board.getColorToMove()}) | board.getBitboard({PieceType::Knight, board.getColorToMove()});
-    const auto squares = bitboard.getPieces8x8();
+    const auto squares = bitboard.getPieces();
     const auto numPieces = bitboard.getNumPieces();
 
     for (int i=0; i<numPieces; i++){
@@ -202,7 +200,7 @@ void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
 
 void MoveGenerator::generateAllPawnMoves(Board& board){
     auto const& bitboard = board.getBitboard({PieceType::Pawn, board.getColorToMove()});
-    const auto squares = bitboard.getPieces8x8();
+    const auto squares = bitboard.getPieces();
 
     for (int i=0; i < bitboard.getNumPieces(); i++)
         generatePawnMoves(board, Coordinate8x8(squares.at(i)));

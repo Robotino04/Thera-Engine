@@ -63,7 +63,7 @@ class Bitboard{
 
                 numPieces = std::popcount(raw);
                 bits = raw;
-                const auto pieces = getPieces8x8();
+                const auto pieces = getPieces();
 
                 clear();
                 for (int i=0; i<std::popcount(raw); i++){
@@ -176,9 +176,9 @@ class Bitboard{
         /**
          * @brief Get a list of pieces. Only does sanity checks in debug builds.
          * 
-         * @return constexpr std::array<int8_t, N> list of 8x8 square indices with first numPieces pieces valid
+         * @return constexpr std::array<Coordinate8x8, N> list of 8x8 square indices with first numPieces pieces valid
          */
-        constexpr std::array<int8_t, N> getPieces8x8() const{
+        constexpr std::array<Coordinate8x8, N> getPieces() const{
             auto x = bits;
 
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
@@ -186,12 +186,12 @@ class Bitboard{
                     throw std::runtime_error("Desync between bitboard and numPieces detected.");
             }
 
-            std::array<int8_t, N> result;
+            std::array<Coordinate8x8, N> result;
             auto list = result.begin();
 
             if (x) do {
                 int8_t idx = bitScanForward(x); // square index from 0..63
-                *list++ = idx;
+                *list++ = Coordinate8x8(idx);
             } while (x &= x-1); // reset LS1B
 
             return result;

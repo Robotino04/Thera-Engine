@@ -1,14 +1,18 @@
 #pragma once
-#warning "This file is temporary and shouldn't be needed in the end"
+// #warning "This file is temporary and shouldn't be needed in the end"
+
+#include "Thera/Utils/Math.hpp"
 
 #include <stdexcept>
 #include <stdint.h>
 #include <array>
+#include <type_traits>
 
 namespace Thera{
 
-namespace _________Detail{
-	constexpr std::array<int, 10*12> generateMailboxBigToSmall(){
+namespace Detail{
+	// converts from 10x12 to 8x8
+    constexpr std::array<int, 10*12> mailboxBigToSmall = [](){
 		std::array<int, 10*12> result = {};
 		for (auto& x : result) x = -1;
 
@@ -18,8 +22,10 @@ namespace _________Detail{
 			}
 		}
 		return result;
-	}
-	constexpr std::array<int, 8*8> generateMailboxSmallToBig(){
+	}();
+    
+    // converts from 8x8 to 10x12
+    constexpr std::array<int, 8*8> mailboxSmallToBig = [](){
 		std::array<int, 8*8> result = {};
 		for (auto& x : result) x = -1;
 
@@ -29,12 +35,7 @@ namespace _________Detail{
 			}
 		}
 		return result;
-	}
-
-    // converts from 10x12 to 8x8
-    static constexpr std::array<int, 10*12> mailboxBigToSmall = generateMailboxBigToSmall();
-    // converts from 8x8 to 10x12
-    static constexpr std::array<int, 8*8> mailboxSmallToBig = generateMailboxSmallToBig();
+	}();
 }
 
 
@@ -43,7 +44,7 @@ struct Coordinate8x8{
 
     constexpr explicit Coordinate8x8(int8_t x){
         try{
-            _________Detail::mailboxSmallToBig.at(x);
+            Detail::mailboxSmallToBig.at(x);
         }
         catch (std::out_of_range const&){
             throw std::invalid_argument(std::to_string(x) + " isn't a valid 8x8 square");
@@ -68,7 +69,7 @@ struct Coordinate10x12{
 
     constexpr explicit Coordinate10x12(int8_t x){
         try{
-            _________Detail::mailboxBigToSmall.at(x);
+            Detail::mailboxBigToSmall.at(x);
         }
         catch (std::out_of_range const&){
             throw std::invalid_argument(std::to_string(x) + " isn't a valid 10x12 square");
@@ -80,7 +81,7 @@ struct Coordinate10x12{
     }
 
     constexpr operator Coordinate8x8() const{
-        return Coordinate8x8(_________Detail::mailboxBigToSmall.at(pos));
+        return Coordinate8x8(Detail::mailboxBigToSmall.at(pos));
     }
 
     constexpr bool operator == (Coordinate10x12 const& other) const{
@@ -91,7 +92,7 @@ struct Coordinate10x12{
 
 
 constexpr Coordinate8x8::operator auto() const{
-    return Coordinate10x12(_________Detail::mailboxSmallToBig.at(pos));
+    return Coordinate10x12(Detail::mailboxSmallToBig.at(pos));
 }
 constexpr bool Coordinate8x8::operator == (auto const& other) const{
     static_assert(std::is_same_v<decltype(other), Coordinate10x12>, "Can only compare to itself and Coordinate10x12");

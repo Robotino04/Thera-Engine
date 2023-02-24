@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Thera/Move.hpp"
+#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/TemporyryCoordinateTypes.hpp"
 
 #include <vector>
 #include <array>
@@ -94,9 +96,35 @@ class MoveGenerator{
             -21, -19, -8, 12, 21, 19, 8, -12, // Knight
         };
 
+        /*
+        contents: 
+        - squares:
+          - directions:
+            - number of squares in this direction
+            - list of squares in this direction
+
+        */
+        static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 8>>, slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
+            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 8>>, slidingPieceOffsets.size()>, 8*8> result = {};
+            for (int x=0; x<8; x++){
+                for (int y=0; y<8; y++){
+                    for (int dirIdx = 0; dirIdx < slidingPieceOffsets.size(); dirIdx++){
+                        int& numSquares = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).first;
+                        auto& squares = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).second;
+
+                        Coordinate8x8 square = Utils::coordToIndex(x, y);
+                        while (Utils::isOnBoard(Utils::applyOffset(square, slidingPieceOffsets.at(dirIdx)*(numSquares+1)))){
+                            squares.at(numSquares) = Utils::applyOffset(square, slidingPieceOffsets.at(dirIdx)*(numSquares+1));
+                            numSquares++;
+                        }
+                    }
+                }
+            }
+            return result;
+        }();
+
     private:
         std::vector<Move> generatedMoves;
         
 };
-
 }
