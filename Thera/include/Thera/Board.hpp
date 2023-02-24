@@ -13,8 +13,6 @@
 namespace Thera{
 struct Move;
 
-
-
 /**
  * @brief A chess board representation.
  * 
