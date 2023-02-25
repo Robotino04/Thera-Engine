@@ -19,6 +19,8 @@ struct Move;
  */
 class Board{
 	public:
+		struct BoardState;
+
 		/**
 		 * @brief Return the piece at (index).
 		 * 
@@ -98,32 +100,18 @@ class Board{
 		PieceColor getColorToMove() const;
 
 		/**
-		 * @brief Get the castling rights for the left side (queen side).
+		 * @brief Get the color that has just made a move.
 		 * 
-		 * @return std::array<bool, 2> const& array of [can black castle, can white castle]
+		 * @return PieceColor 
 		 */
-		std::array<bool, 2> const& getCastleLeft() const;
+		PieceColor getColorToNotMove() const;
 
 		/**
-		 * @brief Get the castling rights for the left side (queen side).
+		 * @brief Get the current state.
 		 * 
-		 * @return bool can [color] castle left
+		 * @return BoardState the current board state
 		 */
-		bool getCastleLeft(PieceColor color) const;
-
-		/**
-		 * @brief Get the castling rights for the right side (king side).
-		 * 
-		 * @return std::array<bool, 2> const& array of [can black castle, can white castle]
-		 */
-		std::array<bool, 2> const& getCastleRight() const;
-
-		/**
-		 * @brief Get the castling rights for the right side (king side).
-		 * 
-		 * @return bool can [color] castle right
-		 */
-		bool getCastleRight(PieceColor color) const;
+		BoardState const& getCurrentState() const;
 
 		/**
 		 * @brief Get the en passant square.
@@ -198,19 +186,24 @@ class Board{
 		 */
 		void switchPerspective();
 
-	private:
+	public:
 		struct BoardState{
 			std::array<Piece, 10*12> squares;
 			// size 16 to only use one index instead of two (for color and type)
 			std::array<Bitboard<12>, 16> pieceBitboards;
 			Bitboard<32> allPieceBitboard;
 
-			PieceColor colorToMove = PieceColor::White;
-			std::array<bool, 2> canCastleLeft = {true, true};
-			std::array<bool, 2> canCastleRight = {true, true};
 			std::optional<Coordinate8x8> enPassantSquare;
 			std::optional<Coordinate8x8> enPassantSquareToCapture;
+
+			bool isWhiteToMove: 1;
+			bool canWhiteCastleLeft: 1;
+			bool canBlackCastleLeft: 1;
+			bool canWhiteCastleRight: 1;
+			bool canBlackCastleRight: 1;
 		};
+
+	private:
 		BoardState currentState;
 		std::stack<BoardState> rewindStack;
 };
