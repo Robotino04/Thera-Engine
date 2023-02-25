@@ -6,3 +6,4 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 4;          73.8069;            75.6982;            6.78846;                6.90691;            Removed most Coordinate10x12 uses
 5;          68.2585;            71.562;             6.11914;                6.30252;            Precomputed sliding piece movement limits
 6;          64.0732;            66.9646;            6.24967;                6.5348;             Precomputed king and knight movement limits
+7;          65.9249;            69.8539;            6.74892;                6.69534;            Replaced bool array with bitfield

@@ -85,13 +85,13 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 				break;
 			case 1:
 				std::cout << "          ";
-				std::cout << setConditionalColor(board.getCastleLeft(Thera::PieceColor::White), ANSI::Background) << "[Q]";
+				std::cout << setConditionalColor(board.getCurrentState().canWhiteCastleLeft, ANSI::Background) << "[Q]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleRight(Thera::PieceColor::White), ANSI::Background) << "[K]";
+				std::cout << setConditionalColor(board.getCurrentState().canWhiteCastleRight, ANSI::Background) << "[K]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleLeft(Thera::PieceColor::Black), ANSI::Background) << "[Q]";
+				std::cout << setConditionalColor(board.getCurrentState().canBlackCastleLeft, ANSI::Background) << "[Q]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";
-				std::cout << setConditionalColor(board.getCastleRight(Thera::PieceColor::Black), ANSI::Background) << "[K]";
+				std::cout << setConditionalColor(board.getCurrentState().canBlackCastleRight, ANSI::Background) << "[K]";
 
 				break;
 			case 3:

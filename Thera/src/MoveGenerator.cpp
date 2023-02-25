@@ -44,7 +44,7 @@ void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square){
             if (board.at(pos).getType() == PieceType::None)
                 // normal move
                 generatedMoves.emplace_back(square, pos);
-            else if (board.at(pos).getColor() == board.getColorToMove().opposite()){
+            else if (board.at(pos).getColor() == board.getColorToNotMove()){
                 // capture
                 generatedMoves.emplace_back(square, pos);
                 break;
@@ -77,7 +77,7 @@ void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
             if (board.at(target.second).getType() == PieceType::None)
                 // normal move
                 generatedMoves.emplace_back(square, target.second);
-            else if (board.at(target.second).getColor() == board.getColorToMove().opposite()){
+            else if (board.at(target.second).getColor() == board.getColorToNotMove()){
                 // capture
                 generatedMoves.emplace_back(square, target.second);
             }
@@ -85,7 +85,7 @@ void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
     }
     if (board.at(square).getType() == PieceType::King){
         // add castling moves
-        if (board.getCastleRight(board.at(square).getColor())){
+        if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
             if (board.at(Utils::applyOffset(square, 1)).getType() == PieceType::None &&
                 board.at(Utils::applyOffset(square, 2)).getType() == PieceType::None){
                     // king movement
@@ -97,7 +97,7 @@ void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
                     move.auxiliaryMove->endIndex = Utils::applyOffset(square, 1);
                 }
         }
-        if (board.getCastleLeft(board.at(square).getColor())){
+        if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
             if (board.at(Utils::applyOffset(square, -1)).getType() == PieceType::None &&
                 board.at(Utils::applyOffset(square, -2)).getType() == PieceType::None &&
                 board.at(Utils::applyOffset(square, -3)).getType() == PieceType::None){
