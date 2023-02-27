@@ -19,23 +19,34 @@ std::vector<Move> MoveGenerator::generateMoves(Board& board, Coordinate8x8 squar
     if (board.at(square).getColor() != board.getColorToMove()) return {};
     generatedMoves.clear();
 
-    generateSlidingMoves(board, square);
-    generateKingKnightMoves(board, square);
-    generatePawnMoves(board, square);
+    switch (board.at(square).getType()){
+        case PieceType::Bishop:
+        case PieceType::Rook:
+        case PieceType::Queen:
+            generateSlidingMoves(board, square);
+            break;
+        
+        case PieceType::King:
+        case PieceType::Knight:
+            generateKingKnightMoves(board, square);
+            break;
+        
+        case PieceType::Pawn:
+            generatePawnMoves(board, square);
+            break;
+    }
 
     return generatedMoves;
 }
 
 void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square){
-    if (board.at(square).getColor() != board.getColorToMove()) return;
-
     int8_t startDirectionIdx = 0;
     int8_t endDirectionIdx = MoveGenerator::slidingPieceOffsets.size();
     if (board.at(square).getType() == PieceType::Rook) endDirectionIdx = 4;
     else if (board.at(square).getType() == PieceType::Bishop) startDirectionIdx = 4;
     else if (board.at(square).getType() == PieceType::Queen);
     else return;
-    
+
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
 
         for (int i=0; i<squaresInDirection[square.pos][directionIdx].first; i++) {
@@ -57,13 +68,18 @@ void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square){
 }
 
 void MoveGenerator::generateAllSlidingMoves(Board& board){
-    for (int8_t i = 0; i<64; i++)
-        generateSlidingMoves(board, Coordinate8x8(i));
+    auto const bitboard = board.getBitboard({PieceType::Bishop, board.getColorToMove()})
+                        | board.getBitboard({PieceType::Rook, board.getColorToMove()})
+                        | board.getBitboard({PieceType::Queen, board.getColorToMove()});
+    const auto squares = bitboard.getPieces();
+    const auto numPieces = bitboard.getNumPieces();
+
+    for (int i=0; i<numPieces; i++){
+        generateSlidingMoves(board, Coordinate8x8(squares.at(i)));
+    }
 }
 
 void MoveGenerator::generateKingKnightMoves(Board& board, Coordinate8x8 square){
-    if (board.at(square).getColor() != board.getColorToMove()) return;
-
     int8_t startDirectionIdx = 0;
     int8_t endDirectionIdx = MoveGenerator::kingKnightOffsets.size();
     if (board.at(square).getType() == PieceType::King) endDirectionIdx = 8;
@@ -124,9 +140,6 @@ void MoveGenerator::generateAllKingKnightMoves(Board& board){
 }
 
 void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
-    if (board.at(square).getColor() != board.getColorToMove()) return;
-    if (board.at(square).getType() != PieceType::Pawn) return;
-
     const int8_t baseLine = board.at(square).getColor() == PieceColor::White ? 6 : 1;
     const int8_t targetLine = board.at(square).getColor() == PieceColor::White ? 0 : 7;
     const int8_t direction = board.at(square).getColor() == PieceColor::White ? -1 : 1;

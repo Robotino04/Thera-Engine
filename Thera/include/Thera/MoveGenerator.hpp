@@ -34,6 +34,8 @@ class MoveGenerator{
         /**
          * @brief Generate bishop, rook and queen moves.
          * 
+         * May generate incorrect results for empty squares or the color to not move. 
+         * 
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
@@ -42,12 +44,16 @@ class MoveGenerator{
         /**
          * @brief Generate all bishop, rook and queen moves.
          * 
+         * May generate incorrect results for empty squares or the color to not move.
+         * 
          * @param board the position to operate on
          */
         void generateAllSlidingMoves(Board& board);
 
         /**
          * @brief Generate king and knight moves.
+         * 
+         * May generate incorrect results for empty squares or the color to not move.
          * 
          * @param board the position to operate on
          * @param square the square to generate moves for
@@ -62,7 +68,9 @@ class MoveGenerator{
         void generateAllKingKnightMoves(Board& board);
 
         /**
-         * @brief Generate pawn moves.
+         * @brief Generate pawn move.
+         * 
+         * May generate incorrect results for empty squares or the color to not move.
          * 
          * @param board the position to operate on
          * @param square the square to generate moves for
