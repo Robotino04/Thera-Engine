@@ -9,9 +9,9 @@
 namespace Thera{
 
 struct Move{
-    Move(Coordinate8x8 start, Coordinate8x8 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
-    Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
-    Move(Move const& move){
+    constexpr Move(Coordinate8x8 start, Coordinate8x8 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
+    constexpr Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
+    constexpr Move(Move const& move){
         startIndex = move.startIndex;
         endIndex = move.endIndex;
         promotionType = move.promotionType;
@@ -23,7 +23,7 @@ struct Move{
         if (move.auxiliaryMove)
             auxiliaryMove = new Move(*move.auxiliaryMove);
     }
-    ~Move(){
+    constexpr ~Move(){
         if (auxiliaryMove) delete auxiliaryMove;
     }
     Coordinate8x8 startIndex, endIndex;
@@ -46,9 +46,17 @@ struct Move{
      */
     void fromString(std::string const& str);
 
-    bool operator ==(Move const& other) const;
+    constexpr bool operator ==(Move const& other) const{
+        bool eq = Move::isSameBaseMove(*this, other);
+        if (this->auxiliaryMove && other.auxiliaryMove && *this->auxiliaryMove == *other.auxiliaryMove)
+            eq &= true; 
+        return eq;
+    }
 
-    static bool isSameBaseMove(Move const& a, Move const& b);
+    constexpr static bool isSameBaseMove(Move const& a, Move const& b){
+        return  a.startIndex.pos == b.startIndex.pos &&
+                a.endIndex.pos == b.endIndex.pos;
+    }
 };
 
 }

@@ -24,14 +24,14 @@ class PieceColor{
 		};
 
 	public:
-		PieceColor() = default;
+		constexpr PieceColor() = default;
 		constexpr PieceColor(Value color) : value(color) {}
 
 		// Allow switch and comparisons.
 		constexpr operator Value() const { return value; }
 
-		// Prevent usage: if(fruit)
-		explicit operator bool() const = delete;
+		// Prevent usage: if(pieceColor)
+		constexpr explicit operator bool() const = delete;
 		constexpr bool operator ==(PieceColor other) const { return value == other.value; }
 		constexpr bool operator !=(PieceColor other) const { return value != other.value; }
 

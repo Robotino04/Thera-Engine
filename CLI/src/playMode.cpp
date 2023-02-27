@@ -38,7 +38,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 		{{PC::White, PT::None}, " "},
 		{{PC::Black, PT::None}, " "},
 		{{PC::White, PT::Pawn}, "♙"},
-		{{PC::Black, PT::Pawn}, "♟︎"},
+		{{PC::Black, PT::Pawn}, "♟"},
 		{{PC::White, PT::Bishop}, "♗"},
 		{{PC::Black, PT::Bishop}, "♝"},
 		{{PC::White, PT::Knight}, "♘"},
