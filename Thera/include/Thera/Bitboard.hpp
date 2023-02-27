@@ -32,6 +32,9 @@ template<int N>
 class Bitboard{
     static_assert(Utils::isInRange(N, 0, 64), "Bitboards can only store up to 64 pieces.");
     friend class Board;
+
+    template<int friendN>
+    friend class Bitboard;
     
     public:
         struct Reference{
