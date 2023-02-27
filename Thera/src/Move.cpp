@@ -11,15 +11,4 @@ void Move::fromString(std::string const& str){
     endIndex = Utils::squareFromAlgebraicNotation(str.substr(2, 2));
 }
 
-bool Move::operator ==(Move const& other) const{
-    bool eq = Move::isSameBaseMove(*this, other);
-    if (this->auxiliaryMove && other.auxiliaryMove && *this->auxiliaryMove == *other.auxiliaryMove)
-        eq &= true; 
-    return eq;
-}
-bool Move::isSameBaseMove(Move const& a, Move const& b){
-    return  a.startIndex.pos == b.startIndex.pos &&
-            a.endIndex.pos == b.endIndex.pos;
-}
-
 }
