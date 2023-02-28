@@ -9,3 +9,5 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 7;          65.9249;            69.8539;            6.74892;                6.69534;            Replaced bool array with bitfield
 8;          64.122;             67.6495;            6.31024;                6.56331;            Made more stuff constexpr
 9;          54.951;             59.3922;            4.40645;                4.99504;            Removed unnecessary tests from move generation.
+10;         49.813;             53.1338;            4.58155;                5.16811;            Changed Coordinate8x8 from int8_t to uint8_t.
+11;         49.212;             51.4198;            4.38462;                4.86515;            Removed __uint128_t.
