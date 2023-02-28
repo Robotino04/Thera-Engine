@@ -64,10 +64,11 @@ struct Coordinate8x8{
     constexpr operator auto() const;
 };
 
-struct Coordinate10x12{
+// implements 0x88
+struct PossiblyOffTheBoardCoordinate{
     int8_t pos = 0;
 
-    constexpr explicit Coordinate10x12(int8_t x){
+    constexpr explicit PossiblyOffTheBoardCoordinate(int8_t x){
         try{
             Detail::mailboxBigToSmall.at(x);
         }
@@ -76,7 +77,7 @@ struct Coordinate10x12{
         }
         pos = x;
     }
-    constexpr Coordinate10x12(){
+    constexpr PossiblyOffTheBoardCoordinate(){
         pos = 0;
     }
 
@@ -84,7 +85,7 @@ struct Coordinate10x12{
         return Coordinate8x8(Detail::mailboxBigToSmall.at(pos));
     }
 
-    constexpr bool operator == (Coordinate10x12 const& other) const{
+    constexpr bool operator == (PossiblyOffTheBoardCoordinate const& other) const{
         return this->pos == other.pos;
     }
     constexpr bool operator == (Coordinate8x8 const& other) const;
@@ -92,16 +93,16 @@ struct Coordinate10x12{
 
 
 constexpr Coordinate8x8::operator auto() const{
-    return Coordinate10x12(Detail::mailboxSmallToBig.at(pos));
+    return PossiblyOffTheBoardCoordinate(Detail::mailboxSmallToBig.at(pos));
 }
 constexpr bool Coordinate8x8::operator == (auto const& other) const{
-    static_assert(std::is_same_v<decltype(other), Coordinate10x12>, "Can only compare to itself and Coordinate10x12");
-    return Coordinate10x12(*this) == other;
+    static_assert(std::is_same_v<decltype(other), PossiblyOffTheBoardCoordinate>, "Can only compare to itself and PossiblyOffTheBoardCoordinate");
+    return PossiblyOffTheBoardCoordinate(*this) == other;
 }
 
 
-constexpr bool Coordinate10x12::operator == (Coordinate8x8 const& other) const{
-    return *this == Coordinate10x12(other);
+constexpr bool PossiblyOffTheBoardCoordinate::operator == (Coordinate8x8 const& other) const{
+    return *this == PossiblyOffTheBoardCoordinate(other);
 }
 
 }
