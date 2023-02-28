@@ -61,7 +61,7 @@ class Bitboard{
             clear();
         }
 
-        constexpr Bitboard(__uint128_t raw){
+        constexpr Bitboard(uint64_t raw){
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
 
                 numPieces = std::popcount(raw);
@@ -81,7 +81,7 @@ class Bitboard{
 
 
         constexpr void clear(){
-            bits = __uint128_t(0);
+            bits = uint64_t(0);
             numPieces = 0;
             occupiedSquares.fill(-1);
         }
@@ -193,8 +193,7 @@ class Bitboard{
             auto list = result.begin();
 
             if (x) do {
-                uint8_t idx = bitScanForward(x); // square index from 0..63
-                *list++ = Coordinate8x8(idx);
+                *list++ = Coordinate8x8(bitScanForward(x));
             } while (x &= x-1); // reset LS1B
 
             return result;
@@ -224,7 +223,7 @@ class Bitboard{
         constexpr uint64_t getBoard8x8() const{
             uint64_t board = 0;
             for (int i=0; i<64; i++){
-                board = Utils::setBit<uint64_t>(board, i, (*this)[Coordinate8x8(i)]);
+                board = Utils::setBit(board, i, (*this)[Coordinate8x8(i)]);
             }
             return board;
         }
@@ -238,14 +237,14 @@ class Bitboard{
             return Reference(*this, bitIdx.pos);
         }
         constexpr void flipBit(uint8_t bitIndex){
-            bits ^= __uint128_t(1) << bitIndex;
+            bits ^= Utils::binardOneAt<uint64_t>(bitIndex);
         }
 
         constexpr void setBit(uint8_t bitIndex){
-            bits |= __uint128_t(1) << bitIndex;
+            bits |= Utils::binardOneAt<uint64_t>(bitIndex);
         }
         constexpr void clearBit(uint8_t bitIndex){
-            bits &= ~(__uint128_t(1) << bitIndex);
+            bits &= ~ Utils::binardOneAt<uint64_t>(bitIndex);
         }
 
         constexpr bool hasPieces() const{
@@ -295,8 +294,7 @@ class Bitboard{
         }
     
     private:
-        static_assert(requires {typename __uint128_t;});
-        __uint128_t bits;
+        uint64_t bits;
 
         // these are only used in debug builds to aid in debugging
         std::array<uint8_t, N> occupiedSquares;
