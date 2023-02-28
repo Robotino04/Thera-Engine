@@ -40,9 +40,9 @@ namespace Detail{
 
 
 struct Coordinate8x8{
-    int8_t pos = 0;
+    uint8_t pos = 0;
 
-    constexpr explicit Coordinate8x8(int8_t x){
+    constexpr explicit Coordinate8x8(uint8_t x){
         try{
             Detail::mailboxSmallToBig.at(x);
         }

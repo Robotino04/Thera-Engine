@@ -39,7 +39,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board& board, Coordinate8x8 square, int8_t startDirectionIdx, int8_t endDirectionIdx);
+        void generateSlidingMoves(Board& board, Coordinate8x8 square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
 
         /**
          * @brief Generate all bishop, rook and queen moves.

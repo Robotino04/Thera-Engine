@@ -8,7 +8,7 @@ Coordinate8x8 squareFromAlgebraicNotation(std::string const& str){
     if (!Utils::isInRange(str[1], '1', '8')) throw std::invalid_argument("\"" + str + "\" isn't a valid square");
 
     // The string should be valid now
-    int8_t x, y;
+    uint8_t x, y;
     x = str[0] - 'a';
     y = '8' - str[1];
     return Utils::coordToIndex(x, y);
@@ -16,7 +16,7 @@ Coordinate8x8 squareFromAlgebraicNotation(std::string const& str){
 
 std::string squareToAlgebraicNotation(Coordinate8x8 square){
     auto [x, y] = Utils::getCoords(square);
-    if (!Utils::isInRange<int8_t>(x, 0, 7) || !Utils::isInRange<int8_t>(y, 0, 7)) throw std::invalid_argument(std::to_string(square.pos) + " isn't a valid square");
+    if (!Utils::isInRange<uint8_t>(x, 0, 7) || !Utils::isInRange<uint8_t>(y, 0, 7)) throw std::invalid_argument(std::to_string(square.pos) + " isn't a valid square");
 
     return std::string(1, 'a' + x) + std::string(1, '8' - y);
 }

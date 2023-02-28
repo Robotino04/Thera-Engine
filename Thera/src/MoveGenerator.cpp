@@ -49,7 +49,7 @@ std::vector<Move> MoveGenerator::generateMoves(Board& board, Coordinate8x8 squar
     return generatedMoves;
 }
 
-void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square, int8_t startDirectionIdx, int8_t endDirectionIdx){
+void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx){
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
 
         for (int i=0; i<squaresInDirection[square.pos][directionIdx].first; i++) {
@@ -179,9 +179,8 @@ void MoveGenerator::generateAllKingMoves(Board& board){
 }
 
 void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
-    const int8_t baseLine = board.at(square).getColor() == PieceColor::White ? 6 : 1;
-    const int8_t targetLine = board.at(square).getColor() == PieceColor::White ? 0 : 7;
-    const int8_t direction = board.at(square).getColor() == PieceColor::White ? -1 : 1;
+    const uint8_t baseLine = board.at(square).getColor() == PieceColor::White ? 6 : 1;
+    const uint8_t targetLine = board.at(square).getColor() == PieceColor::White ? 0 : 7;
     const int8_t direction10x12(board.at(square).getColor() == PieceColor::White ? -10 : 10);
     const int8_t direction10x12_times_two(direction10x12*2);
 
@@ -256,7 +255,7 @@ void MoveGenerator::generateAllPawnMoves(Board& board){
 }
 
 void MoveGenerator::addPawnMove(Move const& move, Board const& board){
-    const int8_t targetLine = board.at(move.startIndex).getColor() == PieceColor::White ? 0 : 7;
+    const uint8_t targetLine = board.at(move.startIndex).getColor() == PieceColor::White ? 0 : 7;
     
 
     if (Utils::isOnRow(move.endIndex, targetLine)){

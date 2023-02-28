@@ -29,7 +29,7 @@ struct Move{
     Coordinate8x8 startIndex, endIndex;
     Move* auxiliaryMove = nullptr;
     PieceType promotionType = PieceType::None;
-    int8_t enPassantFile;
+    uint8_t enPassantFile;
     bool isEnPassant = false;
     bool isCastling = false;
     bool isDoublePawnMove = false;

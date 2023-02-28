@@ -95,7 +95,7 @@ class Bitboard{
          */
         constexpr bool isOccupied(Coordinate8x8 square) const{
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug)
-                if (!Utils::isInRange<int8_t>(square.pos, 0, 127))
+                if (!Utils::isInRange<uint8_t>(square.pos, 0, 63))
                     throw std::out_of_range("Square index is outside the board");
             return Utils::getBit(bits, square.pos);
         }
@@ -159,9 +159,9 @@ class Bitboard{
                 if (!isOccupied(move.startIndex)){
                     throw std::runtime_error("Tried to make move starting on an empty square.");
                 }
-                if (!Utils::isInRange<int8_t>(Coordinate8x8(move.startIndex).pos, 0, reverseOccupiedSquares.size()))
+                if (!Utils::isInRange<uint8_t>(Coordinate8x8(move.startIndex).pos, 0, reverseOccupiedSquares.size()))
                     throw std::out_of_range("Move start index is outside the board");
-                if (!Utils::isInRange<int8_t>(Coordinate8x8(move.endIndex).pos, 0, reverseOccupiedSquares.size()))
+                if (!Utils::isInRange<uint8_t>(Coordinate8x8(move.endIndex).pos, 0, reverseOccupiedSquares.size()))
                     throw std::out_of_range("Move end index is outside the board");
             }
 
@@ -193,7 +193,7 @@ class Bitboard{
             auto list = result.begin();
 
             if (x) do {
-                int8_t idx = bitScanForward(x); // square index from 0..63
+                uint8_t idx = bitScanForward(x); // square index from 0..63
                 *list++ = Coordinate8x8(idx);
             } while (x &= x-1); // reset LS1B
 
@@ -237,14 +237,14 @@ class Bitboard{
         constexpr Reference operator[] (Coordinate8x8 bitIdx){
             return Reference(*this, bitIdx.pos);
         }
-        constexpr void flipBit(int8_t bitIndex){
+        constexpr void flipBit(uint8_t bitIndex){
             bits ^= __uint128_t(1) << bitIndex;
         }
 
-        constexpr void setBit(int8_t bitIndex){
+        constexpr void setBit(uint8_t bitIndex){
             bits |= __uint128_t(1) << bitIndex;
         }
-        constexpr void clearBit(int8_t bitIndex){
+        constexpr void clearBit(uint8_t bitIndex){
             bits &= ~(__uint128_t(1) << bitIndex);
         }
 
@@ -276,8 +276,8 @@ class Bitboard{
          * @precondition bb != 0
          * @return index (0..63) of least significant one bit
          */
-        static constexpr int8_t bitScanForward(uint64_t bb) {
-            constexpr std::array<int8_t, 64> lsb_64_table ={
+        static constexpr uint8_t bitScanForward(uint64_t bb) {
+            constexpr std::array<uint8_t, 64> lsb_64_table ={
                 63, 30,  3, 32, 59, 14, 11, 33,
                 60, 24, 50,  9, 55, 19, 21, 34,
                 61, 29,  2, 53, 51, 23, 41, 18,
@@ -299,7 +299,7 @@ class Bitboard{
         __uint128_t bits;
 
         // these are only used in debug builds to aid in debugging
-        std::array<int8_t, N> occupiedSquares;
+        std::array<uint8_t, N> occupiedSquares;
         std::array<int, 10*12> reverseOccupiedSquares;
         int numPieces = 0;
 };
