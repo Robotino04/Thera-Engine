@@ -66,7 +66,7 @@ void Board::loadFromFEN(std::string fen){
 		bitboard.clear();
 	}
 
-	int8_t x = 0, y = 0;
+	uint8_t x = 0, y = 0;
 	int charIndex = -1;
 	while(++charIndex < fen.size()){
 		char c = fen.at(charIndex);

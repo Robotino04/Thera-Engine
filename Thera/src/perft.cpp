@@ -40,8 +40,8 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
         if (move.isCastling){
             bool isInvalid = false;
 
-            const int8_t direction = Thera::Utils::sign(move.endIndex.pos - move.startIndex.pos);
-            for (int8_t square = move.startIndex.pos; square != move.endIndex.pos; square += direction){
+            const uint8_t direction = Thera::Utils::sign(move.endIndex.pos - move.startIndex.pos);
+            for (uint8_t square = move.startIndex.pos; square != move.endIndex.pos; square += direction){
                 board.applyMove(Thera::Move(move.startIndex, Thera::Coordinate8x8(square)));
                 Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
                 if (isSquareAttacked(Thera::Coordinate8x8(square), board, generator)){

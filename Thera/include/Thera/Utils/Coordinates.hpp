@@ -14,9 +14,9 @@ namespace Thera::Utils{
  * @brief Get the x coordinate of an 8x8 square index.
  * 
  * @param square 
- * @return constexpr int8_t 
+ * @return constexpr uint8_t 
  */
-constexpr int8_t getXCoord(Coordinate8x8 square){
+constexpr uint8_t getXCoord(Coordinate8x8 square){
     return square.pos % 8;
 }
 
@@ -24,9 +24,9 @@ constexpr int8_t getXCoord(Coordinate8x8 square){
  * @brief Get the y coordinate of an 8x8 square index.
  * 
  * @param square 
- * @return constexpr int8_t 
+ * @return constexpr uint8_t 
  */
-constexpr int8_t getYCoord(Coordinate8x8 square){
+constexpr uint8_t getYCoord(Coordinate8x8 square){
     return square.pos / 8;
 }
 
@@ -34,9 +34,9 @@ constexpr int8_t getYCoord(Coordinate8x8 square){
  * @brief Get the x, y coordinates of an 8x8 square index.
  * 
  * @param square 
- * @return constexpr std::pair<int8_t, int8_t> 
+ * @return constexpr std::pair<uint8_t, uint8_t> 
  */
-constexpr std::pair<int8_t, int8_t> getCoords(Coordinate8x8 square){
+constexpr std::pair<uint8_t, uint8_t> getCoords(Coordinate8x8 square){
     return {
         getXCoord(square),
         getYCoord(square)
@@ -50,7 +50,7 @@ constexpr std::pair<int8_t, int8_t> getCoords(Coordinate8x8 square){
  * @param y Y coordinate
  * @return Coordinate8x8
  */
-constexpr Coordinate8x8 coordToIndex(int8_t x, int8_t y){
+constexpr Coordinate8x8 coordToIndex(uint8_t x, uint8_t y){
 	return Coordinate8x8(x + y * 8);
 }
 
@@ -63,19 +63,19 @@ constexpr Coordinate8x8 coordToIndex(int8_t x, int8_t y){
  * @param row the row
  * @return is the square on the given row
  */
-constexpr bool isOnRow(Coordinate8x8 square, int8_t row){
-    return isInRange<int8_t>(square.pos, coordToIndex(0, row).pos, coordToIndex(7, row).pos);
+constexpr bool isOnRow(Coordinate8x8 square, uint8_t row){
+    return isInRange<uint8_t>(square.pos, coordToIndex(0, row).pos, coordToIndex(7, row).pos);
 }
 
 /**
- * @brief Apply a 10x12 offset to 8x8 coordinates.
+ * @brief Apply a 10x12 offset to 10x12 coordinates.
  * 
  * @param index the base index
  * @param offset the 10x12 offset
  * @return constexpr PossiblyOffTheBoardCoordinate the new 10x12 coordinates
  */
-constexpr PossiblyOffTheBoardCoordinate applyOffset(Coordinate8x8 index, int8_t offset){
-    return PossiblyOffTheBoardCoordinate(PossiblyOffTheBoardCoordinate(index).pos + offset);
+constexpr PossiblyOffTheBoardCoordinate applyOffset(PossiblyOffTheBoardCoordinate index, int8_t offset){
+    return PossiblyOffTheBoardCoordinate(index.pos + offset);
 }
 
 /**
