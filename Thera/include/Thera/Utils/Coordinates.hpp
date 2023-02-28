@@ -72,10 +72,10 @@ constexpr bool isOnRow(Coordinate8x8 square, int8_t row){
  * 
  * @param index the base index
  * @param offset the 10x12 offset
- * @return constexpr Coordinate10x12 the new 10x12 coordinates
+ * @return constexpr PossiblyOffTheBoardCoordinate the new 10x12 coordinates
  */
-constexpr Coordinate10x12 applyOffset(Coordinate8x8 index, int8_t offset){
-    return Coordinate10x12(Coordinate10x12(index).pos + offset);
+constexpr PossiblyOffTheBoardCoordinate applyOffset(Coordinate8x8 index, int8_t offset){
+    return PossiblyOffTheBoardCoordinate(PossiblyOffTheBoardCoordinate(index).pos + offset);
 }
 
 /**
@@ -85,7 +85,7 @@ constexpr Coordinate10x12 applyOffset(Coordinate8x8 index, int8_t offset){
  * @param offset the offset
  * @return bool
  */
-constexpr bool isOnBoard(Coordinate10x12 index, int8_t offset=0) {
+constexpr bool isOnBoard(PossiblyOffTheBoardCoordinate index, int8_t offset=0) {
     return Detail::mailboxBigToSmall.at(index.pos + offset) != -1;
 }
 

@@ -39,7 +39,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board& board, Coordinate8x8 square);
+        void generateSlidingMoves(Board& board, Coordinate8x8 square, int8_t startDirectionIdx, int8_t endDirectionIdx);
 
         /**
          * @brief Generate all bishop, rook and queen moves.
@@ -51,21 +51,38 @@ class MoveGenerator{
         void generateAllSlidingMoves(Board& board);
 
         /**
-         * @brief Generate king and knight moves.
+         * @brief Generate knight moves.
          * 
          * May generate incorrect results for empty squares or the color to not move.
          * 
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKingKnightMoves(Board& board, Coordinate8x8 square);
+        void generateKnightMoves(Board& board, Coordinate8x8 square);
 
         /**
-         * @brief Generate all king and knight moves.
+         * @brief Generate all knight moves.
          * 
          * @param board the position to operate on
          */
-        void generateAllKingKnightMoves(Board& board);
+        void generateAllKnightMoves(Board& board);
+
+        /**
+         * @brief Generate king moves.
+         * 
+         * May generate incorrect results for empty squares or the color to not move.
+         * 
+         * @param board the position to operate on
+         * @param square the square to generate moves for
+         */
+        void generateKingMoves(Board& board, Coordinate8x8 square);
+
+        /**
+         * @brief Generate all king moves.
+         * 
+         * @param board the position to operate on
+         */
+        void generateAllKingMoves(Board& board);
 
         /**
          * @brief Generate pawn move.
@@ -99,10 +116,8 @@ class MoveGenerator{
             1, -1, 10, -10, // Rook
             9, -9, 11, -11, // Bishop
         };
-        static constexpr std::array<int8_t, 16> kingKnightOffsets = {
-            1, -1, 10, -10, 9, -9, 11, -11,   // King
-            -21, -19, -8, 12, 21, 19, 8, -12, // Knight
-        };
+        static constexpr std::array<int8_t, 8> knightOffsets = {-21, -19, -8, 12, 21, 19, 8, -12};
+        static constexpr std::array<int8_t, 8> kingOffsets = {1, -1, 10, -10, 9, -9, 11, -11};
 
         /*
         contents: 
@@ -132,22 +147,22 @@ class MoveGenerator{
         }();
 
         /*
-        contents: 
+        returns: 
         - squares:
           - directions:
             - is target valid
             - target square
 
         */
-        static constexpr std::array<std::array<std::pair<bool, Coordinate8x8>, kingKnightOffsets.size()>, 8*8> kingKnightSquaresValid = [](){
-            std::array<std::array<std::pair<bool, Coordinate8x8>, kingKnightOffsets.size()>, 8*8> result = {};
+        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<int8_t, 8> offsets) constexpr{
+            std::array<std::array<std::pair<bool, Coordinate8x8>, offsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
-                    for (int dirIdx = 0; dirIdx < kingKnightOffsets.size(); dirIdx++){
+                    for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
                         bool& isPossible = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).first;
                         
                         Coordinate8x8 square = Utils::coordToIndex(x, y);
-                        const Coordinate10x12 targetSquare = Utils::applyOffset(square, kingKnightOffsets.at(dirIdx));
+                        const PossiblyOffTheBoardCoordinate targetSquare = Utils::applyOffset(square, offsets.at(dirIdx));
 
                         isPossible = Utils::isOnBoard(targetSquare);
                         if (isPossible)
@@ -156,7 +171,10 @@ class MoveGenerator{
                 }
             }
             return result;
-        }();
+        }; 
+
+        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(knightOffsets);
+        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(kingOffsets);
 
     private:
         std::vector<Move> generatedMoves;
