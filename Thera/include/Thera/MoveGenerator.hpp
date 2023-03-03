@@ -109,15 +109,21 @@ class MoveGenerator{
          */
         void addPawnMove(Move const& move, Board const& board);
 
+    private:
+        using POTBC = PossiblyOffTheBoardCoordinate;
     public:
         static const int maxMovesPerPosition = 218;
 
-        static constexpr std::array<int8_t, 8> slidingPieceOffsets = {
-            1, -1, 10, -10, // Rook
-            9, -9, 11, -11, // Bishop
+        static constexpr std::array<POTBC, 8> slidingPieceOffsets = {
+            POTBC(1, 0), POTBC(-1, 0), POTBC(0, 1), POTBC(0, -1),  // Rook
+            POTBC(1, 1), POTBC(-1, -1), POTBC(1, -1), POTBC(-1, 1), // Bishop
         };
-        static constexpr std::array<int8_t, 8> knightOffsets = {-21, -19, -8, 12, 21, 19, 8, -12};
-        static constexpr std::array<int8_t, 8> kingOffsets = {1, -1, 10, -10, 9, -9, 11, -11};
+        static constexpr std::array<POTBC, 8> knightOffsets = {
+            POTBC(1, 2), POTBC(2, 1), POTBC(2, -1), POTBC(1, -2), POTBC(-1, -2), POTBC(-2, -1), POTBC(-2, 1), POTBC(-1, 2)    
+        };
+        static constexpr std::array<POTBC, 8> kingOffsets = {
+            POTBC(1, 0), POTBC(1, -1), POTBC(0, -1), POTBC(-1, -1), POTBC(-1, 0), POTBC(-1, 1), POTBC(0, 1), POTBC(1, 1)
+        };
 
         /*
         contents: 
@@ -127,24 +133,28 @@ class MoveGenerator{
             - list of squares in this direction
 
         */
-        static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
-            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, slidingPieceOffsets.size()>, 8*8> result = {};
+        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<POTBC, 8> offsets) constexpr{
+            std::array<std::array<std::pair<bool, Coordinate8x8>, offsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
-                    for (int dirIdx = 0; dirIdx < slidingPieceOffsets.size(); dirIdx++){
-                        int& numSquares = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).first;
-                        auto& squares = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).second;
+                    for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
+                        const Coordinate8x8 square = Utils::coordToIndex(x, y);
+                        
+                        bool& isPossible = result.at(square.pos).at(dirIdx).first;
+                        const POTBC targetSquare = Utils::applyOffset(square, offsets.at(dirIdx));
 
-                        Coordinate8x8 square = Utils::coordToIndex(x, y);
-                        while (Utils::isOnBoard(Utils::applyOffset(square, slidingPieceOffsets.at(dirIdx)*(numSquares+1)))){
-                            squares.at(numSquares) = Utils::applyOffset(square, slidingPieceOffsets.at(dirIdx)*(numSquares+1));
-                            numSquares++;
-                        }
+                        isPossible = Utils::isOnBoard(targetSquare);
+                        if (isPossible)
+                            result.at(square.pos).at(dirIdx).second = targetSquare;
                     }
                 }
             }
             return result;
-        }();
+        };
+        
+        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets);
+        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::kingOffsets);
+        
 
         /*
         returns: 
@@ -154,30 +164,30 @@ class MoveGenerator{
             - target square
 
         */
-        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<int8_t, 8> offsets) constexpr{
-            std::array<std::array<std::pair<bool, Coordinate8x8>, offsets.size()>, 8*8> result = {};
+       static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
+            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
-                    for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
-                        bool& isPossible = result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).first;
-                        
-                        Coordinate8x8 square = Utils::coordToIndex(x, y);
-                        const PossiblyOffTheBoardCoordinate targetSquare = Utils::applyOffset(square, offsets.at(dirIdx));
+                    for (int dirIdx = 0; dirIdx < MoveGenerator::slidingPieceOffsets.size(); dirIdx++){
+                        const Coordinate8x8 square = Utils::coordToIndex(x, y);
+                        int& numSquares = result.at(square.pos).at(dirIdx).first;
+                        auto& squares = result.at(square.pos).at(dirIdx).second;
 
-                        isPossible = Utils::isOnBoard(targetSquare);
-                        if (isPossible)
-                            result.at(Utils::coordToIndex(x, y).pos).at(dirIdx).second = targetSquare;
+                        auto target = Utils::applyOffset(square, MoveGenerator::slidingPieceOffsets.at(dirIdx));
+                        numSquares = 0;
+                        while (Utils::isOnBoard(target)){
+                            squares.at(numSquares) = target;
+                            numSquares++;
+
+                            target = Utils::applyOffset(target, MoveGenerator::slidingPieceOffsets.at(dirIdx));
+                        }
                     }
                 }
             }
             return result;
-        }; 
-
-        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(knightOffsets);
-        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(kingOffsets);
+        }();
 
     private:
-        std::vector<Move> generatedMoves;
-        
+        std::vector<Move> generatedMoves;      
 };
 }

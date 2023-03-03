@@ -200,6 +200,9 @@ std::string Board::storeToFEN() const{
 		fen += '-';
 	}
 
+	// TODO: implement move counters
+	fen += " 0 1";
+
 	return fen;
 }
 

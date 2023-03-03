@@ -55,7 +55,8 @@ struct Move{
 
     constexpr static bool isSameBaseMove(Move const& a, Move const& b){
         return  a.startIndex.pos == b.startIndex.pos &&
-                a.endIndex.pos == b.endIndex.pos;
+                a.endIndex.pos == b.endIndex.pos &&
+                a.promotionType == b.promotionType;
     }
 };
 
