@@ -5,7 +5,7 @@
 #include "Thera/Utils/Coordinates.hpp"
 
 #include <array>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 #include <stack>
 #include <optional>

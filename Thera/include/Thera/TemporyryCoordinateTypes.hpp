@@ -5,7 +5,7 @@
 #include "Thera/Utils/Bits.hpp"
 
 #include <stdexcept>
-#include <stdint.h>
+#include <cstdint>
 #include <array>
 #include <type_traits>
 
