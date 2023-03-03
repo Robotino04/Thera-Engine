@@ -74,8 +74,22 @@ constexpr bool isOnRow(Coordinate8x8 square, uint8_t row){
  * @param offset the 10x12 offset
  * @return constexpr PossiblyOffTheBoardCoordinate the new 10x12 coordinates
  */
-constexpr PossiblyOffTheBoardCoordinate applyOffset(PossiblyOffTheBoardCoordinate index, int8_t offset){
-    return PossiblyOffTheBoardCoordinate(index.pos + offset);
+
+// TODO: move into PossiblyOffTheBoardCoordinate 
+constexpr PossiblyOffTheBoardCoordinate applyOffset(PossiblyOffTheBoardCoordinate index, PossiblyOffTheBoardCoordinate offset){
+    return PossiblyOffTheBoardCoordinate(index.x + offset.x, index.y + offset.y);
+}
+
+/**
+ * @brief Return if given square is still on the board.
+ * 
+ * @param square
+ * @return bool
+ */
+
+// TODO: move into PossiblyOffTheBoardCoordinate 
+constexpr bool isOnBoard(PossiblyOffTheBoardCoordinate square) {
+    return !(square.getRaw() & 0x88);
 }
 
 /**
@@ -85,8 +99,10 @@ constexpr PossiblyOffTheBoardCoordinate applyOffset(PossiblyOffTheBoardCoordinat
  * @param offset the offset
  * @return bool
  */
-constexpr bool isOnBoard(PossiblyOffTheBoardCoordinate index, int8_t offset=0) {
-    return Detail::mailboxBigToSmall.at(index.pos + offset) != -1;
+
+// TODO: move into PossiblyOffTheBoardCoordinate 
+constexpr bool isOnBoard(PossiblyOffTheBoardCoordinate index, PossiblyOffTheBoardCoordinate offset) {
+    return isOnBoard(applyOffset(index, offset));
 }
 
 }

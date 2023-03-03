@@ -1,6 +1,8 @@
 #include "CLI/playMode.hpp"
 #include "CLI/IO.hpp"
 
+#include "CLI/popen2.hpp"
+
 #include "Thera/Board.hpp"
 #include "Thera/Move.hpp"
 #include "Thera/MoveGenerator.hpp"
@@ -123,6 +125,7 @@ struct MoveInputResult{
 		Perft,
 		Exit,
 		LoadFEN,
+		Analyze,
 	};
 
 	Thera::Move move;
@@ -255,6 +258,11 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 		handleFenCommand(result, options);
 		return;
 	}
+	else if (buffer == "analyze"){
+		handlePerftCommand(result, options);
+		result.op = MoveInputResult::Analyze;
+		return;
+	}
 	else{
 		try{
 			result.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
@@ -322,10 +330,160 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 }
 
 static void redrawGUI(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
-	std::cout << ANSI::clearScreen() << message << ANSI::reset() << "\n";
+	std::cout << ANSI::clearScreen() << ANSI::reset() << "-------------------\n" << message << ANSI::reset() << "\n";
 	setBitboardHighlight(options, board, highlights);
 	printBoard(board, highlights, options);
 	highlights.fill(RGB());
+}
+
+/**
+ * @brief Run perft and compare the result with stockfish.
+ * 
+ * @param userInput 
+ * @param options 
+ * @param message 
+ */
+static void analyzePosition(MoveInputResult const& userInput, Thera::Board& board, Thera::MoveGenerator& generator, std::string& message, int originalDepth){
+	if (userInput.perftDepth == 0) return;
+	if (userInput.perftDepth == originalDepth) message = "";
+
+	std::string indentation;
+	for (int i=0; i<originalDepth-userInput.perftDepth; i++)
+		indentation += "\t";
+	
+	auto [in, out] = popen2("stockfish");
+
+	const std::string positionCMD = "position fen " + board.storeToFEN() + "\n";
+	const std::string perftCMD = "go perft " + std::to_string(userInput.perftDepth) + "\n";
+
+	fputs(positionCMD.c_str(), in.get());
+	fputs(perftCMD.c_str(), in.get());
+	fputs("quit\n", in.get());
+	fflush(in.get());
+
+	std::vector<std::pair<Thera::Move, int>> stockfishMoves;
+	int stockfishNodesSearched = 0;
+	
+	while (true){
+		char c_buffer[1024];
+		if (fgets(c_buffer, sizeof(c_buffer), out.get()) == nullptr) break;
+		
+		const std::string buffer = c_buffer;
+
+		const std::string NODES_SEARCHED_TEXT = "Nodes searched: ";
+
+		int i=0;
+		if (Thera::Utils::isInRange(buffer.at(i++), 'a', 'h') &&
+			Thera::Utils::isInRange(buffer.at(i++), '1', '8') && 
+			Thera::Utils::isInRange(buffer.at(i++), 'a', 'h') &&
+			Thera::Utils::isInRange(buffer.at(i++), '1', '8')
+		){
+			auto& movePair = stockfishMoves.emplace_back();
+			auto& move = movePair.first;
+			auto& numSubmoves = movePair.second;
+
+			move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
+			move.endIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(2, 2));
+
+			char promotion = buffer.at(i);
+			switch(tolower(promotion)){
+				case 'b': move.promotionType = Thera::PieceType::Bishop; i++; break;
+				case 'n': move.promotionType = Thera::PieceType::Knight; i++; break;
+				case 'r': move.promotionType = Thera::PieceType::Rook; i++; break;
+				case 'q': move.promotionType = Thera::PieceType::Queen; i++; break;
+			}
+
+			if (buffer.at(i++) != ':') continue;
+			if (buffer.at(i++) != ' ') continue;
+			numSubmoves = stoi(buffer.substr(i));
+		}
+		else if (buffer.starts_with(NODES_SEARCHED_TEXT)){
+			stockfishNodesSearched = stoi(buffer.substr(NODES_SEARCHED_TEXT.size()));
+		}
+	}
+
+	std::vector<std::pair<Thera::Move, int>> theraMoves;
+	const auto storeMove = [&](Thera::Move const& move, int numSubmoves){
+		theraMoves.emplace_back(move, numSubmoves);
+	};
+
+	int theraNodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, storeMove);
+	
+	enum class MoveSource{
+		Thera,
+		Stockfish
+	};
+
+	std::vector<std::tuple<Thera::Move, int, MoveSource>> differentMoves;
+
+	
+
+	for (auto movePair : theraMoves){
+		auto const movePairCompare = [&](auto const& otherPair){
+			return Thera::Move::isSameBaseMove(movePair.first, otherPair.first) && movePair.second == otherPair.second;
+		};
+		if (std::find_if(stockfishMoves.begin(), stockfishMoves.end(), movePairCompare) == stockfishMoves.end()){
+			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Thera));
+		}
+	}
+	
+	for (auto movePair : stockfishMoves){
+		auto const movePairCompare = [&](auto const& otherPair){
+			return Thera::Move::isSameBaseMove(movePair.first, otherPair.first) && movePair.second == otherPair.second;
+		};
+		if (std::find_if(theraMoves.begin(), theraMoves.end(), movePairCompare) == theraMoves.end()){
+			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Stockfish));
+		}
+	}
+
+	std::sort(differentMoves.begin(), differentMoves.end(), [&](auto const& a, auto const& b){
+		if (std::get<0>(a).startIndex != std::get<0>(b).startIndex)
+			return std::get<0>(a).startIndex.pos < std::get<0>(b).startIndex.pos;
+		if (std::get<0>(a).endIndex != std::get<0>(b).endIndex)
+			return std::get<0>(a).endIndex.pos < std::get<0>(b).endIndex.pos;
+		if (std::get<0>(a).promotionType != std::get<0>(b).promotionType)
+			return static_cast<int>(std::get<0>(a).promotionType) < static_cast<int>(std::get<0>(b).promotionType);
+		
+		return std::get<1>(a) < std::get<1>(b);
+	});
+
+	for (auto [move, numSubmoves, source] : differentMoves){
+		message += indentation + std::string("[") + (source == MoveSource::Thera ? "Thera]     " : "Stockfish] ");
+		message += Thera::Utils::squareToAlgebraicNotation(move.startIndex) + Thera::Utils::squareToAlgebraicNotation(move.endIndex);
+		switch (move.promotionType){
+			case Thera::PieceType::Bishop: message += "b"; break;
+			case Thera::PieceType::Knight: message += "n"; break;
+			case Thera::PieceType::Rook:   message += "r"; break;
+			case Thera::PieceType::Queen:  message += "q"; break;
+			default: break;
+		}
+		message += ": " + std::to_string(numSubmoves) + "\n";
+		if (userInput.perftDepth > 0){
+			auto moveIt = std::find_if(theraMoves.begin(), theraMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(move, other.first);});
+			if (moveIt == theraMoves.end()){
+				message += indentation + "\tMove not found!\n";
+			}
+			else{
+				MoveInputResult newUserInput = userInput;
+				newUserInput.perftDepth--;
+				board.applyMove(moveIt->first);
+				analyzePosition(newUserInput, board, generator, message, originalDepth);
+				board.rewindMove();
+			}
+		}
+	}
+
+	if (userInput.perftDepth != originalDepth) return;
+
+	message += ANSI::set4BitColor(ANSI::Blue);
+	message += indentation + "Stockfish searched " + std::to_string(stockfishMoves.size()) + " moves (" + std::to_string(stockfishNodesSearched) + " nodes)\n";
+	message += indentation + "Thera searched " + std::to_string(theraMoves.size()) + " moves (" + std::to_string(theraNodesSearched) + " nodes)\n";
+
+	message += indentation + "Results are ";
+	if (differentMoves.size())
+		message += indentation + ANSI::set4BitColor(ANSI::Red) + "different" + ANSI::set4BitColor(ANSI::Blue) +".\n";
+	else
+		message += indentation + ANSI::set4BitColor(ANSI::Green) + "identical" + ANSI::set4BitColor(ANSI::Blue) +".\n";
 }
 
 int playMode(Options& options){
@@ -369,6 +527,10 @@ int playMode(Options& options){
 			message = ANSI::set4BitColor(ANSI::Blue) + "Loaded position from FEN." + ANSI::reset();
 			continue;
 		}
+		else if (userInput.op == MoveInputResult::Analyze){
+			analyzePosition(userInput, board, generator, message, userInput.perftDepth);
+			continue;
+		}
 		else if (userInput.op == MoveInputResult::Perft){
 			const auto messageLoggingMovePrint = [&](Thera::Move const& move, int numSubmoves){
 				message
@@ -398,7 +560,7 @@ int playMode(Options& options){
 				logFile.close();
 			}
 
-			message = "-------------------\n" + message + "Nodes searched: " + std::to_string(nodesSearched) + "\n";
+			message = "Nodes searched: " + std::to_string(nodesSearched) + "\n";
 
 			continue;
 		}

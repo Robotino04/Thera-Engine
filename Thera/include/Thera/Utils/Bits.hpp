@@ -17,7 +17,8 @@ template<std::unsigned_integral T>
 constexpr T binaryOnes(int numOnes){
     T result = T(0);
     for (int i=0; i<numOnes; i++){
-        result = (result | T(1)) << 1;
+        result <<= 1;
+        result |= T(1);
     }
     return result;
 }
