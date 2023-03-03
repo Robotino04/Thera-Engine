@@ -10,7 +10,6 @@
 #include "Thera/TemporyryCoordinateTypes.hpp"
 
 #include <stdexcept>
-#include <assert.h>
 #include <map>
 #include <sstream>
 

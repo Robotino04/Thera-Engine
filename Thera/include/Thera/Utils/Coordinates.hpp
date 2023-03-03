@@ -4,7 +4,7 @@
 
 #include "Thera/TemporyryCoordinateTypes.hpp"
 
-#include <stdint.h>
+#include <cstdint>
 #include <utility>
 #include <array>
 

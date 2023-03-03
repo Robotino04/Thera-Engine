@@ -8,6 +8,3 @@ For debugging logic errors in move generation, the following command can be used
 ``` bash
 diff <(sort /tmp/thera.txt) <(sort /tmp/solution.txt)
 ```
-
-# TODO
-[] replace headers like "stdint.h" with "cstdint"

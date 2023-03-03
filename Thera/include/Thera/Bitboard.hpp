@@ -9,7 +9,7 @@
 #include "Thera/TemporyryCoordinateTypes.hpp"
 
 #include <array>
-#include <stdint.h>
+#include <cstdint>
 #include <stdexcept>
 #include <bit>
 
