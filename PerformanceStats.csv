@@ -12,3 +12,4 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 10;         49.813;             53.1338;            4.58155;                5.16811;            Changed Coordinate8x8 from int8_t to uint8_t.
 11;         49.212;             51.4198;            4.38462;                4.86515;            Removed __uint128_t.
 12;         50.8364;            54.2268;            4.38622;                4.87105;            Implemented 0x88.
+13;         55.866;             55.2533;            4.63263;                4.97615;            Removed Coordinate8x8.

@@ -2,7 +2,7 @@
 
 #include "Thera/Piece.hpp"
 #include "Thera/Utils/Math.hpp"
-#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include <string>
 #include <array>
@@ -41,9 +41,9 @@ inline constexpr auto allPieces = Detail::generateAllPieces();
  *  "f2"
  * 
  * @param str the string to parse from
- * @return Coordinate8x8
+ * @return Coordinate
  */
-Coordinate8x8 squareFromAlgebraicNotation(std::string const& str);
+Coordinate squareFromAlgebraicNotation(std::string const& str);
 
 /**
  * @brief Generate a string containing algebraic notation for a square (8x8).
@@ -51,7 +51,7 @@ Coordinate8x8 squareFromAlgebraicNotation(std::string const& str);
  * @param square 
  * @return std::string 
  */
-std::string squareToAlgebraicNotation(Coordinate8x8 square);
+std::string squareToAlgebraicNotation(Coordinate square);
 
 /**
  * @brief Convert a piece color to a human readable string. ("white", "black")

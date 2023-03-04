@@ -1,13 +1,12 @@
 #include "Thera/Board.hpp"
 #include "Thera/Move.hpp"
 
-#include "Thera/Utils/Coordinates.hpp"
 #include "Thera/Utils/Math.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/Utils/BuildType.hpp"
 #include "Thera/Utils/ScopeGuard.hpp"
 
-#include "Thera/TemporyryCoordinateTypes.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include <stdexcept>
 #include <map>
@@ -15,25 +14,25 @@
 
 namespace Thera{
 
-Piece& Board::at(Coordinate8x8 index){
+Piece& Board::at(Coordinate index){
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(index.pos);
+		return currentState.squares.at(index.getIndex64());
 	else
-		return currentState.squares[index.pos];
+		return currentState.squares[index.getIndex64()];
 }
 
-Piece const& Board::at(Coordinate8x8 index) const{
+Piece const& Board::at(Coordinate index) const{
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(index.pos);
+		return currentState.squares.at(index.getIndex64());
 	else
-		return currentState.squares[index.pos];
+		return currentState.squares[index.getIndex64()];
 }
 
-bool Board::isOccupied(Coordinate8x8 square) const{
+bool Board::isOccupied(Coordinate square) const{
 	return at(square).getType() != PieceType::None;
 }
 
-bool Board::isFriendly(Coordinate8x8 square) const{
+bool Board::isFriendly(Coordinate square) const{
 	return at(square).getColor() == getColorToMove();
 }
 
@@ -88,7 +87,7 @@ void Board::loadFromFEN(std::string fen){
 					throw std::invalid_argument(generateFenErrorText(fen, charIndex));
 				}
 
-				placePiece(Utils::coordToIndex(x, y), piece);
+				placePiece(Coordinate(x, y), piece);
 				x++;
 				break;
 			}
@@ -156,8 +155,8 @@ std::string Board::storeToFEN() const{
 
 	for (int i=0; i<64; i++){
 		try{
-			char c = pieceTypeToFenChars.at(at(Coordinate8x8(i)).getType());
-			if (at(Coordinate8x8(i)).getColor() == PieceColor::White){
+			char c = pieceTypeToFenChars.at(this->at(Coordinate::fromIndex64(i)).getType());
+			if (at(Coordinate::fromIndex64(i)).getColor() == PieceColor::White){
 				c = std::toupper(c);
 			}
 
@@ -247,7 +246,7 @@ void Board::applyMoveStatic(Move const& move){
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
-		currentState.enPassantSquare = Coordinate8x8((move.startIndex.pos + move.endIndex.pos) / 2);
+		currentState.enPassantSquare = Coordinate(move.startIndex.x, (move.startIndex.y + move.endIndex.y) / 2);
 		currentState.enPassantSquareToCapture = move.endIndex;
 	}
 	else{
@@ -292,22 +291,22 @@ Bitboard<32> const& Board::getAllPieceBitboard() const{
 	return currentState.allPieceBitboard;
 }
 
-std::optional<Coordinate8x8> Board::getEnPassantSquare() const{
+std::optional<Coordinate> Board::getEnPassantSquare() const{
 	return currentState.enPassantSquare;
 }
 
-std::optional<Coordinate8x8> Board::getEnPassantSquareToCapture() const{
+std::optional<Coordinate> Board::getEnPassantSquareToCapture() const{
 	return currentState.enPassantSquareToCapture;
 }
 
-void Board::placePiece(Coordinate8x8 square, Piece piece){
+void Board::placePiece(Coordinate square, Piece piece){
 	at(square) = piece;
 
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
 }
 
-void Board::removePiece(Coordinate8x8 square){
+void Board::removePiece(Coordinate square){
 	Piece& piece = at(square);
 
 	currentState.allPieceBitboard.removePiece(square);
@@ -316,20 +315,20 @@ void Board::removePiece(Coordinate8x8 square){
 	piece.clear();
 }
 
-void Board::removeCastlings(Coordinate8x8 movedSquare){
-	switch(movedSquare.pos){
+void Board::removeCastlings(Coordinate movedSquare){
+	switch(movedSquare.getRaw()){
 		// rook moves
-		case Utils::coordToIndex(0,0).pos: currentState.canBlackCastleLeft = false; break;
-		case Utils::coordToIndex(0,7).pos: currentState.canWhiteCastleLeft = false; break;
-		case Utils::coordToIndex(7,0).pos: currentState.canBlackCastleRight = false; break;
-		case Utils::coordToIndex(7,7).pos: currentState.canWhiteCastleRight = false; break;
+		case Coordinate(0,0).getRaw(): currentState.canBlackCastleLeft = false; break;
+		case Coordinate(0,7).getRaw(): currentState.canWhiteCastleLeft = false; break;
+		case Coordinate(7,0).getRaw(): currentState.canBlackCastleRight = false; break;
+		case Coordinate(7,7).getRaw(): currentState.canWhiteCastleRight = false; break;
 
 		// king moves
-		case Utils::coordToIndex(4, 0).pos:
+		case Coordinate(4, 0).getRaw():
 			currentState.canBlackCastleLeft = false;
 			currentState.canBlackCastleRight = false;
 			break;
-		case Utils::coordToIndex(4, 7).pos:
+		case Coordinate(4, 7).getRaw():
 			currentState.canWhiteCastleLeft = false;
 			currentState.canWhiteCastleRight = false;
 			break;

@@ -2,9 +2,9 @@
 
 #include "Thera/Board.hpp"
 #include "Thera/MoveGenerator.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include "Thera/Utils/ScopeGuard.hpp"
-#include "Thera/Utils/Coordinates.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
 
 #include "Thera/perft.hpp"

@@ -4,12 +4,16 @@
 #include <string>
 
 #include "Thera/Piece.hpp"
-#include "Thera/TemporyryCoordinateTypes.hpp"
+#include "Thera/Coordinate.hpp"
+
+#include "Thera/Utils/BuildType.hpp"
 
 namespace Thera{
 
 struct Move{
-    constexpr Move(Coordinate8x8 start, Coordinate8x8 end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){}
+    constexpr Move(Coordinate start, Coordinate end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){
+        debugValidate();
+    }
     constexpr Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
     constexpr Move(Move const& move){
         startIndex = move.startIndex;
@@ -26,7 +30,7 @@ struct Move{
     constexpr ~Move(){
         if (auxiliaryMove) delete auxiliaryMove;
     }
-    Coordinate8x8 startIndex, endIndex;
+    Coordinate startIndex, endIndex;
     Move* auxiliaryMove = nullptr;
     PieceType promotionType = PieceType::None;
     uint8_t enPassantFile;
@@ -52,10 +56,29 @@ struct Move{
             eq &= true; 
         return eq;
     }
+    
+    /**
+     * @brief Validate that the move only contains squares on the board.
+     * 
+     * Should reduce to nop in release builds
+     */
+    constexpr void debugValidate() const{
+        if (Utils::BuildType::Current == Utils::BuildType::Debug){
+            if (!startIndex.isOnBoard()) throw std::invalid_argument(std::to_string(startIndex.x) + ";" + std::to_string(startIndex.y) + " isn't on the board");
+            if (!endIndex.isOnBoard()) throw std::invalid_argument(std::to_string(endIndex.x) + ";" + std::to_string(endIndex.y) + " isn't on the board");
+        
+            if (auxiliaryMove){
+                auxiliaryMove->debugValidate();
+            }
+        }
+    }
 
     constexpr static bool isSameBaseMove(Move const& a, Move const& b){
-        return  a.startIndex.pos == b.startIndex.pos &&
-                a.endIndex.pos == b.endIndex.pos &&
+        a.debugValidate();
+        b.debugValidate();
+
+        return  a.startIndex.getRaw() == b.startIndex.getRaw() &&
+                a.endIndex.getRaw() == b.endIndex.getRaw() &&
                 a.promotionType == b.promotionType;
     }
 };

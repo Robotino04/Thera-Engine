@@ -2,7 +2,7 @@
 
 #include "Thera/Piece.hpp"
 #include "Thera/Bitboard.hpp"
-#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include <array>
 #include <cstdint>
@@ -27,7 +27,7 @@ class Board{
 		 * @param index index
 		 * @return Piece& piece
 		 */
-		Piece& at(Coordinate8x8 index);
+		Piece& at(Coordinate index);
 
 		/**
 		 * @brief Return the piece at (index).
@@ -35,7 +35,7 @@ class Board{
 		 * @param index index
 		 * @return Piece const& piece
 		 */
-		Piece const& at(Coordinate8x8 index) const;
+		Piece const& at(Coordinate index) const;
 		
 		/**
 		 * @brief Return if a square is occupied
@@ -43,7 +43,7 @@ class Board{
 		 * @param square
 		 * @return bool
 		 */
-		bool isOccupied(Coordinate8x8 square) const;
+		bool isOccupied(Coordinate square) const;
 
 		/**
 		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
@@ -52,7 +52,7 @@ class Board{
 		 * @return true 
 		 * @return false 
 		 */
-		bool isFriendly(Coordinate8x8 square) const;
+		bool isFriendly(Coordinate square) const;
 
 		/**
 		 * @brief Load a board position from a FEN string.
@@ -116,16 +116,16 @@ class Board{
 		/**
 		 * @brief Get the en passant square.
 		 * 
-		 * @return std::optional<Coordinate8x8> 
+		 * @return std::optional<Coordinate> 
 		 */
-		std::optional<Coordinate8x8> getEnPassantSquare() const;
+		std::optional<Coordinate> getEnPassantSquare() const;
 
 		/**
 		 * @brief Get the en passant square to capture.
 		 * 
-		 * @return std::optional<Coordinate8x8> 
+		 * @return std::optional<Coordinate> 
 		 */
-		std::optional<Coordinate8x8> getEnPassantSquareToCapture() const;
+		std::optional<Coordinate> getEnPassantSquareToCapture() const;
 
 		/**
 		 * @brief Get the bitboard containing a particular piece. 
@@ -162,21 +162,21 @@ class Board{
 		 * @param square the square 
 		 * @param piece the piece to place
 		 */
-		void placePiece(Coordinate8x8 square, Piece piece);
+		void placePiece(Coordinate square, Piece piece);
 
 		/**
 		 * @brief Remove a piece from the board.
 		 * 
 		 * @param square the square
 		 */
-		void removePiece(Coordinate8x8 square);
+		void removePiece(Coordinate square);
 
 		/**
 		 * @brief Remove castlings.
 		 * 
 		 * @param movedSquare the square whose piece got moved
 		 */
-		void removeCastlings(Coordinate8x8 movedSquare);
+		void removeCastlings(Coordinate movedSquare);
 
 		/**
 		 * @brief Change the color to move.
@@ -193,8 +193,8 @@ class Board{
 			std::array<Bitboard<12>, 16> pieceBitboards;
 			Bitboard<32> allPieceBitboard;
 
-			std::optional<Coordinate8x8> enPassantSquare;
-			std::optional<Coordinate8x8> enPassantSquareToCapture;
+			std::optional<Coordinate> enPassantSquare;
+			std::optional<Coordinate> enPassantSquareToCapture;
 
 			bool isWhiteToMove: 1;
 			bool canWhiteCastleLeft: 1;
