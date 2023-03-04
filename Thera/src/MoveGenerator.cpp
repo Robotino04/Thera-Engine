@@ -1,7 +1,6 @@
 #include "Thera/MoveGenerator.hpp"
 #include "Thera/Board.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
-#include "Thera/Utils/Coordinates.hpp"
 
 namespace Thera{
 
@@ -16,7 +15,7 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board& board){
     return generatedMoves;
 }
 
-std::vector<Move> MoveGenerator::generateMoves(Board& board, Coordinate8x8 square){
+std::vector<Move> MoveGenerator::generateMoves(Board& board, Coordinate square){
     if (board.at(square).getColor() != board.getColorToMove()) return {};
     generatedMoves.clear();
 
@@ -49,11 +48,11 @@ std::vector<Move> MoveGenerator::generateMoves(Board& board, Coordinate8x8 squar
     return generatedMoves;
 }
 
-void MoveGenerator::generateSlidingMoves(Board& board, Coordinate8x8 square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx){
+void MoveGenerator::generateSlidingMoves(Board& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx){
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
 
-        for (int i=0; i<squaresInDirection[square.pos][directionIdx].first; i++) {
-            Coordinate8x8 pos = squaresInDirection[square.pos][directionIdx].second[i];
+        for (int i=0; i<squaresInDirection[square.getIndex64()][directionIdx].first; i++) {
+            Coordinate pos = squaresInDirection[square.getIndex64()][directionIdx].second[i];
 
             if (board.at(pos).getType() == PieceType::None)
                 // normal move
@@ -99,9 +98,9 @@ void MoveGenerator::generateAllSlidingMoves(Board& board){
     }
 }
 
-void MoveGenerator::generateKnightMoves(Board& board, Coordinate8x8 square){
+void MoveGenerator::generateKnightMoves(Board& board, Coordinate square){
     for (int directionIdx = 0; directionIdx < 8; directionIdx++){
-        auto const& target = knightSquaresValid[square.pos][directionIdx];
+        auto const& target = knightSquaresValid[square.getIndex64()][directionIdx];
 
         if (target.first) {
             if (board.at(target.second).getType() == PieceType::None)
@@ -125,9 +124,9 @@ void MoveGenerator::generateAllKnightMoves(Board& board){
     }
 }
 
-void MoveGenerator::generateKingMoves(Board& board, Coordinate8x8 square){
+void MoveGenerator::generateKingMoves(Board& board, Coordinate square){
     for (int directionIdx = 0; directionIdx < 8; directionIdx++){
-        auto const& target = kingSquaresValid[square.pos][directionIdx];
+        auto const& target = kingSquaresValid[square.getIndex64()][directionIdx];
 
         if (target.first) {
             if (board.at(target.second).getType() == PieceType::None)
@@ -142,28 +141,28 @@ void MoveGenerator::generateKingMoves(Board& board, Coordinate8x8 square){
 
     // add castling moves
     if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
-        if (board.at(Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(1, 0))).getType() == PieceType::None &&
-            board.at(Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(2, 0))).getType() == PieceType::None){
+        if (board.at(square + Coordinate(1, 0)).getType() == PieceType::None &&
+            board.at(square + Coordinate(2, 0)).getType() == PieceType::None){
                 // king movement
-                Move& move = generatedMoves.emplace_back(square, Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(2, 0)));
+                Move& move = generatedMoves.emplace_back(square, square + Coordinate(2, 0));
                 move.isCastling = true;
                 // rook movement
                 move.auxiliaryMove = new Move();
-                move.auxiliaryMove->startIndex = Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(3, 0));
-                move.auxiliaryMove->endIndex = Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(1, 0));
+                move.auxiliaryMove->startIndex = square + Coordinate(3, 0);
+                move.auxiliaryMove->endIndex = square + Coordinate(1, 0);
             }
     }
     if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
-        if (board.at(Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-1, 0))).getType() == PieceType::None &&
-            board.at(Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-2, 0))).getType() == PieceType::None &&
-            board.at(Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-3, 0))).getType() == PieceType::None){
+        if (board.at(square + Coordinate(-1, 0)).getType() == PieceType::None &&
+            board.at(square + Coordinate(-2, 0)).getType() == PieceType::None &&
+            board.at(square + Coordinate(-3, 0)).getType() == PieceType::None){
                 // king movement
-                Move& move = generatedMoves.emplace_back(square, Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-2, 0)));
+                Move& move = generatedMoves.emplace_back(square, square + Coordinate(-2, 0));
                 move.isCastling = true;
                 // rook movement
                 move.auxiliaryMove = new Move();
-                move.auxiliaryMove->startIndex = Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-4, 0));
-                move.auxiliaryMove->endIndex = Utils::applyOffset(square, PossiblyOffTheBoardCoordinate(-1, 0));
+                move.auxiliaryMove->startIndex = square + Coordinate(-4, 0);
+                move.auxiliaryMove->endIndex = square + Coordinate(-1, 0);
             }
     }
 }
@@ -178,38 +177,38 @@ void MoveGenerator::generateAllKingMoves(Board& board){
     }
 }
 
-void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
+void MoveGenerator::generatePawnMoves(Board& board, Coordinate square){
     const uint8_t baseLine = board.at(square).getColor() == PieceColor::White ? 6 : 1;
     const uint8_t targetLine = board.at(square).getColor() == PieceColor::White ? 0 : 7;
     const int8_t direction = board.at(square).getColor() == PieceColor::White ? -1 : 1;
 
-    const PossiblyOffTheBoardCoordinate direction10x12 = PossiblyOffTheBoardCoordinate(0, board.at(square).getColor() == PieceColor::White ? -1 : 1);
-    const PossiblyOffTheBoardCoordinate direction10x12_times_two(direction10x12.getRaw()*2);
+    const Coordinate direction10x12 = Coordinate(0, board.at(square).getColor() == PieceColor::White ? -1 : 1);
+    const Coordinate direction10x12_times_two(direction10x12.getRaw()*2);
 
-    if (!board.isOccupied(Utils::applyOffset(square, direction10x12))){
+    if (!board.isOccupied(square + direction10x12)){
         // normal move
         Move move;
         move.startIndex = square;
-        move.endIndex = Utils::applyOffset(square, direction10x12);
+        move.endIndex = square + direction10x12;
         addPawnMove(move, board);
 
         // double move
-        if (Utils::isOnRow(square, baseLine) && !board.isOccupied(Utils::applyOffset(square, direction10x12_times_two))){
+        if (square.y == baseLine && !board.isOccupied(square + direction10x12_times_two)){
             Move move;
             move.startIndex = square;
-            move.endIndex = Utils::applyOffset(square, direction10x12_times_two);
-            move.enPassantFile = Utils::getXCoord(move.endIndex);
+            move.endIndex = square + direction10x12_times_two;
+            move.enPassantFile = move.endIndex.x;
             move.isDoublePawnMove = true;
             addPawnMove(move, board);
         }
     }
 
     {
-        const PossiblyOffTheBoardCoordinate offsetLeft(-1, direction);
-        const PossiblyOffTheBoardCoordinate squareLeft = Utils::applyOffset(square, offsetLeft);
+        const Coordinate offsetLeft(-1, direction);
+        const Coordinate squareLeft = square + offsetLeft;
 
         // captures
-        if (Utils::isOnBoard(squareLeft) && board.isOccupied(squareLeft) && !board.isFriendly(squareLeft)){
+        if (squareLeft.isOnBoard() && board.isOccupied(squareLeft) && !board.isFriendly(squareLeft)){
             // left
             Move move;
             move.startIndex = square;
@@ -217,7 +216,7 @@ void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
             addPawnMove(move, board);
         }
         // en passant
-        if (board.getEnPassantSquare() == squareLeft && Utils::isOnBoard(squareLeft)){
+        if (board.getEnPassantSquare() == squareLeft && squareLeft.isOnBoard()){
             Move move;
             move.startIndex = square;
             move.endIndex = squareLeft;
@@ -227,10 +226,10 @@ void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
     }
     
     {
-        const PossiblyOffTheBoardCoordinate offsetRight(1, direction);
-        const PossiblyOffTheBoardCoordinate squareRight = Utils::applyOffset(square, offsetRight);
+        const Coordinate offsetRight(1, direction);
+        const Coordinate squareRight = square + offsetRight;
 
-        if (Utils::isOnBoard(squareRight) && board.isOccupied(squareRight) && !board.isFriendly(squareRight)){
+        if (squareRight.isOnBoard() && board.isOccupied(squareRight) && !board.isFriendly(squareRight)){
             // right
             Move move;
             move.startIndex = square;
@@ -239,7 +238,7 @@ void MoveGenerator::generatePawnMoves(Board& board, Coordinate8x8 square){
         }
         
         // en passant
-        if (board.getEnPassantSquare() == squareRight && Utils::isOnBoard(squareRight)){
+        if (board.getEnPassantSquare() == squareRight && squareRight.isOnBoard()){
             Move move;
             move.startIndex = square;
             move.endIndex = squareRight;
@@ -258,14 +257,14 @@ void MoveGenerator::generateAllPawnMoves(Board& board){
     const auto squares = bitboard.getPieces();
 
     for (int i=0; i < bitboard.getNumPieces(); i++)
-        generatePawnMoves(board, Coordinate8x8(squares.at(i)));
+        generatePawnMoves(board, squares.at(i));
 }
 
 void MoveGenerator::addPawnMove(Move const& move, Board const& board){
     const uint8_t targetLine = board.at(move.startIndex).getColor() == PieceColor::White ? 0 : 7;
     
 
-    if (Utils::isOnRow(move.endIndex, targetLine)){
+    if (move.endIndex.y == targetLine){
         // promotion
         for (PieceType promotionType : Utils::promotionPieces){
             Move& newMove = generatedMoves.emplace_back(move);

@@ -7,7 +7,6 @@
 #include "Thera/Move.hpp"
 #include "Thera/MoveGenerator.hpp"
 
-#include "Thera/Utils/Coordinates.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
 
 #include "Thera/perft.hpp"
@@ -58,22 +57,24 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << static_cast<int>(8-y) << " ";
 		for(uint8_t x=0; x<8; x++){
 			RGB boardColor = (x + y)%2 ? blackBoardColor : whiteBoardColor;
+
+			const Thera::Coordinate square(x, y);
 			
-			if (squareHighlights.at(Thera::Utils::coordToIndex(x, y).pos) != RGB::Black)
-				boardColor = overlay(boardColor, squareHighlights.at(Thera::Utils::coordToIndex(x, y).pos), highlightOpacity);
+			if (squareHighlights.at(square.getIndex64()) != RGB::Black)
+				boardColor = overlay(boardColor, squareHighlights.at(square.getIndex64()), highlightOpacity);
 
 			// set the board color
 			std::cout << ANSI::set24BitColor(boardColor.red, boardColor.green, boardColor.blue, ANSI::Background);
 
 			// set the piece color
-			const RGB pieceColor = board.at(Thera::Utils::coordToIndex(x, y)).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
-			if (board.at(Thera::Utils::coordToIndex(x, y)).getType() != Thera::PieceType::None){
+			const RGB pieceColor = board.at(square).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
+			if (board.at(square).getType() != Thera::PieceType::None){
 				std::cout << ANSI::set24BitColor(pieceColor.red, pieceColor.green, pieceColor.blue, ANSI::Foreground);
 			}
 
 			// print the piece
 			std::cout
-				<< pieces.at({board.at(Thera::Utils::coordToIndex(x, y)).getColor(), board.at(Thera::Utils::coordToIndex(x, y)).getType()})
+				<< pieces.at({board.at(square).getColor(), board.at(square).getType()})
 				<< " ";
 		}
 		std::cout
@@ -315,7 +316,7 @@ static void getUserMoveEnd(MoveInputResult& result, Options& options){
 template<int N>
 static void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
 	for (int8_t i=0; i<64; i++){
-		if (bitboard[Thera::Coordinate8x8(i)] && Thera::Utils::isOnBoard(Thera::Coordinate8x8(i)))
+		if (bitboard[i])
 			highlights.at(i) = highlightBitboardPresent;
 	}
 }
@@ -438,9 +439,9 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 
 	std::sort(differentMoves.begin(), differentMoves.end(), [&](auto const& a, auto const& b){
 		if (std::get<0>(a).startIndex != std::get<0>(b).startIndex)
-			return std::get<0>(a).startIndex.pos < std::get<0>(b).startIndex.pos;
+			return std::get<0>(a).startIndex.getRaw() < std::get<0>(b).startIndex.getRaw();
 		if (std::get<0>(a).endIndex != std::get<0>(b).endIndex)
-			return std::get<0>(a).endIndex.pos < std::get<0>(b).endIndex.pos;
+			return std::get<0>(a).endIndex.getRaw() < std::get<0>(b).endIndex.getRaw();
 		if (std::get<0>(a).promotionType != std::get<0>(b).promotionType)
 			return static_cast<int>(std::get<0>(a).promotionType) < static_cast<int>(std::get<0>(b).promotionType);
 		
@@ -572,9 +573,9 @@ int playMode(Options& options){
 
 		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
 			// highlight all moves
-			highlights.at(((Thera::Coordinate8x8)userInput.move.startIndex).pos) = highlightSquareSelected;
+			highlights.at(userInput.move.startIndex.getIndex64()) = highlightSquareSelected;
 			for (auto const& move : possibleMoves){
-				highlights.at(((Thera::Coordinate8x8)move.endIndex).pos) = highlightMovePossible;
+				highlights.at(move.endIndex.getIndex64()) = highlightMovePossible;
 			}
 		}
 

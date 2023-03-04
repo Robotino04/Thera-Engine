@@ -1,8 +1,7 @@
 #pragma once
 
 #include "Thera/Move.hpp"
-#include "Thera/Utils/Coordinates.hpp"
-#include "Thera/TemporyryCoordinateTypes.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include <vector>
 #include <array>
@@ -28,7 +27,7 @@ class MoveGenerator{
          * @param square the square to generate moves for
          * @return std::vector<Move> the generated moves
          */
-        std::vector<Move> generateMoves(Board& board, Coordinate8x8 square);
+        std::vector<Move> generateMoves(Board& board, Coordinate square);
 
     private:
         /**
@@ -39,7 +38,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board& board, Coordinate8x8 square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
+        void generateSlidingMoves(Board& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
 
         /**
          * @brief Generate all bishop, rook and queen moves.
@@ -58,7 +57,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKnightMoves(Board& board, Coordinate8x8 square);
+        void generateKnightMoves(Board& board, Coordinate square);
 
         /**
          * @brief Generate all knight moves.
@@ -75,7 +74,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKingMoves(Board& board, Coordinate8x8 square);
+        void generateKingMoves(Board& board, Coordinate square);
 
         /**
          * @brief Generate all king moves.
@@ -92,7 +91,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generatePawnMoves(Board& board, Coordinate8x8 square);
+        void generatePawnMoves(Board& board, Coordinate square);
 
         /**
          * @brief Generate all pawn moves.
@@ -110,7 +109,7 @@ class MoveGenerator{
         void addPawnMove(Move const& move, Board const& board);
 
     private:
-        using POTBC = PossiblyOffTheBoardCoordinate;
+        using POTBC = Coordinate;
     public:
         static const int maxMovesPerPosition = 218;
 
@@ -134,18 +133,18 @@ class MoveGenerator{
 
         */
         static constexpr auto isKingKnightMoveValidGenerator = [](std::array<POTBC, 8> offsets) constexpr{
-            std::array<std::array<std::pair<bool, Coordinate8x8>, offsets.size()>, 8*8> result = {};
+            std::array<std::array<std::pair<bool, Coordinate>, offsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
                     for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
-                        const Coordinate8x8 square = Utils::coordToIndex(x, y);
+                        const Coordinate square = Coordinate(x, y);
                         
-                        bool& isPossible = result.at(square.pos).at(dirIdx).first;
-                        const POTBC targetSquare = Utils::applyOffset(square, offsets.at(dirIdx));
+                        bool& isPossible = result.at(square.getIndex64()).at(dirIdx).first;
+                        const POTBC targetSquare = Coordinate(square) + offsets.at(dirIdx);
 
-                        isPossible = Utils::isOnBoard(targetSquare);
+                        isPossible = targetSquare.isOnBoard();
                         if (isPossible)
-                            result.at(square.pos).at(dirIdx).second = targetSquare;
+                            result.at(square.getIndex64()).at(dirIdx).second = targetSquare;
                     }
                 }
             }
@@ -164,22 +163,22 @@ class MoveGenerator{
             - target square
 
         */
-       static constexpr std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
-            std::array<std::array<std::pair<int, std::array<Coordinate8x8, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> result = {};
+       static constexpr std::array<std::array<std::pair<int, std::array<Coordinate, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> squaresInDirection = [](){
+            std::array<std::array<std::pair<int, std::array<Coordinate, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
                     for (int dirIdx = 0; dirIdx < MoveGenerator::slidingPieceOffsets.size(); dirIdx++){
-                        const Coordinate8x8 square = Utils::coordToIndex(x, y);
-                        int& numSquares = result.at(square.pos).at(dirIdx).first;
-                        auto& squares = result.at(square.pos).at(dirIdx).second;
+                        const Coordinate square = Coordinate(x, y);
+                        int& numSquares = result.at(square.getIndex64()).at(dirIdx).first;
+                        auto& squares = result.at(square.getIndex64()).at(dirIdx).second;
 
-                        auto target = Utils::applyOffset(square, MoveGenerator::slidingPieceOffsets.at(dirIdx));
+                        auto target = square + MoveGenerator::slidingPieceOffsets.at(dirIdx);
                         numSquares = 0;
-                        while (Utils::isOnBoard(target)){
+                        while (target.isOnBoard()){
                             squares.at(numSquares) = target;
                             numSquares++;
 
-                            target = Utils::applyOffset(target, MoveGenerator::slidingPieceOffsets.at(dirIdx));
+                            target += MoveGenerator::slidingPieceOffsets.at(dirIdx);
                         }
                     }
                 }

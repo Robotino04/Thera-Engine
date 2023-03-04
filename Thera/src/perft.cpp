@@ -1,7 +1,7 @@
 #include "Thera/perft.hpp"
 
 #include "Thera/Utils/ScopeGuard.hpp"
-#include "Thera/Utils/Coordinates.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include "Thera/Board.hpp"
 #include "Thera/Move.hpp"
@@ -12,7 +12,7 @@ namespace Thera{
 
 namespace Detail{
 // TODO: replace to use bitboards
-bool isSquareAttacked(Coordinate8x8 square, Thera::Board& board, Thera::MoveGenerator& generator){
+bool isSquareAttacked(Coordinate square, Thera::Board& board, Thera::MoveGenerator& generator){
     auto moves = generator.generateAllMoves(board);
     for (auto const& move : moves){
         if (move.endIndex == square)
@@ -40,11 +40,14 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
         if (move.isCastling){
             bool isInvalid = false;
 
-            const uint8_t direction = Thera::Utils::sign(move.endIndex.pos - move.startIndex.pos);
-            for (uint8_t square = move.startIndex.pos; square != move.endIndex.pos; square += direction){
-                board.applyMove(Thera::Move(move.startIndex, Thera::Coordinate8x8(square)));
+            const uint8_t direction = Thera::Utils::sign(move.endIndex.x - move.startIndex.x);
+            for (uint8_t newX = move.startIndex.x; newX != move.endIndex.x; newX += direction){
+                const Thera::Coordinate target(newX, move.startIndex.y);
+
+                board.applyMove(Thera::Move(move.startIndex, target));
                 Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
-                if (isSquareAttacked(Thera::Coordinate8x8(square), board, generator)){
+
+                if (isSquareAttacked(target, board, generator)){
                     isInvalid = true;
                     break;
                 }
