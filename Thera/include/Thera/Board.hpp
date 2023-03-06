@@ -131,30 +131,30 @@ class Board{
 		 * @brief Get the bitboard containing a particular piece. 
 		 * 
 		 * @param piece the piece
-		 * @return Bitboard<12>& the bitboard containing these pieces
+		 * @return Bitboard& the bitboard containing these pieces
 		 */
-		Bitboard<12>& getBitboard(Piece piece);
+		Bitboard& getBitboard(Piece piece);
 		/**
 		 * @brief Get the bitboard to place a particular piece. 
 		 * 
 		 * @param piece the piece
-		 * @return Bitboard<12> const& the bitboard containing these pieces
+		 * @return Bitboard const& the bitboard containing these pieces
 		 */
-		Bitboard<12> const& getBitboard(Piece piece) const;
+		Bitboard const& getBitboard(Piece piece) const;
 
 		/**
 		 * @brief Get the bitboard containing all pieces 
 		 * 
-		 * @return Bitboard<32>& the bitboard containing all pieces
+		 * @return Bitboard& the bitboard containing all pieces
 		 */
-		Bitboard<32>& getAllPieceBitboard();
+		Bitboard& getAllPieceBitboard();
 
 		/**
 		 * @brief Get the bitboard containing all pieces 
 		 * 
-		 * @return Bitboard<32> const& the bitboard containing all pieces
+		 * @return Bitboard const& the bitboard containing all pieces
 		 */
-		Bitboard<32> const& getAllPieceBitboard() const;
+		Bitboard const& getAllPieceBitboard() const;
 
 		/**
 		 * @brief Place a piece onto the board.
@@ -190,8 +190,8 @@ class Board{
 		struct BoardState{
 			std::array<Piece, 10*12> squares;
 			// size 16 to only use one index instead of two (for color and type)
-			std::array<Bitboard<12>, 16> pieceBitboards;
-			Bitboard<32> allPieceBitboard;
+			std::array<Bitboard, 16> pieceBitboards;
+			Bitboard allPieceBitboard;
 
 			std::optional<Coordinate> enPassantSquare;
 			std::optional<Coordinate> enPassantSquareToCapture;

@@ -278,16 +278,16 @@ Board::BoardState const& Board::getCurrentState() const{
 	return currentState;
 }
 
-Bitboard<12>& Board::getBitboard(Piece piece){
+Bitboard& Board::getBitboard(Piece piece){
 	return currentState.pieceBitboards.at(piece.getRaw());
 }
-Bitboard<12> const& Board::getBitboard(Piece piece) const {
+Bitboard const& Board::getBitboard(Piece piece) const {
 	return currentState.pieceBitboards.at(piece.getRaw());
 }
-Bitboard<32>& Board::getAllPieceBitboard(){
+Bitboard& Board::getAllPieceBitboard(){
 	return currentState.allPieceBitboard;
 }
-Bitboard<32> const& Board::getAllPieceBitboard() const{
+Bitboard const& Board::getAllPieceBitboard() const{
 	return currentState.allPieceBitboard;
 }
 

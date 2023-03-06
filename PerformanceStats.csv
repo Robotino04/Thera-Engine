@@ -13,3 +13,4 @@ Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    star
 11;         49.212;             51.4198;            4.38462;                4.86515;            Removed __uint128_t.
 12;         50.8364;            54.2268;            4.38622;                4.87105;            Implemented 0x88.
 13;         55.866;             55.2533;            4.63263;                4.97615;            Removed Coordinate8x8.
+14;         54.4689;            54.2341;            4.52808;                5.02115;            Removed templating from Bitboard.
