@@ -16,17 +16,10 @@ namespace Thera{
 class Board;
 
 /**
- * @brief A bitboard stored in an uint64_t
- * 
- * @tparam N max number of pieces in this bitboard.
+ * @brief A bitboard stored in an uint64_t.
  */
-template<int N>
 class Bitboard{
-    static_assert(Utils::isInRange(N, 0, 64), "Bitboards can only store up to 64 pieces.");
     friend class Board;
-
-    template<int friendN>
-    friend class Bitboard;
     
     public:
         struct Reference{
@@ -42,9 +35,9 @@ class Bitboard{
                 }
 
             private:
-                constexpr Reference(Bitboard<N>& parent, uint8_t bitIndex): parent(parent), bitIndex(bitIndex){}
+                constexpr Reference(Bitboard& parent, uint8_t bitIndex): parent(parent), bitIndex(bitIndex){}
 
-                Bitboard<N>& parent;
+                Bitboard& parent;
                 const uint8_t bitIndex = 0;
         };
         friend Reference;
@@ -176,9 +169,9 @@ class Bitboard{
          * 
          * The number of valid coordinates can be read by getNumPieces().
          * 
-         * @return constexpr std::array<Coordinate, N> list of coordinates
+         * @return constexpr std::array<Coordinate, 64> list of coordinates
          */
-        constexpr std::array<Coordinate, N> getPieces() const{
+        constexpr std::array<Coordinate, 64> getPieces() const{
             auto x = bits;
 
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
@@ -186,14 +179,14 @@ class Bitboard{
                     throw std::runtime_error("Desync between bitboard and numPieces detected.");
             }
 
-            std::array<uint8_t, N> resultIndices;
-            auto list = resultIndices.data();
+            std::array<uint8_t, 64> resultIndices;
+            uint8_t* list = resultIndices.data();
 
             if (x) do {
                 *list++ = bitScanForward(x);
             } while (x &= x-1); // reset LS1B
 
-            std::array<Coordinate, N> result;
+            std::array<Coordinate, 64> result;
             for (int i=0; i<list - resultIndices.data(); i++){
                 result[i] = Coordinate::fromIndex64(resultIndices[i]);
             }
@@ -220,16 +213,13 @@ class Bitboard{
             return bits;
         }
 
-        template<int otherN>
-        constexpr Bitboard<std::min(64, N + otherN)> operator | (Bitboard<otherN> const& other){
+        constexpr Bitboard operator | (Bitboard const& other){
             return {this->bits | other.bits};
         }
-        template<int otherN>
-        constexpr Bitboard<std::min(64, std::min(N, otherN))> operator & (Bitboard<otherN> const& other){
+        constexpr Bitboard operator & (Bitboard const& other){
             return {this->bits & other.bits};
         }
-        template<int otherN>
-        constexpr Bitboard<std::min(64, N + otherN)> operator ^ (Bitboard<otherN> const& other){
+        constexpr Bitboard operator ^ (Bitboard const& other){
             return {this->bits ^ other.bits};
         }
 
@@ -282,7 +272,7 @@ class Bitboard{
         uint64_t bits;
 
         // these are only used in debug builds to aid in debugging
-        std::array<uint8_t, N> occupiedSquares;
+        std::array<uint8_t, 64> occupiedSquares;
         std::array<int, 10*12> reverseOccupiedSquares;
         int numPieces = 0;
 };

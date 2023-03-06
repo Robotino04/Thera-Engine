@@ -313,8 +313,7 @@ static void getUserMoveEnd(MoveInputResult& result, Options& options){
 	result.message = "Invalid command or move!";
 }
 
-template<int N>
-static void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<RGB, 64>& highlights){
+static void setBitboardHighlight(Thera::Bitboard const& bitboard, std::array<RGB, 64>& highlights){
 	for (int8_t i=0; i<64; i++){
 		if (bitboard[i])
 			highlights.at(i) = highlightBitboardPresent;
@@ -322,11 +321,20 @@ static void setBitboardHighlight(Thera::Bitboard<N> const& bitboard, std::array<
 }
 
 static void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
-	if (options.shownBitboard.getType() != Thera::PieceType::None || options.shownBitboard.getColor() != Thera::PieceColor::Black){
-		setBitboardHighlight(board.getBitboard(options.shownBitboard), highlights);
+	Thera::Bitboard bitboard;
+
+	if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::Black)){
+		bitboard = board.getAllPieceBitboard();
 	}
-	else if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::Black)){
-		setBitboardHighlight(board.getAllPieceBitboard(), highlights);
+	else{
+		bitboard = board.getBitboard(options.shownBitboard);
+	}
+	
+	int i=0;
+	for (Thera::Coordinate square : bitboard.getPieces()){
+		if (i++ < bitboard.getNumPieces()){
+			highlights.at(square.getIndex64()) = highlightBitboardPresent;
+		}
 	}
 }
 
