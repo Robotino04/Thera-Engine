@@ -147,9 +147,8 @@ void MoveGenerator::generateKingMoves(Board& board, Coordinate square){
                 Move& move = generatedMoves.emplace_back(square, square + Coordinate(2, 0));
                 move.isCastling = true;
                 // rook movement
-                move.auxiliaryMove = new Move();
-                move.auxiliaryMove->startIndex = square + Coordinate(3, 0);
-                move.auxiliaryMove->endIndex = square + Coordinate(1, 0);
+                move.castlingStart = square + Coordinate(3, 0);
+                move.castlingEnd = square + Coordinate(1, 0);
             }
     }
     if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
@@ -160,9 +159,8 @@ void MoveGenerator::generateKingMoves(Board& board, Coordinate square){
                 Move& move = generatedMoves.emplace_back(square, square + Coordinate(-2, 0));
                 move.isCastling = true;
                 // rook movement
-                move.auxiliaryMove = new Move();
-                move.auxiliaryMove->startIndex = square + Coordinate(-4, 0);
-                move.auxiliaryMove->endIndex = square + Coordinate(-1, 0);
+                move.castlingStart = square + Coordinate(-4, 0);
+                move.castlingEnd = square + Coordinate(-1, 0);
             }
     }
 }

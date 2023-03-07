@@ -11,31 +11,19 @@
 namespace Thera{
 
 struct Move{
-    constexpr Move(Coordinate start, Coordinate end): startIndex(start), endIndex(end), auxiliaryMove(nullptr){
+    constexpr Move(Coordinate start, Coordinate end): startIndex(start), endIndex(end){
         debugValidate();
     }
-    constexpr Move(): startIndex(), endIndex(), auxiliaryMove(nullptr){}
-    constexpr Move(Move const& move){
-        startIndex = move.startIndex;
-        endIndex = move.endIndex;
-        promotionType = move.promotionType;
-        enPassantFile = move.enPassantFile;
-        isEnPassant = move.isEnPassant;
-        isCastling = move.isCastling;
-        isDoublePawnMove = move.isDoublePawnMove;
-
-        if (move.auxiliaryMove)
-            auxiliaryMove = new Move(*move.auxiliaryMove);
-    }
-    constexpr ~Move(){
-        if (auxiliaryMove) delete auxiliaryMove;
-    }
+    constexpr Move(){}
     Coordinate startIndex, endIndex;
-    Move* auxiliaryMove = nullptr;
+
     PieceType promotionType = PieceType::None;
-    uint8_t enPassantFile;
+
     bool isEnPassant = false;
+    uint8_t enPassantFile;
+
     bool isCastling = false;
+    Coordinate castlingStart, castlingEnd;
     bool isDoublePawnMove = false;
 
     /**
@@ -52,7 +40,7 @@ struct Move{
 
     constexpr bool operator ==(Move const& other) const{
         bool eq = Move::isSameBaseMove(*this, other);
-        if (this->auxiliaryMove && other.auxiliaryMove && *this->auxiliaryMove == *other.auxiliaryMove)
+        if (this->isCastling && other.isCastling && this->castlingStart == other.castlingStart && this->castlingEnd == other.castlingEnd)
             eq &= true; 
         return eq;
     }
@@ -67,8 +55,8 @@ struct Move{
             if (!startIndex.isOnBoard()) throw std::invalid_argument(std::to_string(startIndex.x) + ";" + std::to_string(startIndex.y) + " isn't on the board");
             if (!endIndex.isOnBoard()) throw std::invalid_argument(std::to_string(endIndex.x) + ";" + std::to_string(endIndex.y) + " isn't on the board");
         
-            if (auxiliaryMove){
-                auxiliaryMove->debugValidate();
+            if (isCastling){
+                Move(castlingStart, castlingEnd).debugValidate();
             }
         }
     }
