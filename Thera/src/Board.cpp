@@ -244,6 +244,15 @@ void Board::applyMoveStatic(Move const& move){
 		currentState.enPassantSquare.reset();
 		currentState.enPassantSquareToCapture.reset();
 	}
+	if (move.isCastling){
+		auto const castlingMove = Move(move.castlingStart, move.castlingEnd);
+		currentState.allPieceBitboard.applyMove(castlingMove);
+		getBitboard(at(castlingMove.startIndex)).applyMove(castlingMove);
+
+		// apply the move to the square centric representation
+		at(castlingMove.endIndex) = at(castlingMove.startIndex);
+		at(castlingMove.startIndex).clear();
+	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
 		currentState.enPassantSquare = Coordinate(move.startIndex.x, (move.startIndex.y + move.endIndex.y) / 2);
@@ -253,10 +262,6 @@ void Board::applyMoveStatic(Move const& move){
 		currentState.enPassantSquare.reset();
 		currentState.enPassantSquareToCapture.reset();
 	}
-
-	// apply auxiliary moves
-	if (move.auxiliaryMove)
-		applyMoveStatic(*move.auxiliaryMove);
 }
 
 void Board::rewindMove(){

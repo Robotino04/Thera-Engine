@@ -607,7 +607,7 @@ int playMode(Options& options){
 			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(userInput.move, other);});
 			if (moveIt != possibleMoves.end()){
 				// apply the found move since the user move
-				// won't have any auxiliary moves attached
+				// won't have any stats attached
 				board.applyMove(*moveIt);
 			}
 			else{
