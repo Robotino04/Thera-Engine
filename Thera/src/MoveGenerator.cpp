@@ -17,7 +17,6 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
 
 void MoveGenerator::generateSlidingMoves(Board const& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx){
     for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-
         for (int i=0; i<squaresInDirection[square.getIndex64()][directionIdx].first; i++) {
             Coordinate pos = squaresInDirection[square.getIndex64()][directionIdx].second[i];
 
@@ -91,18 +90,11 @@ void MoveGenerator::generateAllKnightMoves(Board const& board){
 }
 
 void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
-    for (int directionIdx = 0; directionIdx < 8; directionIdx++){
-        auto const& target = kingSquaresValid[square.getIndex64()][directionIdx];
-
-        if (target.first) {
-            if (board.at(target.second).getType() == PieceType::None)
-                // normal move
-                generatedMoves.emplace_back(square, target.second);
-            else if (board.at(target.second).getColor() == board.getColorToNotMove()){
-                // capture
-                generatedMoves.emplace_back(square, target.second);
-            }
-        }
+    Bitboard targets = kingMovement.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
+    while (targets.hasPieces()){
+        auto const target = targets.getLS1B();
+        generatedMoves.emplace_back(square, Coordinate::fromIndex64(target));
+        targets.clearLS1B();
     }
 
     // add castling moves
@@ -134,10 +126,7 @@ void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
 void MoveGenerator::generateAllKingMoves(Board const& board){
     Bitboard bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
 
-    while (bitboard.hasPieces()){
-        generateKingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()));
-        bitboard.clearLS1B();
-    }
+    generateKingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()));
 }
 
 void MoveGenerator::generateAllPawnMoves(Board const& board){

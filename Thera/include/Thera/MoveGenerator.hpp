@@ -2,6 +2,7 @@
 
 #include "Thera/Move.hpp"
 #include "Thera/Coordinate.hpp"
+#include "Thera/Bitboard.hpp"
 
 #include <vector>
 #include <array>
@@ -9,7 +10,6 @@
 
 namespace Thera{
 struct Board;
-struct Bitboard;
 
 class MoveGenerator{
     public:
@@ -100,19 +100,37 @@ class MoveGenerator{
         void addPawnMovePossiblyPromotion(Move const& move, Board const& board);
 
     private:
-        using POTBC = Coordinate;
+        using XY = Coordinate;
+
     public:
         static const int maxMovesPerPosition = 218;
 
-        static constexpr std::array<POTBC, 8> slidingPieceOffsets = {
-            POTBC(1, 0), POTBC(-1, 0), POTBC(0, 1), POTBC(0, -1),  // Rook
-            POTBC(1, 1), POTBC(-1, -1), POTBC(1, -1), POTBC(-1, 1), // Bishop
+        static constexpr std::array<Coordinate, 8> slidingPieceOffsets{
+            // rook
+                        XY( 0, -1),
+            XY(-1,  0),             XY( 1,  0),
+                        XY( 0,  1),
+
+            // bishop
+            XY(-1, -1),             XY( 1, -1),
+
+            XY(-1,  1),             XY( 1,  1),
         };
-        static constexpr std::array<POTBC, 8> knightOffsets = {
-            POTBC(1, 2), POTBC(2, 1), POTBC(2, -1), POTBC(1, -2), POTBC(-1, -2), POTBC(-2, -1), POTBC(-2, 1), POTBC(-1, 2)    
+        static constexpr std::array<int, 8> slidingPieceShiftAmounts = {
+             9,  8,  7,
+             1,     -1,
+            -9, -8, -7,
         };
-        static constexpr std::array<POTBC, 8> kingOffsets = {
-            POTBC(1, 0), POTBC(1, -1), POTBC(0, -1), POTBC(-1, -1), POTBC(-1, 0), POTBC(-1, 1), POTBC(0, 1), POTBC(1, 1)
+        static constexpr std::array<Bitboard, 8> slidingPieceAvoidWrapping = {
+            0x7F7F7F7F7F7F7F00, 0xFFFFFFFFFFFFFF00, 0xFEFEFEFEFEFEFE00,
+
+            0x7F7F7F7F7F7F7F7F,                     0xFEFEFEFEFEFEFEFE,
+
+            0x007F7F7F7F7F7F7F, 0x00FFFFFFFFFFFFFF, 0x00FEFEFEFEFEFEFE,
+        };
+
+        static constexpr std::array<Coordinate, 8> knightOffsets = {
+            Coordinate(1, 2), Coordinate(2, 1), Coordinate(2, -1), Coordinate(1, -2), Coordinate(-1, -2), Coordinate(-2, -1), Coordinate(-2, 1), Coordinate(-1, 2)    
         };
 
         /*
@@ -123,7 +141,7 @@ class MoveGenerator{
             - list of squares in this direction
 
         */
-        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<POTBC, 8> offsets) constexpr{
+        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<Coordinate, 8> offsets) constexpr{
             std::array<std::array<std::pair<bool, Coordinate>, offsets.size()>, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
@@ -131,7 +149,7 @@ class MoveGenerator{
                         const Coordinate square = Coordinate(x, y);
                         
                         bool& isPossible = result.at(square.getIndex64()).at(dirIdx).first;
-                        const POTBC targetSquare = Coordinate(square) + offsets.at(dirIdx);
+                        const Coordinate targetSquare = Coordinate(square) + offsets.at(dirIdx);
 
                         isPossible = targetSquare.isOnBoard();
                         if (isPossible)
@@ -143,9 +161,24 @@ class MoveGenerator{
         };
         
         static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets);
-        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::kingOffsets);
-        
 
+        static constexpr auto kingMovement = [](){
+            std::array<Bitboard, 8*8> result = {};
+            for (int x=0; x<8; x++){
+                for (int y=0; y<8; y++){
+                    const Coordinate square = Coordinate(x, y);
+                    result.at(square.getIndex64()) = 0;
+                    for (int dirIdx = 0; dirIdx < slidingPieceOffsets.size(); dirIdx++){
+                        const Coordinate targetSquare = Coordinate(square) + slidingPieceOffsets.at(dirIdx);
+
+                        if (targetSquare.isOnBoard())
+                            result.at(square.getIndex64())[targetSquare.getIndex64()] = true;
+                    }
+                }
+            }
+            return result;
+        }();
+        
         /*
         returns: 
         - squares:
