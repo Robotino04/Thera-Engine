@@ -65,18 +65,11 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
 }
 
 void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square){
-    for (int directionIdx = 0; directionIdx < 8; directionIdx++){
-        auto const& target = knightSquaresValid[square.getIndex64()][directionIdx];
-
-        if (target.first) {
-            if (board.at(target.second).getType() == PieceType::None)
-                // normal move
-                generatedMoves.emplace_back(square, target.second);
-            else if (board.at(target.second).getColor() == board.getColorToNotMove()){
-                // capture
-                generatedMoves.emplace_back(square, target.second);
-            }
-        }
+    Bitboard targets = knightSquaresValid.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
+    while (targets.hasPieces()){
+        auto const target = targets.getLS1B();
+        generatedMoves.emplace_back(square, Coordinate::fromIndex64(target));
+        targets.clearLS1B();
     }
 }
 
@@ -90,7 +83,7 @@ void MoveGenerator::generateAllKnightMoves(Board const& board){
 }
 
 void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
-    Bitboard targets = kingMovement.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
+    Bitboard targets = kingSquaresValid.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
     while (targets.hasPieces()){
         auto const target = targets.getLS1B();
         generatedMoves.emplace_back(square, Coordinate::fromIndex64(target));
