@@ -130,22 +130,54 @@ class Bitboard{
         }
 
         constexpr Bitboard operator | (Bitboard const& other) const{
-            return {this->bits | other.bits};
+            return this->bits | other.bits;
         }
         constexpr Bitboard operator & (Bitboard const& other) const{
-            return {this->bits & other.bits};
+            return this->bits & other.bits;
         }
         constexpr Bitboard operator ^ (Bitboard const& other) const{
-            return {this->bits ^ other.bits};
+            return this->bits ^ other.bits;
         }
+        /**
+         * @brief Shift to the left. Allows for negative shift amounts.
+         * 
+         * @param n number of bits to shift by
+         * @return Bitboard the shifted Bitboard
+        */
         constexpr Bitboard operator << (int n) const{
-            return {this->bits << n};
+            return (n > 0) ? (this->bits << n) : (this->bits >> -n);
         }
+        /**
+         * @brief Shift to the right. Allows for negative shift amounts.
+         * 
+         * @param n number of bits to shift by
+         * @return Bitboard the shifted Bitboard
+        */
         constexpr Bitboard operator >> (int n) const{
-            return {this->bits >> n};
+            return *this << -n;
         }
         constexpr Bitboard operator ~ () const{
-            return {~this->bits};
+            return ~this->bits;
+        }
+
+        constexpr Bitboard operator |= (Bitboard const& other){
+            return this->bits |= other.bits;
+        }
+        constexpr Bitboard operator &= (Bitboard const& other){
+            return this->bits &= other.bits;
+        }
+        constexpr Bitboard operator ^= (Bitboard const& other){
+            return this->bits ^= other.bits;
+        }
+        constexpr Bitboard operator <<= (int n){
+            return this->bits = this->bits << n;
+        }
+        constexpr Bitboard operator >>= (int n){
+            return this->bits = this->bits >> n;
+        }
+        
+        explicit constexpr operator uint64_t() const{
+            return bits;
         }
 
         constexpr void flipBit(uint8_t bitIndex){
