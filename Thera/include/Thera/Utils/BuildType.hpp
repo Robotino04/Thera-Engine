@@ -1,5 +1,15 @@
 #pragma once
 
+
+#ifndef NDEBUG
+    #define THERA_IS_DEBUG 1
+    #define THERA_IS_RELEASE 0
+#else
+    #define THERA_IS_DEBUG 0
+    #define THERA_IS_RELEASE 1
+#endif
+
+
 namespace Thera::Utils{
 
 /**
@@ -19,7 +29,7 @@ enum class BuildType{
      */
     Release,
 
-#ifndef NDEBUG
+#if THERA_IS_DEBUG
     /**
      * @brief Represents the build type of this TU.
      * 

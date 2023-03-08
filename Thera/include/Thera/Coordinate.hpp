@@ -42,7 +42,7 @@ struct Coordinate{
      */
     static constexpr Coordinate fromIndex64(uint8_t index){
         return Coordinate(index + (index & ~7));
-    } 
+    }
     
     constexpr uint8_t getRaw() const{
         return x | y << 4;
@@ -78,12 +78,43 @@ struct Coordinate{
     constexpr Coordinate operator + (Coordinate const& other) const{
         return Coordinate(this->x + other.x, this->y + other.y);
     }
+
+    /**
+     * @brief Apply an offset to a coordinate.
+     * 
+     */
     constexpr Coordinate operator += (Coordinate const& other){
         this->x += other.x;
         this->y += other.y;
         
         return *this;
     };
+    /**
+     * @brief Apply an offset to a coordinate.
+     * 
+     */
+    constexpr Coordinate operator - (Coordinate const& other) const{
+        return Coordinate(this->x - other.x, this->y - other.y);
+    }
+
+    /**
+     * @brief Apply an offset to a coordinate.
+     * 
+     */
+    constexpr Coordinate operator -= (Coordinate const& other){
+        this->x -= other.x;
+        this->y -= other.y;
+        
+        return *this;
+    };
+    
+    /**
+     * @brief Apply an offset to a coordinate.
+     * 
+     */
+    constexpr Coordinate operator - () const{
+        return Coordinate(-x, -y);
+    }
 
     constexpr bool operator == (Coordinate const& other) const{
         return this->getRaw() == other.getRaw();

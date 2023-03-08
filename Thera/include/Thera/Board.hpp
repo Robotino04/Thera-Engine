@@ -116,16 +116,21 @@ class Board{
 		/**
 		 * @brief Get the en passant square.
 		 * 
-		 * @return std::optional<Coordinate> 
+		 * @return Coordinate 
 		 */
-		std::optional<Coordinate> getEnPassantSquare() const;
+		Coordinate getEnPassantSquareForFEN() const;
 
 		/**
 		 * @brief Get the en passant square to capture.
 		 * 
-		 * @return std::optional<Coordinate> 
+		 * @return Coordinate 
 		 */
-		std::optional<Coordinate> getEnPassantSquareToCapture() const;
+		Coordinate getEnPassantSquareToCapture() const;
+
+		/**
+		 * @brief Is en passant possible.
+		*/
+		bool hasEnPassant() const;
 
 		/**
 		 * @brief Get the bitboard containing a particular piece. 
@@ -134,13 +139,14 @@ class Board{
 		 * @return Bitboard& the bitboard containing these pieces
 		 */
 		Bitboard& getBitboard(Piece piece);
+		
 		/**
 		 * @brief Get the bitboard to place a particular piece. 
 		 * 
 		 * @param piece the piece
-		 * @return Bitboard const& the bitboard containing these pieces
+		 * @return Bitboard the bitboard containing these pieces
 		 */
-		Bitboard const& getBitboard(Piece piece) const;
+		Bitboard getBitboard(Piece piece) const;
 
 		/**
 		 * @brief Get the bitboard containing all pieces 
@@ -152,9 +158,25 @@ class Board{
 		/**
 		 * @brief Get the bitboard containing all pieces 
 		 * 
-		 * @return Bitboard const& the bitboard containing all pieces
+		 * @return Bitboard the bitboard containing all pieces
 		 */
-		Bitboard const& getAllPieceBitboard() const;
+		Bitboard getAllPieceBitboard() const;
+
+		/**
+		 * @brief Get the bitboard containing all pieces of one color
+		 * 
+		 * @param color whose pieces to return
+		 * @return Bitboard& the bitboard containing all pieces one color
+		 */
+		Bitboard& getPieceBitboardForOneColor(PieceColor color);
+
+		/**
+		 * @brief Get the bitboard containing all pieces of one color
+		 * 
+		 * @param color whose pieces to return
+		 * @return Bitboard the bitboard containing all pieces one color
+		 */
+		Bitboard getPieceBitboardForOneColor(PieceColor color) const;
 
 		/**
 		 * @brief Place a piece onto the board.
@@ -189,12 +211,17 @@ class Board{
 	public:
 		struct BoardState{
 			std::array<Piece, 10*12> squares;
-			// size 16 to only use one index instead of two (for color and type)
+
+			/**
+			 * @brief Bitboards for all pieces. None and some color represent all pieces of said color.
+			 * 
+			 */
 			std::array<Bitboard, 16> pieceBitboards;
 			Bitboard allPieceBitboard;
 
-			std::optional<Coordinate> enPassantSquare;
-			std::optional<Coordinate> enPassantSquareToCapture;
+			bool hasEnPassant = false;
+			Coordinate enPassantSquareForFEN;
+			Coordinate enPassantSquareToCapture;
 
 			bool isWhiteToMove: 1;
 			bool canWhiteCastleLeft: 1;

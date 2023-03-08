@@ -4,9 +4,16 @@
 
 namespace Thera::Utils{
 
+
+template <std::unsigned_integral T>
+constexpr T binardOneAt(int i){
+    return T(1) << i;
+}
+
 template<std::unsigned_integral T>
 constexpr T setBit(T value, int bit, bool bitValue){
-   return (value & ~(T(1) << bit)) | ((T(bitValue) & T(1)) << bit);
+   return (value & ~binardOneAt<T>(bit)) // clear the bit to be changed
+   | ((T(bitValue)) << bit);
 }
 template<std::unsigned_integral T>
 constexpr T getBit(T value, int bit){
@@ -34,11 +41,6 @@ constexpr T reverseBits(T n) {
     }
 
     return n;
-}
-
-template <std::unsigned_integral T>
-constexpr T binardOneAt(int i){
-    return T(1) << i;
 }
 
 }

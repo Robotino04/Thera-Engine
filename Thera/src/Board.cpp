@@ -59,9 +59,9 @@ void Board::loadFromFEN(std::string fen){
 	for (auto& piece : currentState.squares){
 		piece.clear();
 	}
-	currentState.allPieceBitboard.clear();
+	currentState.allPieceBitboard = Bitboard();
 	for (auto& bitboard : currentState.pieceBitboards){
-		bitboard.clear();
+		bitboard = Bitboard();
 	}
 
 	uint8_t x = 0, y = 0;
@@ -128,10 +128,11 @@ void Board::loadFromFEN(std::string fen){
 		throw std::invalid_argument(generateFenErrorText(fen, charIndex));
 	}
 	if (fen.at(charIndex) == '-'){
-		currentState.enPassantSquare.reset();
+		currentState.hasEnPassant = false;
 	}
 	else{
-		currentState.enPassantSquare = Utils::squareFromAlgebraicNotation(fen.substr(charIndex, 2));
+		currentState.enPassantSquareForFEN = Utils::squareFromAlgebraicNotation(fen.substr(charIndex, 2));
+		currentState.hasEnPassant = true;
 		charIndex += 1;
 	}
 	charIndex += 2; // skip sth and space
@@ -191,8 +192,8 @@ std::string Board::storeToFEN() const{
 	}
 
 	fen += ' ';
-	if (getEnPassantSquare().has_value()){
-		fen += Utils::squareToAlgebraicNotation(getEnPassantSquare().value());
+	if (currentState.hasEnPassant){
+		fen += Utils::squareToAlgebraicNotation(getEnPassantSquareForFEN());
 	}
 	else{
 		fen += '-';
@@ -219,13 +220,15 @@ void Board::applyMoveStatic(Move const& move){
 
 	removeCastlings(move.startIndex);
 	removeCastlings(move.endIndex);
+	
+	// remove pieces from bitboards
+	getPieceBitboardForOneColor(getColorToNotMove()).removePiece(move.endIndex);
+	getBitboard(at(move.endIndex)).removePiece(move.endIndex);
+	
 
 	// apply the move to the bitboards
-	if (currentState.allPieceBitboard.isOccupied(move.endIndex)){
-		// capture
-		getBitboard(at(move.endIndex)).removePiece(move.endIndex);
-	}
 	currentState.allPieceBitboard.applyMove(move);
+	getPieceBitboardForOneColor(getColorToMove()).applyMove(move);
 	getBitboard(at(move.startIndex)).applyMove(move);
 
 	// apply the move to the square centric representation
@@ -240,12 +243,13 @@ void Board::applyMoveStatic(Move const& move){
 
 	// en passant
 	if (move.isEnPassant){
-		removePiece(getEnPassantSquareToCapture().value());
-		currentState.enPassantSquare.reset();
-		currentState.enPassantSquareToCapture.reset();
+		removePiece(Coordinate(move.endIndex.x, move.startIndex.y));
+		currentState.hasEnPassant = false;
 	}
 	if (move.isCastling){
 		auto const castlingMove = Move(move.castlingStart, move.castlingEnd);
+		// apply the rook move to the bitboards
+		getPieceBitboardForOneColor(getColorToMove()).applyMove(castlingMove);
 		currentState.allPieceBitboard.applyMove(castlingMove);
 		getBitboard(at(castlingMove.startIndex)).applyMove(castlingMove);
 
@@ -255,12 +259,12 @@ void Board::applyMoveStatic(Move const& move){
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
-		currentState.enPassantSquare = Coordinate(move.startIndex.x, (move.startIndex.y + move.endIndex.y) / 2);
+		currentState.enPassantSquareForFEN = Coordinate(move.startIndex.x, (move.startIndex.y + move.endIndex.y) / 2);
 		currentState.enPassantSquareToCapture = move.endIndex;
+		currentState.hasEnPassant = true;
 	}
 	else{
-		currentState.enPassantSquare.reset();
-		currentState.enPassantSquareToCapture.reset();
+		currentState.hasEnPassant = false;
 	}
 }
 
@@ -286,22 +290,32 @@ Board::BoardState const& Board::getCurrentState() const{
 Bitboard& Board::getBitboard(Piece piece){
 	return currentState.pieceBitboards.at(piece.getRaw());
 }
-Bitboard const& Board::getBitboard(Piece piece) const {
+Bitboard Board::getBitboard(Piece piece) const {
 	return currentState.pieceBitboards.at(piece.getRaw());
 }
 Bitboard& Board::getAllPieceBitboard(){
 	return currentState.allPieceBitboard;
 }
-Bitboard const& Board::getAllPieceBitboard() const{
+Bitboard Board::getAllPieceBitboard() const{
 	return currentState.allPieceBitboard;
 }
-
-std::optional<Coordinate> Board::getEnPassantSquare() const{
-	return currentState.enPassantSquare;
+Bitboard& Board::getPieceBitboardForOneColor(PieceColor color){
+	return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
+}
+Bitboard Board::getPieceBitboardForOneColor(PieceColor color) const{
+	return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
 }
 
-std::optional<Coordinate> Board::getEnPassantSquareToCapture() const{
+Coordinate Board::getEnPassantSquareForFEN() const{
+	return currentState.enPassantSquareForFEN;
+}
+
+Coordinate Board::getEnPassantSquareToCapture() const{
 	return currentState.enPassantSquareToCapture;
+}
+
+bool Board::hasEnPassant() const{
+	return currentState.hasEnPassant;
 }
 
 void Board::placePiece(Coordinate square, Piece piece){
@@ -309,6 +323,7 @@ void Board::placePiece(Coordinate square, Piece piece){
 
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
+	getPieceBitboardForOneColor(piece.getColor()).placePiece(square);
 }
 
 void Board::removePiece(Coordinate square){
@@ -316,6 +331,7 @@ void Board::removePiece(Coordinate square){
 
 	currentState.allPieceBitboard.removePiece(square);
 	getBitboard(piece).removePiece(square);
+	getPieceBitboardForOneColor(piece.getColor()).removePiece(square);
 
 	piece.clear();
 }

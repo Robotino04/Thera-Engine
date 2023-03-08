@@ -32,7 +32,7 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 
             const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToNotMove()});
             if (!kingBitboard.hasPieces()) continue;
-            const auto kingSquare = kingBitboard.getPieces().at(0);
+            const auto kingSquare = Coordinate::fromIndex64(kingBitboard.getLS1B());
             const bool isInCheck = isSquareAttacked(kingSquare, board, generator);
             if (isInCheck) continue;
         }

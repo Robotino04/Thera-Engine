@@ -9,6 +9,7 @@
 
 namespace Thera{
 struct Board;
+struct Bitboard;
 
 class MoveGenerator{
     public:
@@ -18,16 +19,16 @@ class MoveGenerator{
          * @param board the position to operate on
          * @return std::vector<Move> the generated moves
          */
-        std::vector<Move> generateAllMoves(Board& board);
+        std::vector<Move> generateAllMoves(Board const& board);
 
         /**
-         * @brief Generate legal from the given square.
+         * @brief A bitboard only used for debugging.
          * 
-         * @param board the position to operate on
-         * @param square the square to generate moves for
-         * @return std::vector<Move> the generated moves
+         * It is most likely used to display a arbitrary bitboard in a UI.
+         * 
          */
-        std::vector<Move> generateMoves(Board& board, Coordinate square);
+        static inline Bitboard* debugBitboard = nullptr;
+
 
     private:
         /**
@@ -38,7 +39,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
+        void generateSlidingMoves(Board const& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
 
         /**
          * @brief Generate all bishop, rook and queen moves.
@@ -47,7 +48,7 @@ class MoveGenerator{
          * 
          * @param board the position to operate on
          */
-        void generateAllSlidingMoves(Board& board);
+        void generateAllSlidingMoves(Board const& board);
 
         /**
          * @brief Generate knight moves.
@@ -57,14 +58,14 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKnightMoves(Board& board, Coordinate square);
+        void generateKnightMoves(Board const& board, Coordinate square);
 
         /**
          * @brief Generate all knight moves.
          * 
          * @param board the position to operate on
          */
-        void generateAllKnightMoves(Board& board);
+        void generateAllKnightMoves(Board const& board);
 
         /**
          * @brief Generate king moves.
@@ -74,31 +75,21 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateKingMoves(Board& board, Coordinate square);
+        void generateKingMoves(Board const& board, Coordinate square);
 
         /**
          * @brief Generate all king moves.
          * 
          * @param board the position to operate on
          */
-        void generateAllKingMoves(Board& board);
-
-        /**
-         * @brief Generate pawn move.
-         * 
-         * May generate incorrect results for empty squares or the color to not move.
-         * 
-         * @param board the position to operate on
-         * @param square the square to generate moves for
-         */
-        void generatePawnMoves(Board& board, Coordinate square);
+        void generateAllKingMoves(Board const& board);
 
         /**
          * @brief Generate all pawn moves.
          * 
          * @param board the position to operate on
          */
-        void generateAllPawnMoves(Board& board);
+        void generateAllPawnMoves(Board const& board);
 
         /**
          * @brief Add a pawn move and apply promotions if needed.
@@ -106,7 +97,7 @@ class MoveGenerator{
          * @param startIndex the starting square
          * @param endIndex the ending square
          */
-        void addPawnMove(Move const& move, Board const& board);
+        void addPawnMovePossiblyPromotion(Move const& move, Board const& board);
 
     private:
         using POTBC = Coordinate;

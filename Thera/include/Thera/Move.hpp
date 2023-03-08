@@ -20,7 +20,6 @@ struct Move{
     PieceType promotionType = PieceType::None;
 
     bool isEnPassant = false;
-    uint8_t enPassantFile;
 
     bool isCastling = false;
     Coordinate castlingStart, castlingEnd;
@@ -52,8 +51,8 @@ struct Move{
      */
     constexpr void debugValidate() const{
         if (Utils::BuildType::Current == Utils::BuildType::Debug){
-            if (!startIndex.isOnBoard()) throw std::invalid_argument(std::to_string(startIndex.x) + ";" + std::to_string(startIndex.y) + " isn't on the board");
-            if (!endIndex.isOnBoard()) throw std::invalid_argument(std::to_string(endIndex.x) + ";" + std::to_string(endIndex.y) + " isn't on the board");
+            if (!startIndex.isOnBoard()) throw std::invalid_argument(std::to_string(startIndex.x) + ";" + std::to_string(startIndex.y) + " isn't on the board (start square)");
+            if (!endIndex.isOnBoard()) throw std::invalid_argument(std::to_string(endIndex.x) + ";" + std::to_string(endIndex.y) + " isn't on the board (end square)");
         
             if (isCastling){
                 Move(castlingStart, castlingEnd).debugValidate();

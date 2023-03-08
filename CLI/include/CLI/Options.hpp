@@ -16,5 +16,7 @@ struct Options {
 	int perftDepth = 1;
 	std::string fen = Thera::Utils::startingFEN;
 	bool bulkCounting = false;
-	Thera::Piece shownBitboard;
+
+	Thera::Piece shownBitboard = {Thera::PieceType::None, Thera::PieceColor::White};
+	bool showDebugBitboard = false;
 };
