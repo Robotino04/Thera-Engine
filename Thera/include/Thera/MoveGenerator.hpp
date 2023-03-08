@@ -141,35 +141,14 @@ class MoveGenerator{
             - list of squares in this direction
 
         */
-        static constexpr auto isKingKnightMoveValidGenerator = [](std::array<Coordinate, 8> offsets) constexpr{
-            std::array<std::array<std::pair<bool, Coordinate>, offsets.size()>, 8*8> result = {};
-            for (int x=0; x<8; x++){
-                for (int y=0; y<8; y++){
-                    for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
-                        const Coordinate square = Coordinate(x, y);
-                        
-                        bool& isPossible = result.at(square.getIndex64()).at(dirIdx).first;
-                        const Coordinate targetSquare = Coordinate(square) + offsets.at(dirIdx);
-
-                        isPossible = targetSquare.isOnBoard();
-                        if (isPossible)
-                            result.at(square.getIndex64()).at(dirIdx).second = targetSquare;
-                    }
-                }
-            }
-            return result;
-        };
-        
-        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets);
-
-        static constexpr auto kingMovement = [](){
+        static constexpr auto isKingKnightMoveValidGenerator = [](auto const& offsets) constexpr {
             std::array<Bitboard, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
                     const Coordinate square = Coordinate(x, y);
                     result.at(square.getIndex64()) = 0;
-                    for (int dirIdx = 0; dirIdx < slidingPieceOffsets.size(); dirIdx++){
-                        const Coordinate targetSquare = Coordinate(square) + slidingPieceOffsets.at(dirIdx);
+                    for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
+                        const Coordinate targetSquare = Coordinate(square) + offsets.at(dirIdx);
 
                         if (targetSquare.isOnBoard())
                             result.at(square.getIndex64())[targetSquare.getIndex64()] = true;
@@ -177,7 +156,12 @@ class MoveGenerator{
                 }
             }
             return result;
-        }();
+        };
+        
+        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets);
+        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::slidingPieceOffsets);
+
+        
         
         /*
         returns: 
