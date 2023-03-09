@@ -1,17 +1,20 @@
-Iteration;  position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Release; Change
-0;          89.1486;            93.1059;            9.68924;                10.3497;            Baseline
-1;          85.5227;            89.6024;            9.12634;                9.59932;            Replaced findPiece with bitboard function
-2;          89.6592;            95.0132;            9.34531;                9.79329;            Used bitwise operations for king and knight. Moved sanity checks in Bitboard to constexpr
-3;          144.261;            153.568;            10.3394;                10.6737;            Used type-safe coordinates
-4;          73.8069;            75.6982;            6.78846;                6.90691;            Removed most Coordinate10x12 uses
-5;          68.2585;            71.562;             6.11914;                6.30252;            Precomputed sliding piece movement limits
-6;          64.0732;            66.9646;            6.24967;                6.5348;             Precomputed king and knight movement limits
-7;          65.9249;            69.8539;            6.74892;                6.69534;            Replaced bool array with bitfield
-8;          64.122;             67.6495;            6.31024;                6.56331;            Made more stuff constexpr
-9;          54.951;             59.3922;            4.40645;                4.99504;            Removed unnecessary tests from move generation.
-10;         49.813;             53.1338;            4.58155;                5.16811;            Changed Coordinate8x8 from int8_t to uint8_t.
-11;         49.212;             51.4198;            4.38462;                4.86515;            Removed __uint128_t.
-12;         50.8364;            54.2268;            4.38622;                4.87105;            Implemented 0x88.
-13;         55.866;             55.2533;            4.63263;                4.97615;            Removed Coordinate8x8.
-14;         54.4689;            54.2341;            4.52808;                5.02115;            Removed templating from Bitboard.
-15;         48.7848;            47.8456;            3.90026;                4.61384;            Removed auxiliary moves.
+position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Release; Change
+89.1486;            93.1059;            9.68924;                10.3497;            Baseline
+85.5227;            89.6024;            9.12634;                9.59932;            Replaced findPiece with bitboard function
+89.6592;            95.0132;            9.34531;                9.79329;            Used bitwise operations for king and knight. Moved sanity checks in Bitboard to constexpr
+144.261;            153.568;            10.3394;                10.6737;            Used type-safe coordinates
+73.8069;            75.6982;            6.78846;                6.90691;            Removed most Coordinate10x12 uses
+68.2585;            71.562;             6.11914;                6.30252;            Precomputed sliding piece movement limits
+64.0732;            66.9646;            6.24967;                6.5348;             Precomputed king and knight movement limits
+65.9249;            69.8539;            6.74892;                6.69534;            Replaced bool array with bitfield
+64.122;             67.6495;            6.31024;                6.56331;            Made more stuff constexpr
+54.951;             59.3922;            4.40645;                4.99504;            Removed unnecessary tests from move generation.
+49.813;             53.1338;            4.58155;                5.16811;            Changed Coordinate8x8 from int8_t to uint8_t.
+49.212;             51.4198;            4.38462;                4.86515;            Removed __uint128_t.
+50.8364;            54.2268;            4.38622;                4.87105;            Implemented 0x88.
+55.866;             55.2533;            4.63263;                4.97615;            Removed Coordinate8x8.
+54.4689;            54.2341;            4.52808;                5.02115;            Removed templating from Bitboard.
+48.7848;            47.8456;            3.90026;                4.61384;            Removed auxiliary moves.
+38.2608;            36.1302;            1.73862;                1.94351;            Implemented pawn move generation using bitboards.
+37.2233;            34.7524;            1.79794;                1.90029;            Implemented king move generation using bitboards.
+36.5666;            33.9908;            1.67617;                1.79907;            Implemented knight move generation using bitboards.
