@@ -16,16 +16,18 @@ namespace Thera{
 
 Piece& Board::at(Coordinate index){
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(index.getIndex64());
-	else
-		return currentState.squares[index.getIndex64()];
+		if (!index.isOnBoard())
+			throw std::invalid_argument(std::to_string(index.x) + ";" + std::to_string(index.y) + " isn't on the board");
+	
+	return currentState.squares[index.getRaw()];
 }
 
 Piece const& Board::at(Coordinate index) const{
 	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		return currentState.squares.at(index.getIndex64());
-	else
-		return currentState.squares[index.getIndex64()];
+		if (!index.isOnBoard())
+			throw std::invalid_argument(std::to_string(index.x) + ";" + std::to_string(index.y) + " isn't on the board");
+	
+	return currentState.squares[index.getRaw()];
 }
 
 bool Board::isOccupied(Coordinate square) const{
@@ -56,9 +58,7 @@ void Board::loadFromFEN(std::string fen){
 		{'q', PieceType::Queen},
 		{'k', PieceType::King},
 	};
-	for (auto& piece : currentState.squares){
-		piece.clear();
-	}
+	currentState.squares.fill({PieceType::None, PieceColor::White});
 	currentState.allPieceBitboard = Bitboard();
 	for (auto& bitboard : currentState.pieceBitboards){
 		bitboard = Bitboard();

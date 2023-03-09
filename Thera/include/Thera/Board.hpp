@@ -210,7 +210,7 @@ class Board{
 
 	public:
 		struct BoardState{
-			std::array<Piece, 10*12> squares;
+			std::array<Piece, 8*16> squares;
 
 			/**
 			 * @brief Bitboards for all pieces. None and some color represent all pieces of said color.
