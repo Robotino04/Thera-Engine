@@ -100,37 +100,31 @@ class MoveGenerator{
         void addPawnMovePossiblyPromotion(Move const& move, Board const& board);
 
     private:
-        using XY = Coordinate;
+        using CDNT = Coordinate;
 
     public:
-        static const int maxMovesPerPosition = 218;
+        static constexpr int maxMovesPerPosition = 218;
 
         static constexpr std::array<Coordinate, 8> slidingPieceOffsets{
             // rook
-                        XY( 0, -1),
-            XY(-1,  0),             XY( 1,  0),
-                        XY( 0,  1),
+            Direction::N, Direction::W, Direction::E, Direction::S,
 
             // bishop
-            XY(-1, -1),             XY( 1, -1),
-
-            XY(-1,  1),             XY( 1,  1),
-        };
-        static constexpr std::array<int, 8> slidingPieceShiftAmounts = {
-             9,  8,  7,
-             1,     -1,
-            -9, -8, -7,
-        };
-        static constexpr std::array<Bitboard, 8> slidingPieceAvoidWrapping = {
-            0x7F7F7F7F7F7F7F00, 0xFFFFFFFFFFFFFF00, 0xFEFEFEFEFEFEFE00,
-
-            0x7F7F7F7F7F7F7F7F,                     0xFEFEFEFEFEFEFEFE,
-
-            0x007F7F7F7F7F7F7F, 0x00FFFFFFFFFFFFFF, 0x00FEFEFEFEFEFEFE,
+            Direction::NW, Direction::NE, Direction::SW, Direction::SE,
         };
 
         static constexpr std::array<Coordinate, 8> knightOffsets = {
-            Coordinate(1, 2), Coordinate(2, 1), Coordinate(2, -1), Coordinate(1, -2), Coordinate(-1, -2), Coordinate(-2, -1), Coordinate(-2, 1), Coordinate(-1, 2)    
+            Direction::N + Direction::NE,
+            Direction::N + Direction::NW,
+
+            Direction::W + Direction::NW,
+            Direction::W + Direction::SW,
+
+            Direction::S + Direction::SE,
+            Direction::S + Direction::SW,
+
+            Direction::E + Direction::NE,
+            Direction::E + Direction::SE,
         };
 
         /*

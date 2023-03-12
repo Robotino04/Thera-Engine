@@ -10,14 +10,14 @@ Coordinate squareFromAlgebraicNotation(std::string const& str){
     // The string should be valid now
     uint8_t x, y;
     x = str[0] - 'a';
-    y = '8' - str[1];
+    y = str[1] - '1';
     return Coordinate(x, y);
 }
 
 std::string squareToAlgebraicNotation(Coordinate square){
     if (!Utils::isInRange<uint8_t>(square.x, 0, 7) || !Utils::isInRange<uint8_t>(square.y, 0, 7)) throw std::invalid_argument(std::to_string(square.x) + ";" + std::to_string(square.y) + " isn't a valid square");
 
-    return std::string(1, 'a' + square.x) + std::string(1, '8' - square.y);
+    return std::string(1, 'a' + square.x) + std::string(1, square.y + '1');
 }
 
 std::string pieceColorToString(PieceColor color){

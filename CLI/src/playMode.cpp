@@ -53,10 +53,10 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 	};
 
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
-	for(uint8_t y=0; y<8; y++){
-		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << static_cast<int>(8-y) << " ";
-		for(uint8_t x=0; x<8; x++){
-			RGB boardColor = (x + y)%2 ? blackBoardColor : whiteBoardColor;
+	for(int y=7; y >= 0; y--){
+		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " ";
+		for(int x=0; x<8; x++){
+			RGB boardColor = (x + y)%2 ? whiteBoardColor : blackBoardColor;
 
 			const Thera::Coordinate square(x, y);
 			
@@ -78,11 +78,11 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 				<< " ";
 		}
 		std::cout
-			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << static_cast<int>(8-y) << " " << ANSI::reset();
+			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << y+1 << " " << ANSI::reset();
 
 		// print board stats
 		std::cout << "  ";
-		switch(y){
+		switch(7-y){
 			case 0:
 				std::cout << "Castling: [White] [Black]";
 				break;
