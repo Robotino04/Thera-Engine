@@ -64,13 +64,13 @@ void Board::loadFromFEN(std::string fen){
 		bitboard = Bitboard();
 	}
 
-	uint8_t x = 0, y = 0;
+	uint8_t x = 0, y = 7;
 	int charIndex = -1;
 	while(++charIndex < fen.size()){
 		char c = fen.at(charIndex);
 		switch (tolower(c)){
 			case '/':
-				y++;
+				y--;
 				x = 0;
 				break;
 			case '0'...'8':
@@ -154,10 +154,11 @@ std::string Board::storeToFEN() const{
 
 	std::string fen = "";
 
-	for (int i=0; i<64; i++){
+	for (int y=7; y >= 0; y--){
+		for (int x=0; x<8; x++){
 		try{
-			char c = pieceTypeToFenChars.at(this->at(Coordinate::fromIndex64(i)).getType());
-			if (at(Coordinate::fromIndex64(i)).getColor() == PieceColor::White){
+			char c = pieceTypeToFenChars.at(this->at(Coordinate(x, y)).getType());
+			if (at(Coordinate(x, y)).getColor() == PieceColor::White){
 				c = std::toupper(c);
 			}
 
@@ -173,8 +174,9 @@ std::string Board::storeToFEN() const{
 			}
 		}
 
-		if ((i + 1) % 8 == 0 && i<63){
+		if (x == 7 && y > 0){
 			fen += '/';
+		}
 		}
 	}
 
@@ -339,17 +341,17 @@ void Board::removePiece(Coordinate square){
 void Board::removeCastlings(Coordinate movedSquare){
 	switch(movedSquare.getRaw()){
 		// rook moves
-		case Coordinate(0,0).getRaw(): currentState.canBlackCastleLeft = false; break;
-		case Coordinate(0,7).getRaw(): currentState.canWhiteCastleLeft = false; break;
-		case Coordinate(7,0).getRaw(): currentState.canBlackCastleRight = false; break;
-		case Coordinate(7,7).getRaw(): currentState.canWhiteCastleRight = false; break;
+		case Square::a8.getRaw(): currentState.canBlackCastleLeft = false; break;
+		case Square::h8.getRaw(): currentState.canBlackCastleRight = false; break;
+		case Square::a1.getRaw(): currentState.canWhiteCastleLeft = false; break;
+		case Square::h1.getRaw(): currentState.canWhiteCastleRight = false; break;
 
 		// king moves
-		case Coordinate(4, 0).getRaw():
+		case Square::e8.getRaw():
 			currentState.canBlackCastleLeft = false;
 			currentState.canBlackCastleRight = false;
 			break;
-		case Coordinate(4, 7).getRaw():
+		case Square::e1.getRaw():
 			currentState.canWhiteCastleLeft = false;
 			currentState.canWhiteCastleRight = false;
 			break;

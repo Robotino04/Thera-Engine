@@ -71,6 +71,8 @@ struct Coordinate{
         return (getRaw() + (getRaw() & 7)) >> 1;
     }
 
+    // TODO: replace pass by reference with pass by value
+
     /**
      * @brief Apply an offset to a coordinate.
      * 
@@ -107,6 +109,10 @@ struct Coordinate{
         
         return *this;
     };
+
+    constexpr Coordinate operator * (int factor) const{
+        return Coordinate(this->x * factor, this->y * factor);
+    }
     
     /**
      * @brief Apply an offset to a coordinate.
@@ -120,5 +126,64 @@ struct Coordinate{
         return this->getRaw() == other.getRaw();
     }
 };
+
+
+namespace DirectionIndex64 {
+    enum : int{
+        N = 8,
+        E = 1,
+        S = -8,
+        W = -1,
+
+        NE = N + E,
+        NW = N + W,
+        SE = S + E,
+        SW = S + W,
+    };
+};
+
+namespace Direction {
+    constexpr Coordinate N = Coordinate( 0,  1);
+    constexpr Coordinate E = Coordinate( 1,  0);
+    constexpr Coordinate S = Coordinate( 0, -1);
+    constexpr Coordinate W = Coordinate(-1,  0);
+
+
+    constexpr Coordinate NE = N + E;
+    constexpr Coordinate NW = N + W;
+    constexpr Coordinate SE = S + E;
+    constexpr Coordinate SW = S + W;
+};
+
+
+namespace SquareIndex64 {
+    enum : int{
+        a1, b1, c1, d1, e1, f1, g1, h1,
+        a2, b2, c2, d2, e2, f2, g2, h2,
+        a3, b3, c3, d3, e3, f3, g3, h3,
+        a4, b4, c4, d4, e4, f4, g4, h4,
+        a5, b5, c5, d5, e5, f5, g5, h5,
+        a6, b6, c6, d6, e6, f6, g6, h6,
+        a7, b7, c7, d7, e7, f7, g7, h7,
+        a8, b8, c8, d8, e8, f8, g8, h8
+    };
+};
+
+namespace Square{
+    #define defSq(NAME) constexpr Coordinate NAME = Coordinate::fromIndex64(static_cast<uint8_t>(SquareIndex64::NAME));
+    #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
+
+    defRow(a);
+    defRow(b);
+    defRow(c);
+    defRow(d);
+    defRow(e);
+    defRow(f);
+    defRow(g);
+    defRow(h);
+
+    #undef defSq
+    #undef defRow
+}
 
 }
