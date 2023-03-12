@@ -15,23 +15,31 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
     return generatedMoves;
 }
 
-void MoveGenerator::generateSlidingMoves(Board const& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx){
-    for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        for (int i=0; i<squaresInDirection[square.getIndex64()][directionIdx].first; i++) {
-            Coordinate pos = squaresInDirection[square.getIndex64()][directionIdx].second[i];
+Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8) {
+   Bitboard flood = sliders;
+   int r = MoveGenerator::slidingPieceShiftAmounts[dir8]; // {+-1,7,8,9}
+   empty &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
+   flood |= sliders = (sliders << r) & empty;
+   flood |= sliders = (sliders << r) & empty;
+   flood |= sliders = (sliders << r) & empty;
+   flood |= sliders = (sliders << r) & empty;
+   flood |= sliders = (sliders << r) & empty;
+   flood |=           (sliders << r) & empty;
+   return             (flood << r)   & MoveGenerator::slidingPieceAvoidWrapping[dir8];
+}
 
-            if (board.at(pos).getType() == PieceType::None)
-                // normal move
-                generatedMoves.emplace_back(square, pos);
-            else if (board.at(pos).getColor() == board.getColorToNotMove()){
-                // capture
-                generatedMoves.emplace_back(square, pos);
-                break;
-            }
-            else
-                // we hit our own piece
-                break;
-        }
+void MoveGenerator::generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx){
+    Bitboard attackedSquares;
+    for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
+        attackedSquares |= slidingAttacks(square, ~board.getAllPieceBitboard(), directionIdx);
+    }
+    attackedSquares &= ~square;
+    attackedSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
+
+    const Coordinate origin = Coordinate::fromIndex64(square.getLS1B());
+    while (attackedSquares.hasPieces()){
+        generatedMoves.emplace_back(origin, Coordinate::fromIndex64(attackedSquares.getLS1B()));
+        attackedSquares.clearLS1B();
     }
 }
 
@@ -40,7 +48,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
         Bitboard bitboard = board.getBitboard({PieceType::Bishop, board.getColorToMove()});
 
         while (bitboard.hasPieces()){
-            generateSlidingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()), 4, 8);
+            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 4, 8);
             bitboard.clearLS1B();
         }
     }
@@ -49,7 +57,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
         Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToMove()});
 
         while (bitboard.hasPieces()){
-            generateSlidingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()), 0, 4);
+            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 0, 4);
             bitboard.clearLS1B();
         }
     }
@@ -58,7 +66,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
         Bitboard bitboard = board.getBitboard({PieceType::Queen, board.getColorToMove()});
 
         while (bitboard.hasPieces()){
-            generateSlidingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()), 0, 8);
+            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 0, 8);
             bitboard.clearLS1B();
         }
     }
@@ -119,6 +127,7 @@ void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
 void MoveGenerator::generateAllKingMoves(Board const& board){
     Bitboard bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
 
+    // TODO: maybe remove this since every position should have a king. Only there for debugging
     if (bitboard.hasPieces()) generateKingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()));
 }
 

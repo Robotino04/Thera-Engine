@@ -39,7 +39,7 @@ class MoveGenerator{
          * @param board the position to operate on
          * @param square the square to generate moves for
          */
-        void generateSlidingMoves(Board const& board, Coordinate square, uint_fast8_t startDirectionIdx, uint_fast8_t endDirectionIdx);
+        void generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx);
 
         /**
          * @brief Generate all bishop, rook and queen moves.
@@ -111,6 +111,28 @@ class MoveGenerator{
 
             // bishop
             Direction::NW, Direction::NE, Direction::SW, Direction::SE,
+        };
+        static constexpr std::array<int, 8> slidingPieceShiftAmounts = {
+            // rook
+            DirectionIndex64::N, DirectionIndex64::W, DirectionIndex64::E, DirectionIndex64::S,
+
+            // bishop
+            DirectionIndex64::NW, DirectionIndex64::NE, DirectionIndex64::SW, DirectionIndex64::SE,
+        };
+        static constexpr std::array<Bitboard, 8> slidingPieceAvoidWrapping = {
+            // rook
+                                0xFFFFFFFFFFFFFF00,
+
+            0x7F7F7F7F7F7F7F7F,                     0xFEFEFEFEFEFEFEFE,
+
+                                0x00FFFFFFFFFFFFFF,
+
+            // bishop
+            0x7F7F7F7F7F7F7F00,                     0xFEFEFEFEFEFEFE00,
+
+
+
+            0x007F7F7F7F7F7F7F,                     0x00FEFEFEFEFEFEFE,
         };
 
         static constexpr std::array<Coordinate, 8> knightOffsets = {

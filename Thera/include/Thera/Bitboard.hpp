@@ -199,18 +199,12 @@ class Bitboard{
             return Reference(*this, bitIdx);
         }
 
-        static constexpr uint8_t getLS1B(uint64_t bb) {
-            return std::countr_zero(bb);
-        }
         constexpr uint8_t getLS1B() const {
-            return getLS1B(bits);
-        }
-        static constexpr uint64_t clearLS1B(uint64_t x){
-            return x & (x-1);
+            return std::countr_zero(bits);
         }
 
         constexpr void clearLS1B(){
-            bits = clearLS1B(bits);
+            bits &= (bits-1);
         }
     
     private:
