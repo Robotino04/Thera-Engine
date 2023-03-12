@@ -20,3 +20,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 36.5666;            33.9908;            1.67617;                1.79907;            Implemented knight move generation using bitboards.
 35.8177;            33.0855;            1.53047;                1.69967;            Made the board actually 0x88.
 36.9476;            34.6701;            1.70033;                1.76964;            Move to Little-Endian Rank-File Mapping.
+47.2179;            50.0906;            1.66909;                1.97422;            

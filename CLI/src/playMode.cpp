@@ -20,6 +20,7 @@
 #include <iostream>
 #include <functional>
 #include <fstream>
+#include <bitset>
 
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
@@ -133,6 +134,7 @@ struct MoveInputResult{
 		Exit,
 		LoadFEN,
 		Analyze,
+		FlipColors,
 	};
 
 	Thera::Move move;
@@ -279,6 +281,10 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 		result.op = MoveInputResult::Analyze;
 		return;
 	}
+	else if (buffer == "flip"){
+		result.op = MoveInputResult::FlipColors;
+		return;
+	}
 	else{
 		try{
 			result.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
@@ -353,6 +359,10 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 		bitboard = board.getBitboard(options.shownBitboard);
 	}
 	
+	bitboard = 1;
+	bitboard.placePiece(Thera::Coordinate(1,1));
+	bitboard |= bitboard << 8;
+	std::cout << std::bitset<64>((uint64_t)bitboard) << "\n";
 	
 	while (bitboard.hasPieces()){
 		highlights.at(bitboard.getLS1B()) = highlightBitboardPresent;
@@ -534,6 +544,7 @@ int playMode(Options& options){
 		MoveInputResult userInput;
 
 		redrawGUI(options, board, highlights, message);
+		message = "";
 		
 		getUserMoveStart(userInput, options);
 		
@@ -560,6 +571,11 @@ int playMode(Options& options){
 		}
 		else if (userInput.op == MoveInputResult::Analyze){
 			analyzePosition(userInput, board, generator, message, userInput.perftDepth);
+			continue;
+		}
+		else if (userInput.op == MoveInputResult::FlipColors){
+			board.switchPerspective();
+			message = ANSI::set4BitColor(ANSI::Blue) + "Flipped color to move." + ANSI::reset();
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Perft){
@@ -606,8 +622,23 @@ int playMode(Options& options){
 		std::vector<Thera::Move> possibleMoves;
 		std::copy_if(allMoves.begin(), allMoves.end(), std::back_inserter(possibleMoves), isCorrectStart);
 
+		message = "";
 
-		message = ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
+		for (auto move : possibleMoves){
+			message	+= ""
+					+  Thera::Utils::squareToAlgebraicNotation(move.startIndex)
+					+  Thera::Utils::squareToAlgebraicNotation(move.endIndex);
+			switch (move.promotionType){
+				case Thera::PieceType::Bishop: message += "b"; break;
+				case Thera::PieceType::Knight: message += "n"; break;
+				case Thera::PieceType::Rook:   message += "r"; break;
+				case Thera::PieceType::Queen:  message += "q"; break;
+				default: break;
+			}	
+			message += "\n";
+		}
+		message += ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
+		
 
 		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
 			// highlight all moves
