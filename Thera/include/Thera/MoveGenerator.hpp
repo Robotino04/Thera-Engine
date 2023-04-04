@@ -27,10 +27,18 @@ class MoveGenerator{
          * It is most likely used to display a arbitrary bitboard in a UI.
          * 
          */
-        static inline Bitboard* debugBitboard = nullptr;
+        static inline Bitboard debugBitboard = 0;
 
 
     private:
+
+        /**
+         * @brief Generate all attacked squares.
+         * 
+         * @param board the position to operate on
+         */
+        void generateAttackData(Board const& board);
+
         /**
          * @brief Generate bishop, rook and queen moves.
          * 
@@ -211,6 +219,9 @@ class MoveGenerator{
         }();
 
     private:
-        std::vector<Move> generatedMoves;      
+        std::vector<Move> generatedMoves;
+        Bitboard attackedSquares;
+        Bitboard attackedSquaresBishop;
+        Bitboard attackedSquaresRook;
 };
 }

@@ -342,14 +342,11 @@ static void setBitboardHighlight(Thera::Bitboard const& bitboard, std::array<RGB
 }
 
 static void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
-	static Thera::Bitboard debugBitboard;
-	Thera::MoveGenerator::debugBitboard = &debugBitboard;
-
 	Thera::Bitboard bitboard;
 
 	if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::Black)){
 		if (options.showDebugBitboard)
-			bitboard = debugBitboard;
+			bitboard = Thera::MoveGenerator::debugBitboard;
 		else
 			bitboard = board.getAllPieceBitboard();
 	}
@@ -358,11 +355,6 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 	else{
 		bitboard = board.getBitboard(options.shownBitboard);
 	}
-	
-	bitboard = 1;
-	bitboard.placePiece(Thera::Coordinate(1,1));
-	bitboard |= bitboard << 8;
-	std::cout << std::bitset<64>((uint64_t)bitboard) << "\n";
 	
 	while (bitboard.hasPieces()){
 		highlights.at(bitboard.getLS1B()) = highlightBitboardPresent;
@@ -448,7 +440,8 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 		theraMoves.emplace_back(move, numSubmoves);
 	};
 
-	int theraNodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, storeMove);
+	int filteredMoves = 0;
+	int theraNodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, storeMove, filteredMoves);
 	
 	enum class MoveSource{
 		Thera,
@@ -519,6 +512,8 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 	message += ANSI::set4BitColor(ANSI::Blue);
 	message += indentation + "Stockfish searched " + std::to_string(stockfishMoves.size()) + " moves (" + std::to_string(stockfishNodesSearched) + " nodes)\n";
 	message += indentation + "Thera searched " + std::to_string(theraMoves.size()) + " moves (" + std::to_string(theraNodesSearched) + " nodes)\n";
+
+	message += "Filtered " + std::to_string(filteredMoves) + " moves\n";
 
 	message += indentation + "Results are ";
 	if (differentMoves.size())
@@ -595,7 +590,8 @@ int playMode(Options& options){
 
 			message = "";
 
-			int nodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, messageLoggingMovePrint);
+			int filteredMoves = 0;
+			int nodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, messageLoggingMovePrint, filteredMoves);
 
 			// write the perft output to a file for easier debugging
 			std::ofstream logFile("/tmp/thera.txt", std::ofstream::trunc);
@@ -607,7 +603,8 @@ int playMode(Options& options){
 				logFile.close();
 			}
 
-			message = "Nodes searched: " + std::to_string(nodesSearched) + "\n";
+			message += "Filtered " + std::to_string(filteredMoves) + " moves\n";
+			message += "Nodes searched: " + std::to_string(nodesSearched) + "\n";
 
 			continue;
 		}

@@ -49,9 +49,10 @@ int main(int argc, const char** argv){
     Thera::MoveGenerator generator;
 
     board.loadFromFEN(fen);
+    int filteredMoves = 0;
 
     const auto start = std::chrono::high_resolution_clock::now();
-    const int numNodes = Thera::perft(board, generator, depth, bulkCounting, printMove);
+    const int numNodes = Thera::perft(board, generator, depth, bulkCounting, printMove, filteredMoves);
     const auto stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = stop - start;
@@ -59,6 +60,7 @@ int main(int argc, const char** argv){
     const bool passed = expectedNodes == numNodes;
 
     std::cout << "perft(" << depth << ") = " << numNodes << " (expected " << expectedNodes << ") " << (passed ? "✓" : "✗") << " \n";
+    std::cout << "Filtered " << filteredMoves << " moves\n";
     std::cout << "Completed in " << duration.count() << "s.\n";
 
     return passed ? 0 : 1;

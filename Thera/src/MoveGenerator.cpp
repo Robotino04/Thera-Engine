@@ -2,13 +2,17 @@
 #include "Thera/Board.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
 
+#include <tuple>
+
 namespace Thera{
 
 std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
     generatedMoves.clear();
 
-    generateAllSlidingMoves(board);
+    generateAttackData(board);
+
     generateAllKingMoves(board);
+    generateAllSlidingMoves(board);
     generateAllKnightMoves(board);
     generateAllPawnMoves(board);
 
@@ -28,45 +32,108 @@ Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8) {
    return             (flood << r)   & MoveGenerator::slidingPieceAvoidWrapping[dir8];
 }
 
-void MoveGenerator::generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx){
-    Bitboard attackedSquares;
-    for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        attackedSquares |= slidingAttacks(square, ~board.getAllPieceBitboard(), directionIdx);
-    }
-    attackedSquares &= ~square;
-    attackedSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
+template <int startDirectionIndex, int endDirectionIndex>
+Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){
+    Bitboard targetSquares;
 
-    const Coordinate origin = Coordinate::fromIndex64(square.getLS1B());
-    while (attackedSquares.hasPieces()){
-        generatedMoves.emplace_back(origin, Coordinate::fromIndex64(attackedSquares.getLS1B()));
-        attackedSquares.clearLS1B();
+    for (int directionIdx = startDirectionIndex; directionIdx < endDirectionIndex; directionIdx++){
+        targetSquares |= slidingAttacks(square, ~occupied, directionIdx);
     }
+    targetSquares &= ~square;
+
+    return targetSquares;
+}
+
+void MoveGenerator::generateAttackData(Board const& board){
+    attackedSquares = 0;
+
+    // sliding pieces
+    // rook and queen
+
+    Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
+
+    while (bitboard.hasPieces()){
+        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+
+        attackedSquares |= targetSquares;
+        attackedSquaresRook |= targetSquares;
+
+        bitboard.clearLS1B();
+    }
+
+    // bishop and queen
+    bitboard = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
+
+    while (bitboard.hasPieces()){
+        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+
+        attackedSquares |= targetSquares;
+        attackedSquaresRook |= targetSquares;
+
+        bitboard.clearLS1B();
+    }
+
+
+    // knight moves
+    bitboard = board.getBitboard({PieceType::Knight, board.getColorToNotMove()});
+
+    while (bitboard.hasPieces()){
+        attackedSquares |= knightSquaresValid.at(bitboard.getLS1B()) & ~board.getPieceBitboardForOneColor(board.getColorToNotMove());
+        bitboard.clearLS1B();
+    }
+
+    // king moves
+    bitboard = board.getBitboard({PieceType::King, board.getColorToNotMove()});
+
+    attackedSquares |= kingSquaresValid.at(bitboard.getLS1B());
+    
+    // pawn moves
+    const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
+    const int dir = board.getCurrentState().isWhiteToMove ? DirectionIndex64::S : DirectionIndex64::N;
+
+    attackedSquares |= (pawns & 0xfefefefefefefefe) << (dir + DirectionIndex64::W);
+    attackedSquares |= (pawns & 0x7f7f7f7f7f7f7f7f) << (dir + DirectionIndex64::E);
+}
+
+void MoveGenerator::generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx){
+    Bitboard targetSquares;
+    for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
+        targetSquares |= slidingAttacks(square, ~board.getAllPieceBitboard(), directionIdx);
+    }
+    
 }
 
 void MoveGenerator::generateAllSlidingMoves(Board const& board){
     {
-        Bitboard bitboard = board.getBitboard({PieceType::Bishop, board.getColorToMove()});
+        Bitboard bitboard = board.getBitboard({PieceType::Bishop, board.getColorToMove()}) | board.getBitboard({PieceType::Queen, board.getColorToMove()});
 
         while (bitboard.hasPieces()){
-            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 4, 8);
+            Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+            targetSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
+
+            const Coordinate origin = Coordinate::fromIndex64(bitboard.getLS1B());
+            while (targetSquares.hasPieces()){
+                generatedMoves.emplace_back(origin, Coordinate::fromIndex64(targetSquares.getLS1B()));
+                targetSquares.clearLS1B();
+            }
+            
             bitboard.clearLS1B();
         }
     }
 
     {
-        Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToMove()});
+        Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToMove()}) | board.getBitboard({PieceType::Queen, board.getColorToMove()});
 
         while (bitboard.hasPieces()){
-            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 0, 4);
-            bitboard.clearLS1B();
-        }
-    }
-    
-    {
-        Bitboard bitboard = board.getBitboard({PieceType::Queen, board.getColorToMove()});
+            Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+            targetSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
 
-        while (bitboard.hasPieces()){
-            generateSlidingMoves(board, uint64_t(1) << bitboard.getLS1B(), 0, 8);
+            const Coordinate origin = Coordinate::fromIndex64(bitboard.getLS1B());
+            while (targetSquares.hasPieces()){
+                generatedMoves.emplace_back(origin, Coordinate::fromIndex64(targetSquares.getLS1B()));
+                targetSquares.clearLS1B();
+            }
+            
             bitboard.clearLS1B();
         }
     }
@@ -74,6 +141,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
 
 void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square){
     Bitboard targets = knightSquaresValid.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
+    
     while (targets.hasPieces()){
         auto const target = targets.getLS1B();
         generatedMoves.emplace_back(square, Coordinate::fromIndex64(target));
@@ -90,18 +158,30 @@ void MoveGenerator::generateAllKnightMoves(Board const& board){
     }
 }
 
-void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
-    Bitboard targets = kingSquaresValid.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove());
+void MoveGenerator::generateAllKingMoves(Board const& board){
+    Bitboard bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
+
+    // TODO: maybe remove this since every position should have a king. Only there for debugging
+    if (!bitboard.hasPieces()) return;
+    Coordinate square = Coordinate::fromIndex64(bitboard.getLS1B());
+
+    Bitboard targets = kingSquaresValid.at(bitboard.getLS1B()) & ~(board.getPieceBitboardForOneColor(board.getColorToMove())  | attackedSquares);
+
     while (targets.hasPieces()){
         auto const target = targets.getLS1B();
         generatedMoves.emplace_back(square, Coordinate::fromIndex64(target));
         targets.clearLS1B();
     }
 
+    const int shiftAmount = (board.getCurrentState().isWhiteToMove ? 0 : DirectionIndex64::N*7);
+    const Bitboard leftCastlingMap = Bitboard(0x00000000000000000e) << shiftAmount;
+    const Bitboard rightCastlingMap = Bitboard(0x000000000000000060) << shiftAmount;
+    const Bitboard leftCastlingMapKing = Bitboard(0x00000000000000001c) << shiftAmount;
+    const Bitboard rightCastlingMapKing = Bitboard(0x000000000000000070) << shiftAmount;
+
     // add castling moves
-    if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
-        if (!board.isOccupied(square + Direction::E) &&
-            !board.isOccupied(square + Direction::E*2)){
+    if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
+        if (!uint64_t(rightCastlingMap & board.getAllPieceBitboard()) && !uint64_t(rightCastlingMapKing & attackedSquares)){
                 // king movement
                 Move& move = generatedMoves.emplace_back(square, square + Direction::E*2);
                 move.isCastling = true;
@@ -110,10 +190,8 @@ void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
                 move.castlingEnd = square + Direction::E;
             }
     }
-    if (board.at(square).getColor() == PieceColor::White ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
-        if (board.at(square + Direction::W).getType() == PieceType::None &&
-            board.at(square + Direction::W*2).getType() == PieceType::None &&
-            board.at(square + Direction::W*3).getType() == PieceType::None){
+    if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
+        if (!uint64_t(leftCastlingMap & board.getAllPieceBitboard()) && !uint64_t(leftCastlingMapKing & attackedSquares)){
                 // king movement
                 Move& move = generatedMoves.emplace_back(square, square + Direction::W*2);
                 move.isCastling = true;
@@ -124,13 +202,6 @@ void MoveGenerator::generateKingMoves(Board const& board, Coordinate square){
     }
 }
 
-void MoveGenerator::generateAllKingMoves(Board const& board){
-    Bitboard bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
-
-    // TODO: maybe remove this since every position should have a king. Only there for debugging
-    if (bitboard.hasPieces()) generateKingMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()));
-}
-
 void MoveGenerator::generateAllPawnMoves(Board const& board){
     const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()});
     const Bitboard occupied = board.getAllPieceBitboard();
@@ -139,7 +210,7 @@ void MoveGenerator::generateAllPawnMoves(Board const& board){
     Bitboard single_pushes, double_pushes, captures_left, captures_right;
     // directions to get from target square to origin square
     uint8_t reverseDirection, reverseDirectionLeft, reverseDirectionRight;
-    if (board.getColorToMove() == PieceColor::White) {
+    if (board.getCurrentState().isWhiteToMove) {
         single_pushes = (pawns << DirectionIndex64::N) & ~occupied;
         double_pushes = ((single_pushes & 0x0000000000ff0000) << DirectionIndex64::N) & ~occupied;
         captures_left = ((pawns &  0xfefefefefefefefe) << DirectionIndex64::NW) & occupied_other_color;
@@ -200,7 +271,7 @@ void MoveGenerator::generateAllPawnMoves(Board const& board){
 }
 
 void MoveGenerator::addPawnMovePossiblyPromotion(Move const& move, Board const& board){
-    const uint8_t targetLine = board.at(move.startIndex).getColor() == PieceColor::White ? 7 : 0;
+    const uint8_t targetLine = board.getCurrentState().isWhiteToMove ? 7 : 0;
 
     if (move.endIndex.y == targetLine){
         // promotion

@@ -20,5 +20,5 @@ namespace Thera{
  * @param isInitialCall is this the first call, so not yet recursive
  * @return int the number of nodes searched
  */
-int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, bool isInitialCall=true);
+int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, int& filteredMoves, bool isInitialCall=true);
 }

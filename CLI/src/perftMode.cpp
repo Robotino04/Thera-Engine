@@ -43,15 +43,18 @@ int perftMode(Options& options){
     Thera::Board board;
     Thera::MoveGenerator generator;
 
+
     board.loadFromFEN(fen);
 
+    int filteredMoves = 0;
     auto start = std::chrono::high_resolution_clock::now();
-    auto numNodes = Thera::perft(board, generator, options.perftDepth, options.bulkCounting, printMove);
+    auto numNodes = Thera::perft(board, generator, options.perftDepth, options.bulkCounting, printMove, filteredMoves);
     auto stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = stop - start;
 
     std::cout << "perft(" << options.perftDepth << ") = " << numNodes << "\n";
+    std::cout << "Filtered " << filteredMoves << " moves\n";
     std::cout << "Completed in " << duration.count() << "s.\n";
 
     return 0;

@@ -61,13 +61,15 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 }
 }
 
-int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, bool isInitialCall){
+int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, int& filteredMoves, bool isInitialCall){
     if (depth == 0) return 1;
 
     int numNodes = 0;
 
     auto moves = generator.generateAllMoves(board);
+    filteredMoves += moves.size();
     moves = Detail::filterMoves(moves, board, generator);
+    filteredMoves -= moves.size();
     if (bulkCounting && depth == 1){
         if (isInitialCall){
             for (auto const& move : moves){
@@ -83,7 +85,7 @@ int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, 
             board.rewindMove();
         });
         
-        int tmp = perft(board, generator, depth-1, bulkCounting, [](auto, auto){}, false);
+        int tmp = perft(board, generator, depth-1, bulkCounting, [](auto, auto){}, filteredMoves, false);
         numNodes += tmp;
 
         printFn(move, tmp);
