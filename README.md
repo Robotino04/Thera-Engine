@@ -9,6 +9,8 @@ For debugging logic errors in move generation, the following command can be used
 diff <(sort /tmp/thera.txt) <(sort /tmp/solution.txt)
 ```
 
+There is also the cli command `analyze` that compares the generated moves between Thera and Stockfish.
+
 To check bitboard patterns, this python code could help.
 
 ``` python
