@@ -71,8 +71,6 @@ struct Coordinate{
         return (getRaw() + (getRaw() & 7)) >> 1;
     }
 
-    // TODO: replace pass by reference with pass by value
-
     /**
      * @brief Apply an offset to a coordinate.
      * 

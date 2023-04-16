@@ -7,10 +7,31 @@
 #include "Thera/Move.hpp"
 #include "Thera/MoveGenerator.hpp"
 
+// TODO: remove
+#include <iostream>
+#include "Thera/Utils/ChessTerms.hpp"
+#include "ANSI/ANSI.hpp"
 
 namespace Thera{
 
 namespace Detail{
+
+
+static void printFilteredMove(Thera::Move const& move){
+    std::cout
+        << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
+        << Utils::squareToAlgebraicNotation(move.startIndex)
+        << Utils::squareToAlgebraicNotation(move.endIndex);
+    switch (move.promotionType){
+        case PieceType::Bishop: std::cout << "b"; break;
+        case PieceType::Knight: std::cout << "n"; break;
+        case PieceType::Rook:   std::cout << "r"; break;
+        case PieceType::Queen:  std::cout << "q"; break;
+        default: break;
+    }
+    std::cout << "\n";
+}
+
 // TODO: replace to use bitboards
 bool isSquareAttacked(Coordinate square, Thera::Board& board, Thera::MoveGenerator& generator){
     auto moves = generator.generateAllMoves(board);
@@ -34,7 +55,10 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
             if (!kingBitboard.hasPieces()) continue;
             const auto kingSquare = Coordinate::fromIndex64(kingBitboard.getLS1B());
             const bool isInCheck = isSquareAttacked(kingSquare, board, generator);
-            if (isInCheck) continue;
+            if (isInCheck) {
+                printFilteredMove(move);
+                continue;
+            }
         }
 
         if (move.isCastling){
@@ -49,10 +73,14 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 
                 if (isSquareAttacked(target, board, generator)){
                     isInvalid = true;
+                    printFilteredMove(move);
                     break;
                 }
             }
-            if (isInvalid) continue;
+            if (isInvalid) {
+                printFilteredMove(move);
+                continue;
+            }
         }
 
         newMoves.push_back(move);
