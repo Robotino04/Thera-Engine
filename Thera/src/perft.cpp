@@ -18,29 +18,19 @@ namespace Detail{
 
 
 static void printFilteredMove(Thera::Move const& move){
-    // // removed for performance evaluation
-    // std::cout
-    //     << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
-    //     << Utils::squareToAlgebraicNotation(move.startIndex)
-    //     << Utils::squareToAlgebraicNotation(move.endIndex);
-    // switch (move.promotionType){
-    //     case PieceType::Bishop: std::cout << "b"; break;
-    //     case PieceType::Knight: std::cout << "n"; break;
-    //     case PieceType::Rook:   std::cout << "r"; break;
-    //     case PieceType::Queen:  std::cout << "q"; break;
-    //     default: break;
-    // }
-    // std::cout << "\n";
-}
-
-// TODO: replace to use bitboards
-bool isSquareAttacked(Coordinate square, Thera::Board& board, Thera::MoveGenerator& generator){
-    auto moves = generator.generateAllMoves(board);
-    for (auto const& move : moves){
-        if (move.endIndex == square)
-            return true;
+    // removed for performance evaluation
+    std::cout
+        << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
+        << Utils::squareToAlgebraicNotation(move.startIndex)
+        << Utils::squareToAlgebraicNotation(move.endIndex);
+    switch (move.promotionType){
+        case PieceType::Bishop: std::cout << "b"; break;
+        case PieceType::Knight: std::cout << "n"; break;
+        case PieceType::Rook:   std::cout << "r"; break;
+        case PieceType::Queen:  std::cout << "q"; break;
+        default: break;
     }
-    return false;
+    std::cout << "\n";
 }
 
 // TODO: replace to use bitboards
@@ -55,7 +45,10 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
             const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToNotMove()});
             if (!kingBitboard.hasPieces()) continue;
             const auto kingSquare = Coordinate::fromIndex64(kingBitboard.getLS1B());
-            const bool isInCheck = isSquareAttacked(kingSquare, board, generator);
+            board.switchPerspective();
+            generator.generateAttackData(board);
+            board.switchPerspective();
+            const bool isInCheck = generator.getAttackedSquares().isOccupied(kingSquare);
             if (isInCheck) {
                 printFilteredMove(move);
                 continue;
@@ -71,8 +64,10 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 
                 board.applyMove(Thera::Move(move.startIndex, target));
                 Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
-
-                if (isSquareAttacked(target, board, generator)){
+                board.switchPerspective();
+                generator.generateAttackData(board);
+                board.switchPerspective();
+                if (generator.getAttackedSquares().isOccupied(target)){
                     isInvalid = true;
                     printFilteredMove(move);
                     break;

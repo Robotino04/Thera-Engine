@@ -28,6 +28,8 @@ class MoveGenerator{
          */
         void generateAttackData(Board const& board);
 
+
+        constexpr Bitboard getAttackedSquares() const { return attackedSquares; }
         constexpr Bitboard getPinnedPieces() const{ return pinnedPieces; }
 
     private:

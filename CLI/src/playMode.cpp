@@ -119,6 +119,9 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 					case BitboardSelection::SinglePiece:
 						std::cout << "Showing bitboard for " << Thera::Utils::pieceToString(options.shownPieceBitboard, true);
 						break;
+					case BitboardSelection::AttackedSquares:
+						std::cout << "Showing attacked squares";
+						break;
 					case BitboardSelection::None:
 						std::cout << "Showing no bitboard";
 						break;
@@ -198,6 +201,10 @@ static void handleShowCommand(MoveInputResult& result, Options& options){
 	}
 	else if (buffer == "pin" || buffer == "pinned"){
 		options.selectedBitboard = BitboardSelection::PinnedPieces;
+		return;
+	}
+	else if (buffer == "attacked"){
+		options.selectedBitboard = BitboardSelection::AttackedSquares;
 		return;
 	}
 
@@ -363,6 +370,10 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 			bitboard = generator.getPinnedPieces();
 			break;
 		case BitboardSelection::SinglePiece: bitboard = board.getBitboard(options.shownPieceBitboard); break;
+		case BitboardSelection::AttackedSquares:
+			generator.generateAttackData(board);
+			bitboard = generator.getAttackedSquares();
+			break;
 	}
 	
 	while (bitboard.hasPieces()){

@@ -16,6 +16,7 @@ enum class BitboardSelection{
 	Debug,
 	PinnedPieces,
 	AllPieces,
+	AttackedSquares,
 };
 
 struct Options {
