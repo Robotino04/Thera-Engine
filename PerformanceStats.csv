@@ -23,3 +23,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 47.2179;            50.0906;            1.66909;                1.97422;            Implemented sliding piece move generation using bitboards.
 66.2885;            72.6133;            2.25079;                2.62729;            Added attack data generation.
 78.5382;            88.7807;            2.5437;                 3.01655;            Added pinned piece generation.
+78.8536;            87.8531;            2.44378;                2.96711;            Made Thera compile using clang.

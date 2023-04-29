@@ -16,3 +16,7 @@ To check bitboard patterns, this python code could help.
 ``` python
 def printBB(bb): print("\n".join([ bin(bb)[2:].rjust(64, "0")[i:i+8][::-1] for i in range(0, 64, 8)]))
 ```
+
+
+# Performance
+Performance statistics are stored in "PerformanceStats.csv". They are eveluated using GCC and executed one at a time.

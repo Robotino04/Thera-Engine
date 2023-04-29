@@ -502,7 +502,7 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 		}
 		message += ": " + std::to_string(numSubmoves) + "\n";
 		if (userInput.perftDepth > 0){
-			auto moveIt = std::find_if(theraMoves.begin(), theraMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(move, other.first);});
+			auto moveIt = std::find_if(theraMoves.begin(), theraMoves.end(), [move = move](auto other){return Thera::Move::isSameBaseMove(move, other.first);});
 			if (moveIt == theraMoves.end()){
 				message += indentation + "\tMove not found!\n";
 			}
