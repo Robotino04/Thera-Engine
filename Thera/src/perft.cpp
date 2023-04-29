@@ -38,45 +38,19 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
     std::vector<Thera::Move> newMoves;
     newMoves.reserve(moves.size());
     for (auto const& move : moves){
-        {
-            board.applyMove(move);
-            Thera::Utils::ScopeGuard rewindBoard_guard([&](){board.rewindMove();});
+        board.applyMove(move);
+        Thera::Utils::ScopeGuard rewindBoard_guard([&](){board.rewindMove();});
 
-            const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToNotMove()});
-            if (!kingBitboard.hasPieces()) continue;
-            const auto kingSquare = Coordinate::fromIndex64(kingBitboard.getLS1B());
-            board.switchPerspective();
-            generator.generateAttackData(board);
-            board.switchPerspective();
-            const bool isInCheck = generator.getAttackedSquares().isOccupied(kingSquare);
-            if (isInCheck) {
-                printFilteredMove(move);
-                continue;
-            }
-        }
+        const auto kingBitboard = board.getBitboard({Thera::PieceType::King, board.getColorToNotMove()});
+        if (!kingBitboard.hasPieces()) continue;
 
-        if (move.isCastling){
-            bool isInvalid = false;
+        board.switchPerspective();
+        generator.generateAttackData(board);
+        board.switchPerspective();
 
-            const uint8_t direction = Thera::Utils::sign(move.endIndex.x - move.startIndex.x);
-            for (uint8_t newX = move.startIndex.x; newX != move.endIndex.x; newX += direction){
-                const Thera::Coordinate target(newX, move.startIndex.y);
-
-                board.applyMove(Thera::Move(move.startIndex, target));
-                Thera::Utils::ScopeGuard rewindCastligCheckMove_guard([&](){board.rewindMove();});
-                board.switchPerspective();
-                generator.generateAttackData(board);
-                board.switchPerspective();
-                if (generator.getAttackedSquares().isOccupied(target)){
-                    isInvalid = true;
-                    printFilteredMove(move);
-                    break;
-                }
-            }
-            if (isInvalid) {
-                printFilteredMove(move);
-                continue;
-            }
+        if ((generator.getAttackedSquares() & kingBitboard).hasPieces()) {
+            printFilteredMove(move);
+            continue;
         }
 
         newMoves.push_back(move);
