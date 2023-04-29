@@ -22,33 +22,16 @@ class MoveGenerator{
         std::vector<Move> generateAllMoves(Board const& board);
 
         /**
-         * @brief A bitboard only used for debugging.
-         * 
-         * It is most likely used to display a arbitrary bitboard in a UI.
-         * 
-         */
-        static inline Bitboard debugBitboard = 0;
-
-
-    private:
-
-        /**
          * @brief Generate all attacked squares.
          * 
          * @param board the position to operate on
          */
         void generateAttackData(Board const& board);
 
-        /**
-         * @brief Generate bishop, rook and queen moves.
-         * 
-         * May generate incorrect results for empty squares or the color to not move. 
-         * 
-         * @param board the position to operate on
-         * @param square the square to generate moves for
-         */
-        void generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx);
+        constexpr Bitboard getPinnedPieces() const{ return pinnedPieces; }
 
+    private:
+        
         /**
          * @brief Generate all bishop, rook and queen moves.
          * 
@@ -107,10 +90,16 @@ class MoveGenerator{
          */
         void addPawnMovePossiblyPromotion(Move const& move, Board const& board);
 
-    private:
-        using CDNT = Coordinate;
-
     public:
+
+        /**
+         * @brief A bitboard only used for debugging.
+         * 
+         * It is most likely used to display a arbitrary bitboard in a UI.
+         * 
+         */
+        static inline Bitboard debugBitboard = 0;
+
         static constexpr int maxMovesPerPosition = 218;
 
         static constexpr std::array<Coordinate, 8> slidingPieceOffsets{
@@ -218,10 +207,43 @@ class MoveGenerator{
             return result;
         }();
 
+
+
+        static constexpr auto obstructedLUT = []() constexpr {
+            // https://www.chessprogramming.org/Square_Attacked_By#Pure_Calculation
+            const auto singleEvaluation = [](uint8_t sq1, uint8_t sq2) -> Bitboard{
+                const Bitboard m1(0xFFFFFFFFFFFFFFFF);
+                const Bitboard a2a7(0x0001010101010100);
+                const Bitboard b2g7(0x0040201008040200);
+                const Bitboard h1b7(0x0002040810204080); /* Thanks Dustin, g2b7 did not work for c1-a3 */
+                Bitboard btwn, line, rank, file;
+
+                btwn  = (m1 << sq1) ^ (m1 << sq2);
+                file  =   (sq2 & 7) - (sq1   & 7);
+                rank  =  ((sq2 | 7) -  sq1) >> 3 ;
+                line  =      (   (file  &  7) - 1) & a2a7; /* a2a7 if same file */
+                line += Bitboard(2) * ((   (rank  &  7) - 1) >> 58); /* b1g1 if same rank */
+                line += (((rank - file) & 15) - 1) & b2g7; /* b2g7 if same diagonal */
+                line += (((rank + file) & 15) - 1) & h1b7; /* h1b7 if same antidiag */
+                line *= btwn & -btwn; /* mul acts like shift by smaller square */
+                return line & btwn;   /* return the bits on that line in-between */
+            };
+
+            std::array<std::array<Bitboard, 64>, 64> result;
+
+            for (int a=0; a<64; a++){
+                for (int b=0; b<64; b++){
+                    result.at(a).at(b) = singleEvaluation(a, b);
+                }
+            }
+            return result;
+        }();
+
     private:
         std::vector<Move> generatedMoves;
         Bitboard attackedSquares;
         Bitboard attackedSquaresBishop;
         Bitboard attackedSquaresRook;
+        Bitboard pinnedPieces;
 };
 }

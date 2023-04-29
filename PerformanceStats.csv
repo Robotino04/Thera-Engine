@@ -22,3 +22,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 36.9476;            34.6701;            1.70033;                1.76964;            Move to Little-Endian Rank-File Mapping.
 47.2179;            50.0906;            1.66909;                1.97422;            Implemented sliding piece move generation using bitboards.
 66.2885;            72.6133;            2.25079;                2.62729;            Added attack data generation.
+78.5382;            88.7807;            2.5437;                 3.01655;            Added pinned piece generation.

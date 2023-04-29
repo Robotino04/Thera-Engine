@@ -18,6 +18,7 @@ namespace Detail{
 
 
 static void printFilteredMove(Thera::Move const& move){
+    // removed for performance evaluation
     std::cout
         << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
         << Utils::squareToAlgebraicNotation(move.startIndex)

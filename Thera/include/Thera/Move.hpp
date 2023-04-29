@@ -60,7 +60,7 @@ struct Move{
         }
     }
 
-    constexpr static bool isSameBaseMove(Move const& a, Move const& b){
+    constexpr static bool isSameBaseMove(Move a, Move b){
         a.debugValidate();
         b.debugValidate();
 

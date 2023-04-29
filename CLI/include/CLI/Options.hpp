@@ -10,6 +10,14 @@ enum class Mode{
 	Perft,
 };
 
+enum class BitboardSelection{
+	None,
+	SinglePiece,
+	Debug,
+	PinnedPieces,
+	AllPieces,
+};
+
 struct Options {
 	bool invertedColors = false;
 	Mode mode = Mode::Play;
@@ -17,6 +25,6 @@ struct Options {
 	std::string fen = Thera::Utils::startingFEN;
 	bool bulkCounting = false;
 
-	Thera::Piece shownBitboard = {Thera::PieceType::None, Thera::PieceColor::White};
-	bool showDebugBitboard = false;
+	Thera::Piece shownPieceBitboard = {Thera::PieceType::None, Thera::PieceColor::White};
+	BitboardSelection selectedBitboard = BitboardSelection::None;
 };

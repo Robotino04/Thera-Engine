@@ -99,7 +99,7 @@ class Bitboard{
          * 
          * @param move 
          */
-        constexpr void applyMove(Move const& move){
+        constexpr void applyMove(Move move){
             if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
                 if (!isOccupied(move.startIndex)){
                     throw std::runtime_error("Tried to make move starting on an empty square.");
@@ -129,52 +129,40 @@ class Bitboard{
             return bits;
         }
 
-        constexpr Bitboard operator | (Bitboard const& other) const{
-            return this->bits | other.bits;
-        }
-        constexpr Bitboard operator & (Bitboard const& other) const{
-            return this->bits & other.bits;
-        }
-        constexpr Bitboard operator ^ (Bitboard const& other) const{
-            return this->bits ^ other.bits;
-        }
+        constexpr Bitboard operator | (Bitboard other) const{ return this->bits | other.bits; }
+        constexpr Bitboard operator & (Bitboard other) const{ return this->bits & other.bits; }
+        constexpr Bitboard operator ^ (Bitboard other) const{ return this->bits ^ other.bits; }
+        constexpr Bitboard operator + (Bitboard other) const{ return this->bits + other.bits; }
+        constexpr Bitboard operator - (Bitboard other) const{ return this->bits - other.bits; }
+        constexpr Bitboard operator * (Bitboard other) const{ return this->bits * other.bits; }
+        constexpr Bitboard operator / (Bitboard other) const{ return this->bits / other.bits; }
+
+        constexpr Bitboard operator - () const{ return -bits; }
         /**
          * @brief Shift to the left. Allows for negative shift amounts.
          * 
          * @param n number of bits to shift by
          * @return Bitboard the shifted Bitboard
         */
-        constexpr Bitboard operator << (int n) const{
-            return (n > 0) ? (this->bits << n) : (this->bits >> -n);
-        }
+        constexpr Bitboard operator << (int n) const{ return (n > 0) ? (this->bits << n) : (this->bits >> -n); }
         /**
          * @brief Shift to the right. Allows for negative shift amounts.
          * 
          * @param n number of bits to shift by
          * @return Bitboard the shifted Bitboard
         */
-        constexpr Bitboard operator >> (int n) const{
-            return *this << -n;
-        }
-        constexpr Bitboard operator ~ () const{
-            return ~this->bits;
-        }
+        constexpr Bitboard operator >> (int n) const{ return *this << -n; }
+        constexpr Bitboard operator ~ () const{ return ~this->bits; }
 
-        constexpr Bitboard operator |= (Bitboard const& other){
-            return this->bits |= other.bits;
-        }
-        constexpr Bitboard operator &= (Bitboard const& other){
-            return this->bits &= other.bits;
-        }
-        constexpr Bitboard operator ^= (Bitboard const& other){
-            return this->bits ^= other.bits;
-        }
-        constexpr Bitboard operator <<= (int n){
-            return this->bits = this->bits << n;
-        }
-        constexpr Bitboard operator >>= (int n){
-            return this->bits = this->bits >> n;
-        }
+        constexpr Bitboard operator |= (Bitboard other){ return this->bits |= other.bits; }
+        constexpr Bitboard operator &= (Bitboard other){ return this->bits &= other.bits; }
+        constexpr Bitboard operator ^= (Bitboard other){ return this->bits ^= other.bits; }
+        constexpr Bitboard operator += (Bitboard other){ return this->bits += other.bits; }
+        constexpr Bitboard operator -= (Bitboard other){ return this->bits -= other.bits; }
+        constexpr Bitboard operator *= (Bitboard other){ return this->bits *= other.bits; }
+        constexpr Bitboard operator /= (Bitboard other){ return this->bits /= other.bits; }
+        constexpr Bitboard operator <<= (int n){ return this->bits = this->bits << n; }
+        constexpr Bitboard operator >>= (int n){ return this->bits = this->bits >> n; }
         
         explicit constexpr operator uint64_t() const{
             return bits;
@@ -210,5 +198,22 @@ class Bitboard{
     private:
         uint64_t bits;
 };
+
+namespace SquareBitboard{
+    #define defSq(NAME) constexpr Bitboard NAME = Bitboard(1) << static_cast<uint8_t>(SquareIndex64::NAME);
+    #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
+
+    defRow(a);
+    defRow(b);
+    defRow(c);
+    defRow(d);
+    defRow(e);
+    defRow(f);
+    defRow(g);
+    defRow(h);
+
+    #undef defSq
+    #undef defRow
+}
 
 }

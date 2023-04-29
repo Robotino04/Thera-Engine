@@ -1,6 +1,7 @@
 #include "Thera/MoveGenerator.hpp"
 #include "Thera/Board.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/Utils/BuildType.hpp"
 
 #include <tuple>
 
@@ -34,6 +35,7 @@ Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8) {
 
 template <int startDirectionIndex, int endDirectionIndex>
 Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){
+    static_assert(startDirectionIndex < endDirectionIndex, "Infinite loop prevented");
     Bitboard targetSquares;
 
     for (int directionIdx = startDirectionIndex; directionIdx < endDirectionIndex; directionIdx++){
@@ -44,8 +46,43 @@ Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){
     return targetSquares;
 }
 
+template <int startDirectionIndex, int endDirectionIndex>
+Bitboard xRayAttacks(Bitboard occupiedSquares, Bitboard blockers, Bitboard square) {
+   Bitboard attacks = allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares, square);
+   blockers &= attacks;
+   return attacks ^ allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares ^ blockers, square);
+}
+
+Bitboard generatePins(Board const& board) {
+    const auto squareOfKing = board.getBitboard({PieceType::King, board.getColorToMove()});
+    const uint8_t squareOfKingIndex = squareOfKing.getLS1B();
+
+    const auto oppositeQueens = board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
+    const auto oppositeRooks = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | oppositeQueens;
+    const auto oppositeBishops = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()}) | oppositeQueens;
+    const auto occupiedSquares = board.getAllPieceBitboard();
+    const auto ownPieces = board.getPieceBitboardForOneColor(board.getColorToMove());
+
+
+    Bitboard pinned = 0;
+    Bitboard pinner = xRayAttacks<0, 4>(occupiedSquares, ownPieces, squareOfKing) & oppositeRooks;
+    while (pinner.hasPieces()) {
+        uint8_t sq = pinner.getLS1B();
+        pinned |= MoveGenerator::obstructedLUT.at(sq).at(squareOfKingIndex) & ownPieces;
+        pinner.clearLS1B();
+    }
+    pinner = xRayAttacks<4, 8>(occupiedSquares, ownPieces, squareOfKing) & oppositeBishops;
+    while (pinner.hasPieces()) {
+        uint8_t sq = pinner.getLS1B();
+        pinned |= MoveGenerator::obstructedLUT.at(sq).at(squareOfKingIndex) & ownPieces;
+        pinner.clearLS1B();
+    }
+    return pinned;
+}
+
 void MoveGenerator::generateAttackData(Board const& board){
     attackedSquares = 0;
+    pinnedPieces = generatePins(board);
 
     // sliding pieces
     // rook and queen
@@ -84,6 +121,9 @@ void MoveGenerator::generateAttackData(Board const& board){
 
     // king moves
     bitboard = board.getBitboard({PieceType::King, board.getColorToNotMove()});
+    if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
+        if (!bitboard.hasPieces()) throw std::runtime_error("No king for the opposite color found.");
+    }
 
     attackedSquares |= kingSquaresValid.at(bitboard.getLS1B());
     
@@ -93,14 +133,6 @@ void MoveGenerator::generateAttackData(Board const& board){
 
     attackedSquares |= (pawns & 0xfefefefefefefefe) << (dir + DirectionIndex64::W);
     attackedSquares |= (pawns & 0x7f7f7f7f7f7f7f7f) << (dir + DirectionIndex64::E);
-}
-
-void MoveGenerator::generateSlidingMoves(Board const& board, Bitboard square, uint8_t startDirectionIdx, uint8_t endDirectionIdx){
-    Bitboard targetSquares;
-    for (int directionIdx = startDirectionIdx; directionIdx < endDirectionIdx; directionIdx++){
-        targetSquares |= slidingAttacks(square, ~board.getAllPieceBitboard(), directionIdx);
-    }
-    
 }
 
 void MoveGenerator::generateAllSlidingMoves(Board const& board){

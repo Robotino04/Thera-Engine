@@ -31,7 +31,8 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 
 	const RGB whiteBoardColor = {255, 210, 153};
 	const RGB blackBoardColor = {130, 77, 39};
-	const RGB whitePieceColor = {120, 120, 120};
+	const RGB whitePieceColorOnWhiteSquare = {80, 80, 80};
+	const RGB whitePieceColorOnBlackSquare = {180, 180, 180};
 	const RGB blackPieceColor = {0, 0, 0};
 
 	using PC = Thera::PieceColor;
@@ -68,7 +69,9 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 			std::cout << ANSI::set24BitColor(boardColor.red, boardColor.green, boardColor.blue, ANSI::Background);
 
 			// set the piece color
-			const RGB pieceColor = board.at(square).getColor() == Thera::PieceColor::White ? whitePieceColor : blackPieceColor;
+			const RGB pieceColor = board.at(square).getColor() == Thera::PieceColor::White
+				? ((x + y)%2 ? whitePieceColorOnWhiteSquare : whitePieceColorOnBlackSquare)
+				: blackPieceColor;
 			if (board.at(square).getType() != Thera::PieceType::None){
 				std::cout << ANSI::set24BitColor(pieceColor.red, pieceColor.green, pieceColor.blue, ANSI::Foreground);
 			}
@@ -103,17 +106,22 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 
 				break;
 			case 3:
-				if (options.shownBitboard.getType() != Thera::PieceType::None){
-					std::cout << "Showing bitboard for " << Thera::Utils::pieceToString(options.shownBitboard, true);
-				}
-				else if (options.shownBitboard.getColor() == Thera::PieceColor::Black){
-					if (options.showDebugBitboard)
-						std::cout << "Showing debug bitboard";
-					else
+				switch(options.selectedBitboard){
+					case BitboardSelection::AllPieces:
 						std::cout << "Showing bitboard for all pieces";
-				}
-				else{
-					std::cout << "Showing no bitboard";
+						break;
+					case BitboardSelection::Debug:
+						std::cout << "Showing debug bitboard";
+						break;
+					case BitboardSelection::PinnedPieces:
+						std::cout << "Showing pinned pieces";
+						break;
+					case BitboardSelection::SinglePiece:
+						std::cout << "Showing bitboard for " << Thera::Utils::pieceToString(options.shownPieceBitboard, true);
+						break;
+					case BitboardSelection::None:
+						std::cout << "Showing no bitboard";
+						break;
 				}
 				break;
 			case 5:
@@ -177,26 +185,24 @@ static void handleShowCommand(MoveInputResult& result, Options& options){
 	// parse color
 	std::cin >> buffer;
 	if (buffer == "none"){
-		options.shownBitboard.setType(Thera::PieceType::None);
-		options.shownBitboard.setColor(Thera::PieceColor::White);
-		options.showDebugBitboard = false;
+		options.selectedBitboard = BitboardSelection::None;
 		return;
 	}
 	else if (buffer == "all"){
-		options.shownBitboard.setType(Thera::PieceType::None);
-		options.shownBitboard.setColor(Thera::PieceColor::Black);
-		options.showDebugBitboard = false;
+		options.selectedBitboard = BitboardSelection::AllPieces;
 		return;
 	}
 	else if (buffer == "debug"){
-		options.shownBitboard.setType(Thera::PieceType::None);
-		options.shownBitboard.setColor(Thera::PieceColor::Black);
-		options.showDebugBitboard = true;
+		options.selectedBitboard = BitboardSelection::Debug;
+		return;
+	}
+	else if (buffer == "pin" || buffer == "pinned"){
+		options.selectedBitboard = BitboardSelection::PinnedPieces;
 		return;
 	}
 
 	try{
-		options.shownBitboard.setColor(stringToPieceColor.at(buffer));
+		options.shownPieceBitboard.setColor(stringToPieceColor.at(buffer));
 	}
 	catch(std::out_of_range){
 		result.message = "Invalid color \"" + buffer + "\"!";
@@ -207,14 +213,14 @@ static void handleShowCommand(MoveInputResult& result, Options& options){
 	// parse type
 	std::cin >> buffer;
 	try{
-		options.shownBitboard.setType(stringToPieceType.at(buffer));
+		options.shownPieceBitboard.setType(stringToPieceType.at(buffer));
 	}
 	catch(std::out_of_range){
 		result.message = "Invalid piece \"" + buffer + "\"!";
 		result.failed = true;
 		return;
 	}
-	options.showDebugBitboard = false;
+	options.selectedBitboard = BitboardSelection::SinglePiece;
 }
 
 static void handlePerftCommand(MoveInputResult& result, Options& options){
@@ -345,19 +351,18 @@ static void setBitboardHighlight(Thera::Bitboard const& bitboard, std::array<RGB
 	}
 }
 
-static void setBitboardHighlight(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights){
+static void setBitboardHighlight(Options const& options, Thera::Board const& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights){
 	Thera::Bitboard bitboard;
 
-	if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::Black)){
-		if (options.showDebugBitboard)
-			bitboard = Thera::MoveGenerator::debugBitboard;
-		else
-			bitboard = board.getAllPieceBitboard();
-	}
-	else if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White))
-		bitboard = 0; // represents "show no bitboard"
-	else{
-		bitboard = board.getBitboard(options.shownBitboard);
+	switch(options.selectedBitboard){
+		case BitboardSelection::AllPieces: bitboard = board.getAllPieceBitboard(); break;
+		case BitboardSelection::Debug: bitboard = Thera::MoveGenerator::debugBitboard; break;
+		case BitboardSelection::None: bitboard = 0; break;
+		case BitboardSelection::PinnedPieces: 
+			generator.generateAttackData(board);
+			bitboard = generator.getPinnedPieces();
+			break;
+		case BitboardSelection::SinglePiece: bitboard = board.getBitboard(options.shownPieceBitboard); break;
 	}
 	
 	while (bitboard.hasPieces()){
@@ -366,9 +371,9 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 	}
 }
 
-static void redrawGUI(Options const& options, Thera::Board const& board, std::array<RGB, 64>& highlights, std::string const& message){
+static void redrawGUI(Options const& options, Thera::Board const& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights, std::string const& message){
 	std::cout << ANSI::clearScreen() << ANSI::reset() << "-------------------\n" << message << ANSI::reset() << "\n";
-	setBitboardHighlight(options, board, highlights);
+	setBitboardHighlight(options, board, generator, highlights);
 	printBoard(board, highlights, options);
 	highlights.fill(RGB());
 }
@@ -532,7 +537,8 @@ int playMode(Options& options){
 
 	std::array<RGB, 64> highlights;
 	highlights.fill(RGB());
-	options.shownBitboard = Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White);
+	options.shownPieceBitboard = Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White);
+	options.selectedBitboard = BitboardSelection::None;
 
 	Thera::MoveGenerator generator;
 
@@ -542,7 +548,7 @@ int playMode(Options& options){
 	while (true){
 		MoveInputResult userInput;
 
-		redrawGUI(options, board, highlights, message);
+		redrawGUI(options, board, generator, highlights, message);
 		message = "";
 		
 		getUserMoveStart(userInput, options);
@@ -641,7 +647,7 @@ int playMode(Options& options){
 		message += ANSI::set4BitColor(ANSI::Blue) + "Number of moves: " + std::to_string(possibleMoves.size());
 		
 
-		if (options.shownBitboard == Thera::Piece(Thera::PieceType::None, Thera::PieceColor::White)){
+		if (options.selectedBitboard == BitboardSelection::None){
 			// highlight all moves
 			highlights.at(userInput.move.startIndex.getIndex64()) = highlightSquareSelected;
 			for (auto const& move : possibleMoves){
@@ -649,11 +655,11 @@ int playMode(Options& options){
 			}
 		}
 
-		redrawGUI(options, board, highlights, message);
+		redrawGUI(options, board, generator, highlights, message);
 		
 		getUserMoveEnd(userInput, options);
-		if (userInput.op == MoveInputResult::Continue)
-			continue;
+		if (userInput.op == MoveInputResult::Exit) break;
+		else if (userInput.op == MoveInputResult::Continue) continue;
 		else if (userInput.op == MoveInputResult::ForceMove){
 			if (board.getColorToMove() == board.at(userInput.move.startIndex).getColor())
 				board.applyMove(userInput.move);
