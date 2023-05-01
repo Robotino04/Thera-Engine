@@ -33,7 +33,14 @@ class MoveGenerator{
         constexpr Bitboard getPinnedPieces() const{ return pinnedPieces; }
 
     private:
+        /**
+         * @brief Generate all pin data.
+         * 
+         * @param board the position to operate on
+         */
+        void generatePins(Board const& board);
         
+
         /**
          * @brief Generate all bishop, rook and queen moves.
          * 
@@ -241,11 +248,17 @@ class MoveGenerator{
             return result;
         }();
 
+        struct DirectionPair{
+            uint8_t dir1: 3;
+            uint8_t dir2: 3;
+        };
+
     private:
         std::vector<Move> generatedMoves;
         Bitboard attackedSquares;
         Bitboard attackedSquaresBishop;
         Bitboard attackedSquaresRook;
         Bitboard pinnedPieces;
+        std::array<DirectionPair, 64> pinDirection;
 };
 }

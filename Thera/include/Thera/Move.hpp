@@ -60,6 +60,23 @@ struct Move{
         }
     }
 
+    /**
+     * @brief Compare moves for less than or equal. Only used for sorting.
+     * 
+     * @param other the other move to compare to 
+     * @return 
+     */
+    constexpr bool operator < (auto const& other) const{
+		if (this->startIndex != other.startIndex)
+			return this->startIndex.getRaw() < other.startIndex.getRaw();
+		if (this->endIndex != other.endIndex)
+			return this->endIndex.getRaw() < other.endIndex.getRaw();
+		if (this->promotionType != other.promotionType)
+			return static_cast<int>(this->promotionType) < static_cast<int>(other.promotionType);
+		
+		return false;
+	}
+
     constexpr static bool isSameBaseMove(Move a, Move b){
         a.debugValidate();
         b.debugValidate();

@@ -26,3 +26,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 78.8536;            87.8531;            2.44378;                2.96711;            Made Thera compile using clang.
 35.4865;            45.596;             1.16332;                1.56753;            Made use of the attack data for move filtering.
 35.2331;            45.0291;            1.16276;                1.54161;            Removed unneccessary filters.
+37.234s;            47.7235;            1.37326;                1.73959;            Made sliding piece move generation respect pinned pieces.

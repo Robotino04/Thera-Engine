@@ -21,6 +21,7 @@
 #include <functional>
 #include <fstream>
 #include <bitset>
+#include <unordered_set>
 
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
@@ -456,8 +457,10 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 	}
 
 	std::vector<std::pair<Thera::Move, int>> theraMoves;
+	std::vector<Thera::Move> theraMovesRaw;
 	const auto storeMove = [&](Thera::Move const& move, int numSubmoves){
 		theraMoves.emplace_back(move, numSubmoves);
+		theraMovesRaw.push_back(move);
 	};
 
 	int filteredMoves = 0;
@@ -470,36 +473,20 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 
 	std::vector<std::tuple<Thera::Move, int, MoveSource>> differentMoves;
 
-	
-
 	for (auto movePair : theraMoves){
-		auto const movePairCompare = [&](auto const& otherPair){
-			return Thera::Move::isSameBaseMove(movePair.first, otherPair.first) && movePair.second == otherPair.second;
-		};
-		if (std::find_if(stockfishMoves.begin(), stockfishMoves.end(), movePairCompare) == stockfishMoves.end()){
+		if (std::find(stockfishMoves.begin(), stockfishMoves.end(), movePair) == stockfishMoves.end()){
 			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Thera));
 		}
+
 	}
 	
 	for (auto movePair : stockfishMoves){
-		auto const movePairCompare = [&](auto const& otherPair){
-			return Thera::Move::isSameBaseMove(movePair.first, otherPair.first) && movePair.second == otherPair.second;
-		};
-		if (std::find_if(theraMoves.begin(), theraMoves.end(), movePairCompare) == theraMoves.end()){
+		if (std::find(theraMoves.begin(), theraMoves.end(), movePair) == theraMoves.end()){
 			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Stockfish));
 		}
 	}
 
-	std::sort(differentMoves.begin(), differentMoves.end(), [&](auto const& a, auto const& b){
-		if (std::get<0>(a).startIndex != std::get<0>(b).startIndex)
-			return std::get<0>(a).startIndex.getRaw() < std::get<0>(b).startIndex.getRaw();
-		if (std::get<0>(a).endIndex != std::get<0>(b).endIndex)
-			return std::get<0>(a).endIndex.getRaw() < std::get<0>(b).endIndex.getRaw();
-		if (std::get<0>(a).promotionType != std::get<0>(b).promotionType)
-			return static_cast<int>(std::get<0>(a).promotionType) < static_cast<int>(std::get<0>(b).promotionType);
-		
-		return std::get<1>(a) < std::get<1>(b);
-	});
+	std::sort(differentMoves.begin(), differentMoves.end());
 
 	for (auto [move, numSubmoves, source] : differentMoves){
 		message += indentation + std::string("[") + (source == MoveSource::Thera ? "Thera]     " : "Stockfish] ");
@@ -527,6 +514,23 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 		}
 	}
 
+	// find moves that got generated twice
+	std::sort(theraMovesRaw.begin(), theraMovesRaw.end());
+	auto duplicate = std::adjacent_find(theraMovesRaw.begin(), theraMovesRaw.end());
+	while (duplicate != theraMovesRaw.end()){
+		message += indentation + std::string("[Thera]     ");
+		message += Thera::Utils::squareToAlgebraicNotation(duplicate->startIndex) + Thera::Utils::squareToAlgebraicNotation(duplicate->endIndex);
+		switch (duplicate->promotionType){
+			case Thera::PieceType::Bishop: message += "b"; break;
+			case Thera::PieceType::Knight: message += "n"; break;
+			case Thera::PieceType::Rook:   message += "r"; break;
+			case Thera::PieceType::Queen:  message += "q"; break;
+			default: break;
+		}
+		message += ": " + ANSI::set4BitColor(ANSI::Red) + "Duplicate!" + ANSI::reset() + "\n";
+		duplicate = std::adjacent_find(std::next(duplicate), theraMovesRaw.end());
+	}
+
 	if (userInput.perftDepth != originalDepth) return;
 
 	message += ANSI::set4BitColor(ANSI::Blue);
@@ -536,7 +540,7 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 	message += "Filtered " + std::to_string(filteredMoves) + " moves\n";
 
 	message += indentation + "Results are ";
-	if (differentMoves.size())
+	if (differentMoves.size() || theraMoves.size() != stockfishMoves.size())
 		message += indentation + ANSI::set4BitColor(ANSI::Red) + "different" + ANSI::set4BitColor(ANSI::Blue) +".\n";
 	else
 		message += indentation + ANSI::set4BitColor(ANSI::Green) + "identical" + ANSI::set4BitColor(ANSI::Blue) +".\n";

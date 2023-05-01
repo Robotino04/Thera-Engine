@@ -53,7 +53,8 @@ Bitboard xRayAttacks(Bitboard occupiedSquares, Bitboard blockers, Bitboard squar
    return attacks ^ allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares ^ blockers, square);
 }
 
-Bitboard generatePins(Board const& board) {
+
+void MoveGenerator::generatePins(Board const& board) {
     const auto squareOfKing = board.getBitboard({PieceType::King, board.getColorToMove()});
     const uint8_t squareOfKingIndex = squareOfKing.getLS1B();
 
@@ -63,26 +64,42 @@ Bitboard generatePins(Board const& board) {
     const auto occupiedSquares = board.getAllPieceBitboard();
     const auto ownPieces = board.getPieceBitboardForOneColor(board.getColorToMove());
 
+    const auto helper = [&]<int idx>(Bitboard oppositePieces){
+        static_assert(idx >= 0 && idx < 8, "Index has to be between 0 and 7");
+        Bitboard pinner = xRayAttacks<idx, idx+1>(occupiedSquares, ownPieces, squareOfKing) & oppositePieces;
+        if (pinner.hasPieces()) {
+            Bitboard result = MoveGenerator::obstructedLUT.at(pinner.getLS1B()).at(squareOfKingIndex) & ownPieces;
+            pinnedPieces |= result;
+            switch(idx){
+                case 0: pinDirection.at(result.getLS1B()) = {0, 3}; break;
+                case 1: pinDirection.at(result.getLS1B()) = {1, 2}; break;
+                case 2: pinDirection.at(result.getLS1B()) = {2, 1}; break;
+                case 3: pinDirection.at(result.getLS1B()) = {3, 0}; break;
+                case 4: pinDirection.at(result.getLS1B()) = {4, 7}; break;
+                case 5: pinDirection.at(result.getLS1B()) = {5, 6}; break;
+                case 6: pinDirection.at(result.getLS1B()) = {6, 5}; break;
+                case 7: pinDirection.at(result.getLS1B()) = {7, 4}; break;
+    }
+    }
+    };
 
-    Bitboard pinned = 0;
-    Bitboard pinner = xRayAttacks<0, 4>(occupiedSquares, ownPieces, squareOfKing) & oppositeRooks;
-    while (pinner.hasPieces()) {
-        uint8_t sq = pinner.getLS1B();
-        pinned |= MoveGenerator::obstructedLUT.at(sq).at(squareOfKingIndex) & ownPieces;
-        pinner.clearLS1B();
-    }
-    pinner = xRayAttacks<4, 8>(occupiedSquares, ownPieces, squareOfKing) & oppositeBishops;
-    while (pinner.hasPieces()) {
-        uint8_t sq = pinner.getLS1B();
-        pinned |= MoveGenerator::obstructedLUT.at(sq).at(squareOfKingIndex) & ownPieces;
-        pinner.clearLS1B();
-    }
-    return pinned;
+    pinDirection.fill({0,0});
+    pinnedPieces = 0;
+    // stupid syntax but helper<0>(oppositeRooks) could mean that "helper" is templated
+    helper.operator()<0>(oppositeRooks);
+    helper.operator()<1>(oppositeRooks);
+    helper.operator()<2>(oppositeRooks);
+    helper.operator()<3>(oppositeRooks);
+
+    helper.operator()<4>(oppositeBishops);
+    helper.operator()<5>(oppositeBishops);
+    helper.operator()<6>(oppositeBishops);
+    helper.operator()<7>(oppositeBishops);
 }
 
 void MoveGenerator::generateAttackData(Board const& board){
     attackedSquares = 0;
-    pinnedPieces = generatePins(board);
+    generatePins(board);
 
     // sliding pieces
     // rook and queen
@@ -136,39 +153,48 @@ void MoveGenerator::generateAttackData(Board const& board){
 }
 
 void MoveGenerator::generateAllSlidingMoves(Board const& board){
-    {
-        Bitboard bitboard = board.getBitboard({PieceType::Bishop, board.getColorToMove()}) | board.getBitboard({PieceType::Queen, board.getColorToMove()});
+    auto const helper = [&]<int startIdx, int endIdx>(PieceType pieceType){
+        const Bitboard bitboard = board.getBitboard({pieceType, board.getColorToMove()}) | board.getBitboard({PieceType::Queen, board.getColorToMove()});
+        Bitboard unpinnedBitboard = bitboard & ~pinnedPieces;
 
-        while (bitboard.hasPieces()){
-            Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+        while (unpinnedBitboard.hasPieces()){
+            Bitboard targetSquares = allDirectionSlidingAttacks<startIdx, endIdx>(board.getAllPieceBitboard(), uint64_t(1) << unpinnedBitboard.getLS1B());
             targetSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
 
-            const Coordinate origin = Coordinate::fromIndex64(bitboard.getLS1B());
+            const Coordinate origin = Coordinate::fromIndex64(unpinnedBitboard.getLS1B());
             while (targetSquares.hasPieces()){
                 generatedMoves.emplace_back(origin, Coordinate::fromIndex64(targetSquares.getLS1B()));
                 targetSquares.clearLS1B();
             }
             
-            bitboard.clearLS1B();
+            unpinnedBitboard.clearLS1B();
         }
+
+        Bitboard pinnedBitboard = bitboard & pinnedPieces;
+        while (pinnedBitboard.hasPieces()){
+            // avoids duplication for queens
+            if (pinDirection.at(pinnedBitboard.getLS1B()).dir1 < startIdx || pinDirection.at(pinnedBitboard.getLS1B()).dir1 >= endIdx){
+                pinnedBitboard.clearLS1B();
+                continue;
     }
 
-    {
-        Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToMove()}) | board.getBitboard({PieceType::Queen, board.getColorToMove()});
+            Bitboard originBB = uint64_t(1) << pinnedBitboard.getLS1B();
+            Bitboard targetSquares = slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir1);
+            targetSquares |=         slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir2);
 
-        while (bitboard.hasPieces()){
-            Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
             targetSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
 
-            const Coordinate origin = Coordinate::fromIndex64(bitboard.getLS1B());
+            const Coordinate origin = Coordinate::fromIndex64(pinnedBitboard.getLS1B());
             while (targetSquares.hasPieces()){
                 generatedMoves.emplace_back(origin, Coordinate::fromIndex64(targetSquares.getLS1B()));
                 targetSquares.clearLS1B();
             }
             
-            bitboard.clearLS1B();
+            pinnedBitboard.clearLS1B();
         }
-    }
+    };
+    helper.operator()<0, 4>(PieceType::Rook);
+    helper.operator()<4, 8>(PieceType::Bishop);
 }
 
 void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square){
@@ -182,7 +208,7 @@ void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square){
 }
 
 void MoveGenerator::generateAllKnightMoves(Board const& board){
-    Bitboard bitboard = board.getBitboard({PieceType::Knight, board.getColorToMove()});
+    Bitboard bitboard = board.getBitboard({PieceType::Knight, board.getColorToMove()}) & ~pinnedPieces;
 
     while (bitboard.hasPieces()){
         generateKnightMoves(board, Coordinate::fromIndex64(bitboard.getLS1B()));
