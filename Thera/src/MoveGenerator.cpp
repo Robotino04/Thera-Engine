@@ -261,20 +261,40 @@ void MoveGenerator::generateAllKingMoves(Board const& board){
 }
 
 void MoveGenerator::generateAllPawnMoves(Board const& board){
-    const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()});
+    const Bitboard unpinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & ~pinnedPieces;
     const Bitboard occupied = board.getAllPieceBitboard();
     const Bitboard occupied_other_color = board.getPieceBitboardForOneColor(board.getColorToNotMove());
+
+    Bitboard unpinnedPawnsLeft = unpinnedPawns, unpinnedPawnsRight = unpinnedPawns; 
+
+    Bitboard pawns = unpinnedPawns;
+    Bitboard pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
+    while (pinnedPawns.hasPieces()){
+        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 0 || pinDirection.at(pinnedPawns.getLS1B()).dir2 == 0)
+            pawns |= uint64_t(1) << pinnedPawns.getLS1B();
+        pinnedPawns.clearLS1B();
+    }
 
     const int8_t mainDirection = board.getCurrentState().isWhiteToMove ? DirectionIndex64::N : DirectionIndex64::S;
     const Bitboard doublePushMask = board.getCurrentState().isWhiteToMove ? 0x0000000000ff0000 : 0x0000ff0000000000;
 
-    Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
-    Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied;
-    Bitboard captures_left = ((pawns &  0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W)) & occupied_other_color;
-    Bitboard captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E)) & occupied_other_color;
     const int8_t reverseDirection = -mainDirection;
     const int8_t reverseDirectionLeft = reverseDirection + DirectionIndex64::E;
     const int8_t reverseDirectionRight = reverseDirection + DirectionIndex64::W;
+
+    pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
+    while (pinnedPawns.hasPieces()){
+        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 4 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 6)
+            unpinnedPawnsLeft |= uint64_t(1) << pinnedPawns.getLS1B();
+        else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 5 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 7)
+            unpinnedPawnsRight |= uint64_t(1) << pinnedPawns.getLS1B();
+        pinnedPawns.clearLS1B();
+    }
+
+    Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
+    Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied;
+    Bitboard captures_left = ((unpinnedPawnsLeft & 0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W)) & occupied_other_color;
+    Bitboard captures_right = ((unpinnedPawnsRight & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E)) & occupied_other_color;
 
     while (single_pushes.hasPieces()) {
         const int target_square = single_pushes.getLS1B();

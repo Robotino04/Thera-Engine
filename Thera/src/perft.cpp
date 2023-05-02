@@ -17,7 +17,7 @@ namespace Thera{
 namespace Detail{
 
 
-static void printFilteredMove(Thera::Move const& move){
+static void printFilteredMove(Thera::Move const& move, Thera::Board const& board){
     // removed for performance evaluation
     std::cout
         << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
@@ -30,7 +30,7 @@ static void printFilteredMove(Thera::Move const& move){
         case PieceType::Queen:  std::cout << "q"; break;
         default: break;
     }
-    std::cout << "\n";
+    std::cout << "     (" << board.storeToFEN() << ")\n";
 }
 
 // TODO: replace to use bitboards
@@ -49,7 +49,8 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
         board.switchPerspective();
 
         if ((generator.getAttackedSquares() & kingBitboard).hasPieces()) {
-            printFilteredMove(move);
+            rewindBoard_guard.release();
+            printFilteredMove(move, board);
             continue;
         }
 

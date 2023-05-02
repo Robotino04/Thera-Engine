@@ -28,3 +28,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 35.2331;            45.0291;            1.16276;                1.54161;            Removed unneccessary filters.
 37.234s;            47.7235;            1.37326;                1.73959;            Made sliding piece move generation respect pinned pieces.
 36.7096;            47.2833;            1.38184;                1.73649;            Reduced code duplication for pawn move generation.
+37.0488;            47.8266;            1.35828;                1.75847;            Made use of pin data for pawn move generation.
