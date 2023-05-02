@@ -265,26 +265,16 @@ void MoveGenerator::generateAllPawnMoves(Board const& board){
     const Bitboard occupied = board.getAllPieceBitboard();
     const Bitboard occupied_other_color = board.getPieceBitboardForOneColor(board.getColorToNotMove());
 
-    Bitboard single_pushes, double_pushes, captures_left, captures_right;
-    // directions to get from target square to origin square
-    uint8_t reverseDirection, reverseDirectionLeft, reverseDirectionRight;
-    if (board.getCurrentState().isWhiteToMove) {
-        single_pushes = (pawns << DirectionIndex64::N) & ~occupied;
-        double_pushes = ((single_pushes & 0x0000000000ff0000) << DirectionIndex64::N) & ~occupied;
-        captures_left = ((pawns &  0xfefefefefefefefe) << DirectionIndex64::NW) & occupied_other_color;
-        captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << DirectionIndex64::NE) & occupied_other_color;
-        reverseDirection = DirectionIndex64::S;
-        reverseDirectionLeft = DirectionIndex64::SE;
-        reverseDirectionRight = DirectionIndex64::SW;
-    } else {
-        single_pushes = (pawns << -8) & ~occupied;
-        double_pushes = ((single_pushes & 0x0000ff0000000000) << DirectionIndex64::S) & ~occupied;
-        captures_left = ((pawns & 0xfefefefefefefefe) << DirectionIndex64::SW) & occupied_other_color;
-        captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << DirectionIndex64::SE) & occupied_other_color;
-        reverseDirection = DirectionIndex64::N;
-        reverseDirectionLeft = DirectionIndex64::NE;
-        reverseDirectionRight = DirectionIndex64::NW;
-    }
+    const int8_t mainDirection = board.getCurrentState().isWhiteToMove ? DirectionIndex64::N : DirectionIndex64::S;
+    const Bitboard doublePushMask = board.getCurrentState().isWhiteToMove ? 0x0000000000ff0000 : 0x0000ff0000000000;
+
+    Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
+    Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied;
+    Bitboard captures_left = ((pawns &  0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W)) & occupied_other_color;
+    Bitboard captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E)) & occupied_other_color;
+    const int8_t reverseDirection = -mainDirection;
+    const int8_t reverseDirectionLeft = reverseDirection + DirectionIndex64::E;
+    const int8_t reverseDirectionRight = reverseDirection + DirectionIndex64::W;
 
     while (single_pushes.hasPieces()) {
         const int target_square = single_pushes.getLS1B();
