@@ -2,6 +2,7 @@
 
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/Piece.hpp"
+#include "Thera/Coordinate.hpp"
 
 #include <string>
 
@@ -17,6 +18,8 @@ enum class BitboardSelection{
 	PinnedPieces,
 	AllPieces,
 	AttackedSquares,
+	AttackedBySquares,
+	AttackingSquares,
 };
 
 struct Options {
@@ -28,4 +31,5 @@ struct Options {
 
 	Thera::Piece shownPieceBitboard = {Thera::PieceType::None, Thera::PieceColor::White};
 	BitboardSelection selectedBitboard = BitboardSelection::None;
+	Thera::Coordinate squareSelection;
 };

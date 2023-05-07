@@ -8,6 +8,7 @@
 #include "Thera/MoveGenerator.hpp"
 
 #include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/Utils/exceptions.hpp"
 
 #include "Thera/perft.hpp"
 
@@ -126,6 +127,12 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 					case BitboardSelection::None:
 						std::cout << "Showing no bitboard";
 						break;
+					case BitboardSelection::AttackedBySquares:
+						std::cout << "Showing squares attacked by " << ANSI::set4BitColor(ANSI::Blue) << Thera::Utils::squareToAlgebraicNotation(options.squareSelection) << ANSI::reset();
+						break;
+					case BitboardSelection::AttackingSquares:
+						std::cout << "Showing squares attacking " << ANSI::set4BitColor(ANSI::Blue) << Thera::Utils::squareToAlgebraicNotation(options.squareSelection) << ANSI::reset();
+						break;
 				}
 				break;
 			case 5:
@@ -206,6 +213,33 @@ static void handleShowCommand(MoveInputResult& result, Options& options){
 	}
 	else if (buffer == "attacked"){
 		options.selectedBitboard = BitboardSelection::AttackedSquares;
+		return;
+	}
+	else if (buffer == "attacked_by"){
+		options.selectedBitboard = BitboardSelection::AttackedBySquares;
+		std::cin >> buffer;
+		try{
+			options.squareSelection = Thera::Utils::squareFromAlgebraicNotation(buffer);
+		}
+		catch(std::invalid_argument){
+			result.message = buffer + " isn't a valid square!";
+			result.failed = true;
+			return;
+		}
+		return;
+	}
+	else if (buffer == "attacking"){
+		options.selectedBitboard = BitboardSelection::AttackingSquares;
+		std::cin >> buffer;
+		try{
+			options.squareSelection = Thera::Utils::squareFromAlgebraicNotation(buffer);
+		}
+		catch(std::invalid_argument){
+			result.message = buffer + " isn't a valid square!";
+			result.failed = true;
+			return;
+		}
+		return;
 		return;
 	}
 
@@ -362,19 +396,19 @@ static void setBitboardHighlight(Thera::Bitboard const& bitboard, std::array<RGB
 static void setBitboardHighlight(Options const& options, Thera::Board const& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights){
 	Thera::Bitboard bitboard;
 
+	generator.generateAttackData(board);
 	switch(options.selectedBitboard){
-		case BitboardSelection::AllPieces: bitboard = board.getAllPieceBitboard(); break;
-		case BitboardSelection::Debug: bitboard = Thera::MoveGenerator::debugBitboard; break;
-		case BitboardSelection::None: bitboard = 0; break;
-		case BitboardSelection::PinnedPieces: 
-			generator.generateAttackData(board);
-			bitboard = generator.getPinnedPieces();
-			break;
-		case BitboardSelection::SinglePiece: bitboard = board.getBitboard(options.shownPieceBitboard); break;
-		case BitboardSelection::AttackedSquares:
-			generator.generateAttackData(board);
-			bitboard = generator.getAttackedSquares();
-			break;
+		case BitboardSelection::AllPieces: 			bitboard = board.getAllPieceBitboard(); break;
+		case BitboardSelection::Debug: 				bitboard = Thera::MoveGenerator::debugBitboard; break;
+		case BitboardSelection::None: 				bitboard = 0; break;
+		case BitboardSelection::PinnedPieces:  		bitboard = generator.getPinnedPieces();break;
+		case BitboardSelection::SinglePiece: 		bitboard = board.getBitboard(options.shownPieceBitboard); break;
+		case BitboardSelection::AttackedSquares: 	bitboard = generator.getAttackedSquares(); break;
+		case BitboardSelection::AttackedBySquares:	bitboard = generator.getSquaresAttackedBy(options.squareSelection); break;
+		case BitboardSelection::AttackingSquares:	bitboard = generator.getSquaresAttacking(options.squareSelection); break;
+	
+		default:
+			throw Thera::Utils::NotImplementedException();
 	}
 	
 	while (bitboard.hasPieces()){

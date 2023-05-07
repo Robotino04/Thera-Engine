@@ -31,8 +31,20 @@ class MoveGenerator{
 
         constexpr Bitboard getAttackedSquares() const { return attackedSquares; }
         constexpr Bitboard getPinnedPieces() const{ return pinnedPieces; }
+        constexpr Bitboard getSquaresAttackedBy(Coordinate square){
+            return squaresAttackedBySquare.at(square.getIndex64());
+        }
+        constexpr Bitboard getSquaresAttacking(Coordinate square){
+            return squaresAttackingSquare.at(square.getIndex64());
+        }
 
     private:
+        /**
+         * @brief Convert "squares attacked by single square" data to "squares attacking a single square". 
+         * 
+         */
+        void invertAttackData();
+
         /**
          * @brief Generate all pin data.
          * 
@@ -256,8 +268,8 @@ class MoveGenerator{
     private:
         std::vector<Move> generatedMoves;
         Bitboard attackedSquares;
-        Bitboard attackedSquaresBishop;
-        Bitboard attackedSquaresRook;
+        std::array<Bitboard, 64> squaresAttackingSquare;
+        std::array<Bitboard, 64> squaresAttackedBySquare;
         Bitboard pinnedPieces;
         std::array<DirectionPair, 64> pinDirection;
 };

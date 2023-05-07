@@ -99,6 +99,7 @@ void MoveGenerator::generatePins(Board const& board) {
 
 void MoveGenerator::generateAttackData(Board const& board){
     attackedSquares = 0;
+    squaresAttackedBySquare.fill(Bitboard(0));
     generatePins(board);
 
     // sliding pieces
@@ -110,7 +111,7 @@ void MoveGenerator::generateAttackData(Board const& board){
         Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
 
         attackedSquares |= targetSquares;
-        attackedSquaresRook |= targetSquares;
+        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
 
         bitboard.clearLS1B();
     }
@@ -122,7 +123,7 @@ void MoveGenerator::generateAttackData(Board const& board){
         Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
 
         attackedSquares |= targetSquares;
-        attackedSquaresRook |= targetSquares;
+        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
 
         bitboard.clearLS1B();
     }
@@ -132,7 +133,9 @@ void MoveGenerator::generateAttackData(Board const& board){
     bitboard = board.getBitboard({PieceType::Knight, board.getColorToNotMove()});
 
     while (bitboard.hasPieces()){
-        attackedSquares |= knightSquaresValid.at(bitboard.getLS1B()) & ~board.getPieceBitboardForOneColor(board.getColorToNotMove());
+        Bitboard targetSquares = knightSquaresValid.at(bitboard.getLS1B());
+        attackedSquares |= targetSquares;
+        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
         bitboard.clearLS1B();
     }
 
@@ -143,13 +146,32 @@ void MoveGenerator::generateAttackData(Board const& board){
     }
 
     attackedSquares |= kingSquaresValid.at(bitboard.getLS1B());
+    squaresAttackedBySquare[bitboard.getLS1B()] |= kingSquaresValid.at(bitboard.getLS1B()); 
     
     // pawn moves
     const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
     const int dir = board.getCurrentState().isWhiteToMove ? DirectionIndex64::S : DirectionIndex64::N;
 
-    attackedSquares |= (pawns & 0xfefefefefefefefe) << (dir + DirectionIndex64::W);
-    attackedSquares |= (pawns & 0x7f7f7f7f7f7f7f7f) << (dir + DirectionIndex64::E);
+    Bitboard targetSquares = (pawns & 0xfefefefefefefefe) << (dir + DirectionIndex64::W);
+    attackedSquares |= targetSquares;
+    // TODO: implement squaresAttackedBySquare filling
+    targetSquares = (pawns & 0x7f7f7f7f7f7f7f7f) << (dir + DirectionIndex64::E);
+    attackedSquares |= targetSquares;
+
+    
+
+    invertAttackData();
+}
+
+void MoveGenerator::invertAttackData(){
+    squaresAttackingSquare.fill(Bitboard(0));
+    for (int i = 0; i < 64; i++) {
+        for (int j = 0; j < 64; j++) {
+            if (squaresAttackedBySquare[j][i]) {
+                squaresAttackingSquare[i].setBit(j);
+            }
+        }
+    }
 }
 
 void MoveGenerator::generateAllSlidingMoves(Board const& board){
