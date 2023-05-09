@@ -6,13 +6,13 @@ namespace Thera::Utils{
 
 
 template <std::unsigned_integral T>
-constexpr T binardOneAt(int i){
+constexpr T binaryOneAt(int i){
     return T(1) << i;
 }
 
 template<std::unsigned_integral T>
 constexpr T setBit(T value, int bit, bool bitValue){
-   return (value & ~binardOneAt<T>(bit)) // clear the bit to be changed
+   return (value & ~binaryOneAt<T>(bit)) // clear the bit to be changed
    | ((T(bitValue)) << bit);
 }
 template<std::unsigned_integral T>

@@ -79,8 +79,8 @@ void MoveGenerator::generatePins(Board const& board) {
                 case 5: pinDirection.at(result.getLS1B()) = {5, 6}; break;
                 case 6: pinDirection.at(result.getLS1B()) = {6, 5}; break;
                 case 7: pinDirection.at(result.getLS1B()) = {7, 4}; break;
-    }
-    }
+            }
+        }
     };
 
     pinDirection.fill({0,0});
@@ -108,7 +108,7 @@ void MoveGenerator::generateAttackData(Board const& board){
     Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
@@ -120,7 +120,7 @@ void MoveGenerator::generateAttackData(Board const& board){
     bitboard = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), uint64_t(1) << bitboard.getLS1B());
+        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
@@ -149,16 +149,30 @@ void MoveGenerator::generateAttackData(Board const& board){
     squaresAttackedBySquare[bitboard.getLS1B()] |= kingSquaresValid.at(bitboard.getLS1B()); 
     
     // pawn moves
-    const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
-    const int dir = board.getCurrentState().isWhiteToMove ? DirectionIndex64::S : DirectionIndex64::N;
+    {
+        const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
+        const int8_t mainDirection = board.getCurrentState().isWhiteToMove ? DirectionIndex64::S : DirectionIndex64::N;
 
-    Bitboard targetSquares = (pawns & 0xfefefefefefefefe) << (dir + DirectionIndex64::W);
-    attackedSquares |= targetSquares;
-    // TODO: implement squaresAttackedBySquare filling
-    targetSquares = (pawns & 0x7f7f7f7f7f7f7f7f) << (dir + DirectionIndex64::E);
-    attackedSquares |= targetSquares;
-
-    
+        const int8_t reverseDirectionLeft = -mainDirection + DirectionIndex64::E;
+        const int8_t reverseDirectionRight = -mainDirection + DirectionIndex64::W;
+        Bitboard captures_left = ((pawns & 0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W));
+        Bitboard captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E));
+        attackedSquares |= captures_left;
+        attackedSquares |= captures_right;
+        
+        while (captures_left.hasPieces()) {
+            const int target_square = captures_left.getLS1B();
+            const int origin_square = target_square + reverseDirectionLeft;
+            squaresAttackedBySquare.at(origin_square).setBit(target_square);
+            captures_left.clearLS1B();
+        }
+        while (captures_right.hasPieces()) {
+            const int target_square = captures_right.getLS1B();
+            const int origin_square = target_square + reverseDirectionRight;
+            squaresAttackedBySquare.at(origin_square).setBit(target_square);
+            captures_right.clearLS1B();
+        }
+    }
 
     invertAttackData();
 }
@@ -180,7 +194,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
         Bitboard unpinnedBitboard = bitboard & ~pinnedPieces;
 
         while (unpinnedBitboard.hasPieces()){
-            Bitboard targetSquares = allDirectionSlidingAttacks<startIdx, endIdx>(board.getAllPieceBitboard(), uint64_t(1) << unpinnedBitboard.getLS1B());
+            Bitboard targetSquares = allDirectionSlidingAttacks<startIdx, endIdx>(board.getAllPieceBitboard(), Utils::binaryOneAt<uint64_t>(unpinnedBitboard.getLS1B()));
             targetSquares &= ~board.getPieceBitboardForOneColor(board.getColorToMove());
 
             const Coordinate origin = Coordinate::fromIndex64(unpinnedBitboard.getLS1B());
@@ -200,7 +214,7 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board){
                 continue;
     }
 
-            Bitboard originBB = uint64_t(1) << pinnedBitboard.getLS1B();
+            Bitboard originBB = Utils::binaryOneAt<uint64_t>(pinnedBitboard.getLS1B());
             Bitboard targetSquares = slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir1);
             targetSquares |=         slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir2);
 
@@ -293,7 +307,7 @@ void MoveGenerator::generateAllPawnMoves(Board const& board){
     Bitboard pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
     while (pinnedPawns.hasPieces()){
         if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 0 || pinDirection.at(pinnedPawns.getLS1B()).dir2 == 0)
-            pawns |= uint64_t(1) << pinnedPawns.getLS1B();
+            pawns.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
     }
 
@@ -307,9 +321,9 @@ void MoveGenerator::generateAllPawnMoves(Board const& board){
     pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
     while (pinnedPawns.hasPieces()){
         if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 4 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 6)
-            unpinnedPawnsLeft |= uint64_t(1) << pinnedPawns.getLS1B();
+            unpinnedPawnsLeft.setBit(pinnedPawns.getLS1B());
         else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 5 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 7)
-            unpinnedPawnsRight |= uint64_t(1) << pinnedPawns.getLS1B();
+            unpinnedPawnsRight.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
     }
 

@@ -169,14 +169,14 @@ class Bitboard{
         }
 
         constexpr void flipBit(uint8_t bitIndex){
-            bits ^= Utils::binardOneAt<uint64_t>(bitIndex);
+            bits ^= Utils::binaryOneAt<uint64_t>(bitIndex);
         }
 
         constexpr void setBit(uint8_t bitIndex){
-            bits |= Utils::binardOneAt<uint64_t>(bitIndex);
+            bits |= Utils::binaryOneAt<uint64_t>(bitIndex);
         }
         constexpr void clearBit(uint8_t bitIndex){
-            bits &= ~ Utils::binardOneAt<uint64_t>(bitIndex);
+            bits &= ~ Utils::binaryOneAt<uint64_t>(bitIndex);
         }
 
 
@@ -200,7 +200,7 @@ class Bitboard{
 };
 
 namespace SquareBitboard{
-    #define defSq(NAME) constexpr Bitboard NAME = Bitboard(1) << static_cast<uint8_t>(SquareIndex64::NAME);
+    #define defSq(NAME) constexpr Bitboard NAME = Bitboard(Utils::binaryOneAt<uint64_t>(static_cast<uint8_t>(SquareIndex64::NAME)));
     #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
 
     defRow(a);
