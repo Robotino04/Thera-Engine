@@ -85,9 +85,13 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 		std::cout << "  ";
 		switch(7-y){
 			case 0:
-				std::cout << "Castling: [White] [Black]";
+				std::cout << (board.getColorToMove() == Thera::PieceColor::White ? "White" : "Black")
+						  << " to move.";
 				break;
 			case 1:
+				std::cout << "Castling: [White] [Black]";
+				break;
+			case 2:
 				std::cout << "          ";
 				std::cout << setConditionalColor(board.getCurrentState().canWhiteCastleLeft, ANSI::Background) << "[Q]";
 				std::cout << ANSI::reset(ANSI::Background) << " ";

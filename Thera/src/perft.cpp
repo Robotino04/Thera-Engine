@@ -27,7 +27,8 @@ static void printFilteredMove(Thera::Move const& move){
         case PieceType::Knight: std::cout << "n"; break;
         case PieceType::Rook:   std::cout << "r"; break;
         case PieceType::Queen:  std::cout << "q"; break;
-        default: break;
+        case PieceType::None:   break;
+        default:                std::cout << "[invalid promotion type]"; break;
     }
     std::cout << "\n";
 }
