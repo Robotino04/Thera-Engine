@@ -31,14 +31,18 @@ class MoveGenerator{
 
         constexpr Bitboard getAttackedSquares() const { return attackedSquares; }
         constexpr Bitboard getPinnedPieces() const{ return pinnedPieces; }
-        constexpr Bitboard getSquaresAttackedBy(Coordinate square){
+        constexpr Bitboard getSquaresAttackedBy(Coordinate square) const{
             return squaresAttackedBySquare.at(square.getIndex64());
         }
-        constexpr Bitboard getSquaresAttacking(Coordinate square){
+        constexpr Bitboard getSquaresAttacking(Coordinate square) const{
             return squaresAttackingSquare.at(square.getIndex64());
         }
+        constexpr Bitboard getPossibleMoveTargets() const{ return possibleTargets; }
 
     private:
+        
+        bool isCheck(Board const& board) const;
+
         /**
          * @brief Convert "squares attacked by single square" data to "squares attacking a single square". 
          * 
@@ -59,8 +63,9 @@ class MoveGenerator{
          * May generate incorrect results for empty squares or the color to not move.
          * 
          * @param board the position to operate on
+         * @param targetMask a mask to restrict move targets
          */
-        void generateAllSlidingMoves(Board const& board);
+        void generateAllSlidingMoves(Board const& board, Bitboard targetMask);
 
         /**
          * @brief Generate knight moves.
@@ -69,15 +74,17 @@ class MoveGenerator{
          * 
          * @param board the position to operate on
          * @param square the square to generate moves for
+         * @param targetMask a mask to restrict move targets
          */
-        void generateKnightMoves(Board const& board, Coordinate square);
+        void generateKnightMoves(Board const& board, Coordinate square, Bitboard targetMask);
 
         /**
          * @brief Generate all knight moves.
          * 
          * @param board the position to operate on
+         * @param targetMask a mask to restrict move targets
          */
-        void generateAllKnightMoves(Board const& board);
+        void generateAllKnightMoves(Board const& board, Bitboard targetMask);
 
         /**
          * @brief Generate king moves.
@@ -86,22 +93,25 @@ class MoveGenerator{
          * 
          * @param board the position to operate on
          * @param square the square to generate moves for
+         * @param targetMask a mask to restrict move targets
          */
-        void generateKingMoves(Board const& board, Coordinate square);
+        void generateKingMoves(Board const& board, Coordinate square, Bitboard targetMask);
 
         /**
          * @brief Generate all king moves.
          * 
          * @param board the position to operate on
+         * @param targetMask a mask to restrict move targets
          */
-        void generateAllKingMoves(Board const& board);
+        void generateAllKingMoves(Board const& board, Bitboard targetMask);
 
         /**
          * @brief Generate all pawn moves.
          * 
          * @param board the position to operate on
+         * @param targetMask a mask to restrict move targets
          */
-        void generateAllPawnMoves(Board const& board);
+        void generateAllPawnMoves(Board const& board, Bitboard targetMask);
 
         /**
          * @brief Add a pawn move and apply promotions if needed.
@@ -267,10 +277,11 @@ class MoveGenerator{
 
     private:
         std::vector<Move> generatedMoves;
-        Bitboard attackedSquares;
         std::array<Bitboard, 64> squaresAttackingSquare;
         std::array<Bitboard, 64> squaresAttackedBySquare;
+        Bitboard attackedSquares;
         Bitboard pinnedPieces;
+        Bitboard possibleTargets;
         std::array<DirectionPair, 64> pinDirection;
 };
 }

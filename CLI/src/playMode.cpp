@@ -133,6 +133,10 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 					case BitboardSelection::AttackingSquares:
 						std::cout << "Showing squares attacking " << ANSI::set4BitColor(ANSI::Blue) << Thera::Utils::squareToAlgebraicNotation(options.squareSelection) << ANSI::reset();
 						break;
+					case BitboardSelection::PossibleMoveTargets:
+						std::cout << "Showing possible move targets";
+						break;
+
 				}
 				break;
 			case 5:
@@ -240,6 +244,9 @@ static void handleShowCommand(MoveInputResult& result, Options& options){
 			return;
 		}
 		return;
+	}
+	else if (buffer == "possible_targets"){
+		options.selectedBitboard = BitboardSelection::PossibleMoveTargets;
 		return;
 	}
 
@@ -398,15 +405,16 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 
 	generator.generateAttackData(board);
 	switch(options.selectedBitboard){
-		case BitboardSelection::AllPieces: 			bitboard = board.getAllPieceBitboard(); break;
-		case BitboardSelection::Debug: 				bitboard = Thera::MoveGenerator::debugBitboard; break;
-		case BitboardSelection::None: 				bitboard = 0; break;
-		case BitboardSelection::PinnedPieces:  		bitboard = generator.getPinnedPieces();break;
-		case BitboardSelection::SinglePiece: 		bitboard = board.getBitboard(options.shownPieceBitboard); break;
-		case BitboardSelection::AttackedSquares: 	bitboard = generator.getAttackedSquares(); break;
-		case BitboardSelection::AttackedBySquares:	bitboard = generator.getSquaresAttackedBy(options.squareSelection); break;
-		case BitboardSelection::AttackingSquares:	bitboard = generator.getSquaresAttacking(options.squareSelection); break;
-	
+		case BitboardSelection::AllPieces: 				bitboard = board.getAllPieceBitboard(); break;
+		case BitboardSelection::Debug: 					bitboard = Thera::MoveGenerator::debugBitboard; break;
+		case BitboardSelection::None: 					bitboard = 0; break;
+		case BitboardSelection::PinnedPieces:  			bitboard = generator.getPinnedPieces();break;
+		case BitboardSelection::SinglePiece: 			bitboard = board.getBitboard(options.shownPieceBitboard); break;
+		case BitboardSelection::AttackedSquares: 		bitboard = generator.getAttackedSquares(); break;
+		case BitboardSelection::AttackedBySquares:		bitboard = generator.getSquaresAttackedBy(options.squareSelection); break;
+		case BitboardSelection::AttackingSquares:		bitboard = generator.getSquaresAttacking(options.squareSelection); break;
+		case BitboardSelection::PossibleMoveTargets: 	bitboard = generator.getPossibleMoveTargets(); break;
+
 		default:
 			throw Thera::Utils::NotImplementedException();
 	}

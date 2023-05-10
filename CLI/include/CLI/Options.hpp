@@ -20,6 +20,7 @@ enum class BitboardSelection{
 	AttackedSquares,
 	AttackedBySquares,
 	AttackingSquares,
+	PossibleMoveTargets,
 };
 
 struct Options {
