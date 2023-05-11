@@ -67,8 +67,9 @@ int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, 
 
     auto moves = generator.generateAllMoves(board);
     filteredMoves += moves.size();
-    moves = Detail::filterMoves(moves, board, generator);
-    filteredMoves -= moves.size();
+    // filtering only tests for, but no longer removes invalid moves
+    // this is to have test cases fail in case illegal moves get generated
+    filteredMoves -= Detail::filterMoves(moves, board, generator).size();
     if (bulkCounting && depth == 1){
         if (isInitialCall){
             for (auto const& move : moves){

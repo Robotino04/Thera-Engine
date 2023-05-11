@@ -65,7 +65,7 @@ void MoveGenerator::generatePins(Board const& board) {
     const auto oppositeRooks = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | oppositeQueens;
     const auto oppositeBishops = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()}) | oppositeQueens;
     const auto occupiedSquares = board.getAllPieceBitboard();
-    const auto ownPieces = board.getPieceBitboardForOneColor(board.getColorToMove());
+    const auto ownPieces = board.getAllPieceBitboard();
 
     const auto helper = [&]<int idx>(Bitboard oppositePieces){
         static_assert(idx >= 0 && idx < 8, "Index has to be between 0 and 7");
@@ -109,12 +109,13 @@ void MoveGenerator::generateAttackData(Board const& board){
     // sliding pieces
     // rook and queen
     Bitboard oppositeSlidingPiecesAndPawns;
+    const Bitboard slidingBlockers = board.getAllPieceBitboard() ^ board.getBitboard({PieceType::King, board.getColorToMove()});
 
     Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
     oppositeSlidingPiecesAndPawns |= bitboard;
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(board.getAllPieceBitboard(), Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
+        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(slidingBlockers, Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
@@ -127,7 +128,7 @@ void MoveGenerator::generateAttackData(Board const& board){
     oppositeSlidingPiecesAndPawns |= bitboard;
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(board.getAllPieceBitboard(), Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
+        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(slidingBlockers, Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
@@ -211,10 +212,11 @@ void MoveGenerator::generateAttackData(Board const& board){
 
 void MoveGenerator::invertAttackData(){
     squaresAttackingSquare.fill(Bitboard(0));
-    for (int i = 0; i < 64; i++) {
-        for (int j = 0; j < 64; j++) {
+    for (int j = 0; j < 64; j++) {
+        if (!squaresAttackedBySquare[j].hasPieces()) continue;
+        for (int i = 0; i < 64; i++) {
             if (squaresAttackedBySquare[j][i]) {
-                squaresAttackingSquare[i].setBit(j);
+                squaresAttackingSquare[i] |= Utils::binaryOneAt<uint64_t>(j);
             }
         }
     }
@@ -332,14 +334,17 @@ void MoveGenerator::generateAllKingMoves(Board const& board, Bitboard targetMask
 }
 
 void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask){
-    const Bitboard unpinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & ~pinnedPieces;
+    const auto colorToMove = board.getColorToMove();
+
+
+    const Bitboard unpinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & ~pinnedPieces;
     const Bitboard occupied = board.getAllPieceBitboard();
     const Bitboard occupied_other_color = board.getPieceBitboardForOneColor(board.getColorToNotMove());
 
     Bitboard unpinnedPawnsLeft = unpinnedPawns, unpinnedPawnsRight = unpinnedPawns; 
 
     Bitboard pawns = unpinnedPawns;
-    Bitboard pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
+    Bitboard pinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & pinnedPieces;
     while (pinnedPawns.hasPieces()){
         if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 0 || pinDirection.at(pinnedPawns.getLS1B()).dir2 == 0)
             pawns.setBit(pinnedPawns.getLS1B());
@@ -353,7 +358,7 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     const int8_t reverseDirectionLeft = reverseDirection + DirectionIndex64::E;
     const int8_t reverseDirectionRight = reverseDirection + DirectionIndex64::W;
 
-    pinnedPawns = board.getBitboard({PieceType::Pawn, board.getColorToMove()}) & pinnedPieces;
+    pinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & pinnedPieces;
     while (pinnedPawns.hasPieces()){
         if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 4 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 6)
             unpinnedPawnsLeft.setBit(pinnedPawns.getLS1B());
@@ -398,15 +403,62 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     // en passant
     if (board.hasEnPassant()){
         auto const epCaptureSquare = board.getEnPassantSquareToCapture();
-        if (epCaptureSquare.x != 0 && pawns.isOccupied(epCaptureSquare + Direction::W)){
-            // to the left
-            Move& move = generatedMoves.emplace_back(epCaptureSquare + Direction::W, board.getEnPassantSquareForFEN());
+        const Coordinate kingSquare = Coordinate::fromIndex64(board.getBitboard({PieceType::King, colorToMove}).getLS1B()); 
+        const int correctY = board.getCurrentState().isWhiteToMove ? 4 : 3;
+        const Bitboard QandRsOnCorrectY = Bitboard(Utils::binaryOnes<uint64_t>(8) << correctY*8) & (board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()}));
+        // intentional shadow
+        const auto pawns = board.getBitboard({PieceType::Pawn, colorToMove}) | board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
+
+        auto const oneSideEP = [&](int side, Coordinate direction, int ignoreX){
+            auto const originSquare = epCaptureSquare + direction;
+            if (epCaptureSquare.x == ignoreX || !board.getBitboard({PieceType::Pawn, colorToMove}).isOccupied(originSquare)) return;
+
+            const Bitboard theTwoPawnsBB = Utils::binaryOneAt<uint64_t>(epCaptureSquare.getIndex64()) | Utils::binaryOneAt<uint64_t>(epCaptureSquare.getIndex64()+side);
+            const Bitboard modifiedOccupied = occupied & ~theTwoPawnsBB;
+            if (kingSquare.y == correctY){
+                // the pawns might be "pinned"
+                int dir = kingSquare.getIndex64() < epCaptureSquare.getIndex64() ? 1 : -1;
+                int stopSquare = (kingSquare.getIndex64() / 8) * 8 + (dir == 1 ? 8 : -1);
+                // loop until queen or rook
+                for (int square = kingSquare.getIndex64()+dir; square != stopSquare; square += dir){
+                    if (QandRsOnCorrectY.isOccupied(square)) return;
+                    if (modifiedOccupied.isOccupied(square)) break;
+                }
+            }
+
+            // handle individually pinned pawns
+            // the moving pawn
+            if (pinnedPieces.isOccupied(originSquare)){
+                int allowedPinDirection;
+                switch(mainDirection - side){
+                    case DirectionIndex64::NW: allowedPinDirection = 4; break;
+                    case DirectionIndex64::NE: allowedPinDirection = 5; break;
+                    case DirectionIndex64::SW: allowedPinDirection = 6; break;
+                    case DirectionIndex64::SE: allowedPinDirection = 7; break;
+                }
+                auto actualDirection = pinDirection.at(originSquare.getIndex64());
+
+                // test if the pawn is pinned
+                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection) return;
+            }
+
+            // the pawn getting captured
+            if (pinnedPieces.isOccupied(epCaptureSquare)){
+                const int allowedPinDirection = 0; // vertical pins are fine
+                auto actualDirection = pinDirection.at(epCaptureSquare.getIndex64());
+
+                // test if the pawn is pinned
+                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection) return;
+            }
+
+            Move& move = generatedMoves.emplace_back(originSquare, board.getEnPassantSquareForFEN());
             move.isEnPassant = true;
-        }
-        if (epCaptureSquare.x != 7 && pawns.isOccupied(epCaptureSquare + Direction::E)){
-            // to the right
-            Move& move = generatedMoves.emplace_back(epCaptureSquare + Direction::E, board.getEnPassantSquareForFEN());
-            move.isEnPassant = true;
+        };
+
+        bool onlyPossibleMove = targetMask.getNumPieces() == 1 && targetMask.isOccupied(board.getEnPassantSquareForFEN().getIndex64() + reverseDirection);
+        if (targetMask.isOccupied(board.getEnPassantSquareForFEN()) || onlyPossibleMove){
+            oneSideEP(-1, Direction::W, 0);
+            oneSideEP(1, Direction::E, 7);
         }
     }
 }

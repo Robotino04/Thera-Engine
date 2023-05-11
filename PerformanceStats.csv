@@ -34,4 +34,5 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 244.841;            308.331;            14.8744;                16.2858;            Merge branch 'main' of github.com:Robotino04/Thera-Engine
 232.694;            294.408;            19.6541;                25.0356;            Finished attack data generation.
 228.709;            295.173;            14.1186;                16.8263;            Made use of attack data to improve handling checks.
-131.763;            168.533;            14.1907;                16.7522;            
+131.763;            168.533;            14.1907;                16.7522;            Removed bitboard references.
+65.0417;            82.6809;            5.65539;                7.39096;            Implemented en passant correctly.

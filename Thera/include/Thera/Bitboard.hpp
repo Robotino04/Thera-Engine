@@ -41,6 +41,20 @@ class Bitboard{
         }
 
         /**
+         * @brief Test if square is occupied. Only does bounds checking in debug builds.
+         * 
+         * @param square 
+         * @return true 
+         * @return false 
+         */
+        constexpr bool isOccupied(int square) const{
+            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug)
+                if (!Utils::isInRange(square, 0, 63))
+                    throw std::out_of_range("Square index is outside the board");
+            return Utils::getBit(bits, square);
+        }
+
+        /**
          * @brief Blindly place the piece on the board without any sort of test.
          * 
          * In debug builds there are some tests to ensure that numPiece doesn't get out of sync.
