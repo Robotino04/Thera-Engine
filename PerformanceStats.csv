@@ -29,3 +29,8 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 37.234s;            47.7235;            1.37326;                1.73959;            Made sliding piece move generation respect pinned pieces.
 36.7096;            47.2833;            1.38184;                1.73649;            Reduced code duplication for pawn move generation.
 37.0488;            47.8266;            1.35828;                1.75847;            Made use of pin data for pawn move generation.
+228.896;            295.065;            14.2709;                17.0937;            Added per square attack data.
+65.0365;            72.0241;            2.27409;                2.63754;            Added color to move display.
+244.841;            308.331;            14.8744;                16.2858;            Merge branch 'main' of github.com:Robotino04/Thera-Engine
+232.694;            294.408;            19.6541;                25.0356;            Finished attack data generation.
+228.709;            295.173;            14.1186;                16.8263;            Made use of attack data to improve handling checks.
