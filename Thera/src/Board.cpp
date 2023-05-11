@@ -132,6 +132,8 @@ void Board::loadFromFEN(std::string fen){
 	}
 	else{
 		currentState.enPassantSquareForFEN = Utils::squareFromAlgebraicNotation(fen.substr(charIndex, 2));
+		currentState.enPassantSquareToCapture = currentState.enPassantSquareForFEN;
+		currentState.enPassantSquareToCapture.y += (currentState.isWhiteToMove ? -1 : 1);
 		currentState.hasEnPassant = true;
 		charIndex += 1;
 	}

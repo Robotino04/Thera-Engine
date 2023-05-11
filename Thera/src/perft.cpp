@@ -33,7 +33,7 @@ static void printFilteredMove(Thera::Move const& move, Thera::Board const& board
     std::cout << "     (" << board.storeToFEN() << ")\n";
 }
 
-// TODO: replace to use bitboards
+// TODO: remove
 std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Thera::Board& board, Thera::MoveGenerator& generator){
     std::vector<Thera::Move> newMoves;
     newMoves.reserve(moves.size());

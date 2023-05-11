@@ -22,26 +22,6 @@ class Bitboard{
     friend class Board;
     
     public:
-        struct Reference{
-            friend Bitboard;
-            public:
-                constexpr bool operator = (bool value){
-                    parent.bits = Utils::setBit<decltype(parent.bits)>(parent.bits, bitIndex, value);
-                    return value;
-                }
-
-                constexpr operator bool () const{
-                    return Utils::getBit(parent.bits, bitIndex);
-                }
-
-            private:
-                constexpr Reference(Bitboard& parent, uint8_t bitIndex): parent(parent), bitIndex(bitIndex){}
-
-                Bitboard& parent;
-                const uint8_t bitIndex = 0;
-        };
-        friend Reference;
-
         constexpr Bitboard(): bits(0){}
 
         constexpr Bitboard(uint64_t raw): bits(raw){}
@@ -73,7 +53,7 @@ class Bitboard{
                     throw std::invalid_argument("Tried to place piece on already occupied square.");
             }
             
-            (*this)[square] = true;
+            setBit(square.getIndex64());
         }
 
         /**
@@ -89,7 +69,7 @@ class Bitboard{
                     throw std::invalid_argument("Tried to remove piece from outside the board.");
             }
             
-            (*this)[square] = false;
+            clearBit(square.getIndex64());
         }
 
         /**
@@ -122,6 +102,12 @@ class Bitboard{
             return Utils::getBit(bits, bitIdx.getIndex64());
         }
         constexpr bool operator[] (uint8_t bitIdx) const{
+            return Utils::getBit(bits, bitIdx);
+        }
+        constexpr bool operator[] (Coordinate bitIdx){
+            return Utils::getBit(bits, bitIdx.getIndex64());
+        }
+        constexpr bool operator[] (uint8_t bitIdx){
             return Utils::getBit(bits, bitIdx);
         }
 
@@ -177,14 +163,6 @@ class Bitboard{
         }
         constexpr void clearBit(uint8_t bitIndex){
             bits &= ~ Utils::binaryOneAt<uint64_t>(bitIndex);
-        }
-
-
-        constexpr Reference operator[] (Coordinate bitIdx){
-            return Reference(*this, bitIdx.getIndex64());
-        }
-        constexpr Reference operator[] (uint8_t bitIdx){
-            return Reference(*this, bitIdx);
         }
 
         constexpr uint8_t getLS1B() const {

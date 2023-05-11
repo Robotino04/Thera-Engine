@@ -195,7 +195,7 @@ class MoveGenerator{
                         const Coordinate targetSquare = Coordinate(square) + offsets.at(dirIdx);
 
                         if (targetSquare.isOnBoard())
-                            result.at(square.getIndex64())[targetSquare.getIndex64()] = true;
+                            result.at(square.getIndex64()).setBit(targetSquare.getIndex64());
                     }
                 }
             }
