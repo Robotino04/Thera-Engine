@@ -37,3 +37,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 131.763;            168.533;            14.1907;                16.7522;            Removed bitboard references.
 65.0417;            82.6809;            5.65539;                7.39096;            Implemented en passant correctly.
 2.73761;            5.38543;            0.188469;               0.426722;           Removed filtering.
+2.37074;            4.83161;            0.169037;               0.378452;           General cleanup.

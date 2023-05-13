@@ -23,6 +23,7 @@
 #include <fstream>
 #include <bitset>
 #include <unordered_set>
+#include <chrono>
 
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
@@ -329,6 +330,12 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 	}
 	else if (buffer == "perft"){
 		handlePerftCommand(result, options);
+		result.perftInstrumented = true;
+		return;
+	}
+	else if (buffer == "fperft"){
+		handlePerftCommand(result, options);
+		result.perftInstrumented = false;
 		return;
 	}
 	else if (buffer == "fen"){
@@ -636,7 +643,7 @@ int playMode(Options& options){
 		}
 		else if (userInput.op == MoveInputResult::Analyze){
 			analyzePosition(userInput, board, generator, message, userInput.perftDepth, userInput.perftInstrumented);
-			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. Results may be inaccurate.";
+			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. No filtering was performed!";
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::FlipColors){
@@ -647,7 +654,12 @@ int playMode(Options& options){
 		else if (userInput.op == MoveInputResult::Perft){
 			message = "";
 
-			auto result = Thera::perft_instrumented(board, generator, userInput.perftDepth, true);
+			Thera::PerftResult result;
+    		const auto start = std::chrono::high_resolution_clock::now();
+			if (userInput.perftInstrumented) result = Thera::perft_instrumented(board, generator, userInput.perftDepth, true);
+			else result = Thera::perft(board, generator, userInput.perftDepth, true);
+    		const auto stop = std::chrono::high_resolution_clock::now();
+			std::chrono::duration<double> duration = stop-start;
 
 			for (auto move : result.moves){
 				message
@@ -676,6 +688,8 @@ int playMode(Options& options){
 
 			message += "Filtered " + std::to_string(result.numNodesFiltered) + " moves\n";
 			message += "Nodes searched: " + std::to_string(result.numNodesSearched) + "\n";
+			message += "Time spent: " + std::to_string(duration.count()) + "s (" + std::to_string((float(result.numNodesSearched)/duration.count())/1000'000) + "MN/s)\n";
+			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. No filtering was performed!";
 
 			continue;
 		}

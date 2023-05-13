@@ -65,7 +65,7 @@ int main(int argc, const char** argv){
 
     std::cout << "perft(" << depth << ") = " << result.numNodesSearched << " (expected " << expectedNodes << ") " << (passed ? "✓" : "✗") << " \n";
     std::cout << "Filtered " << filteredMoves << " moves\n";
-    std::cout << "Completed in " << duration.count() << "s.\n";
+    std::cout << "Completed in " << duration.count() << "s. (" << (float(result.numNodesSearched)/duration.count())/1000'000 << "MN/s)\n";
 
     return passed ? 0 : 1;
 }

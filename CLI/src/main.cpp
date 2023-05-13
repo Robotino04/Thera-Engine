@@ -3,7 +3,6 @@
 #include "CLI/Options.hpp"
 #include "CLI/IO.hpp"
 #include "CLI/playMode.hpp"
-#include "CLI/perftMode.hpp"
 
 #include <iostream>
 
@@ -12,10 +11,8 @@ void printHelp(std::string const& argv0){
 R"(Options:
 	-h/--help           Print this helping text
 	-i                  Print pieces in inverted colors
-	-m/--mode [mode]    Run in given mode. Possible values: "play"," perft" Default: "play"
-	-d/--depth [n]		Set the depth for perft mode
-	--bulk [fen]		Set perft to bulk counting
-	--fen [fen]			Set the FEN string for perft and play mode
+	-m/--mode [mode]    Run in given mode. Possible values: "play"
+	--fen [fen]			Set the FEN string for play mode
 )";
 }
 
@@ -42,20 +39,10 @@ int main(int argc, const char** argv){
 			if (mode == "play"){
 				options.mode = Mode::Play;
 			}
-			else if (mode == "perft"){
-				options.mode = Mode::Perft;
-			}
 			else{
 				std::cout << "Invalid mode \"" << mode << "\" for \"" << arg << "\" option\n";
 				return 1;
 			}
-		}
-		else if (arg == "-d" || arg == "--depth"){
-			if (i+1 >= argc){
-				std::cout << "Missing depth string for \"" << arg << "\" option\n";
-				return 1;
-			}
-			options.perftDepth = std::stoi(argv[++i]);
 		}
 		else if (arg == "--fen"){
 			if (i+1 >= argc){
@@ -63,9 +50,6 @@ int main(int argc, const char** argv){
 				return 1;
 			}
 			options.fen = argv[++i];
-		}
-		else if (arg == "--bulk"){
-			options.bulkCounting = true;
 		}
 		else{
 			std::cout << "Unknown option \"" << argv[i] << "\"\n";
@@ -75,7 +59,6 @@ int main(int argc, const char** argv){
 
 	switch (options.mode){
 		case Mode::Play: return playMode(options);
-		case Mode::Perft: return perftMode(options);
 		default:
 			std::cout << "Unimplemented mode!\n";
 			return 1;

@@ -7,5 +7,4 @@ add_library(Thera STATIC ${THERA_SRC})
 target_include_directories(Thera PUBLIC "include/")
 target_compile_features(Thera PUBLIC cxx_std_20)
 
-# TODO: remove
 target_link_libraries(Thera PUBLIC ANSI)

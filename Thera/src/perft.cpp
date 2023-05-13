@@ -7,15 +7,11 @@
 #include "Thera/Move.hpp"
 #include "Thera/MoveGenerator.hpp"
 
-// TODO: remove
 #include <iostream>
 #include "Thera/Utils/ChessTerms.hpp"
 #include "ANSI/ANSI.hpp"
 
 namespace Thera{
-
-namespace Detail{
-
 
 static void printFilteredMove(Thera::Move const& move, Thera::Board const& board){
     // removed for performance evaluation
@@ -33,8 +29,7 @@ static void printFilteredMove(Thera::Move const& move, Thera::Board const& board
     std::cout << "     (" << board.storeToFEN() << ")\n";
 }
 
-// TODO: remove
-std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Thera::Board& board, Thera::MoveGenerator& generator){
+static std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Thera::Board& board, Thera::MoveGenerator& generator){
     std::vector<Thera::Move> newMoves;
     newMoves.reserve(moves.size());
     for (auto const& move : moves){
@@ -58,7 +53,7 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
     }
     return newMoves;
 }
-}
+
 
 PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, bool isInitialCall){
     if (depth == 0) return {1, {}};
@@ -69,7 +64,7 @@ PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth
     result.numNodesFiltered += moves.size();
     // filtering only tests for, but no longer removes invalid moves
     // this is to have test cases fail in case illegal moves get generated
-    result.numNodesFiltered -= Detail::filterMoves(moves, board, generator).size();
+    result.numNodesFiltered -= filterMoves(moves, board, generator).size();
     if (bulkCounting && depth == 1){
         result.numNodesSearched = moves.size();
         for (auto move : moves){
@@ -94,7 +89,7 @@ PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth
 }
 
 template<bool bulkCounting>
-int perftHelper(Board& board, MoveGenerator& generator, int depth){
+static int perftHelper(Board& board, MoveGenerator& generator, int depth){
     if (depth == 0) return 1;
 
     auto moves = generator.generateAllMoves(board);

@@ -8,7 +8,6 @@
 
 enum class Mode{
 	Play,
-	Perft,
 };
 
 enum class BitboardSelection{
