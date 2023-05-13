@@ -60,23 +60,22 @@ std::vector<Thera::Move> filterMoves(std::vector<Thera::Move> const& moves, Ther
 }
 }
 
-int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, int& filteredMoves, bool isInitialCall){
-    if (depth == 0) return 1;
+PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, bool isInitialCall){
+    if (depth == 0) return {1, {}};
 
-    int numNodes = 0;
+    PerftResult result;
 
     auto moves = generator.generateAllMoves(board);
-    filteredMoves += moves.size();
+    result.numNodesFiltered += moves.size();
     // filtering only tests for, but no longer removes invalid moves
     // this is to have test cases fail in case illegal moves get generated
-    filteredMoves -= Detail::filterMoves(moves, board, generator).size();
+    result.numNodesFiltered -= Detail::filterMoves(moves, board, generator).size();
     if (bulkCounting && depth == 1){
-        if (isInitialCall){
-            for (auto const& move : moves){
-                printFn(move, 1);
-            }
+        result.numNodesSearched = moves.size();
+        for (auto move : moves){
+            result.moves.emplace_back(move, 1);
         }
-        return moves.size();
+        return result;
     }
 
     for (auto const& move : moves){
@@ -85,13 +84,64 @@ int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, 
             board.rewindMove();
         });
         
-        int tmp = perft(board, generator, depth-1, bulkCounting, [](auto, auto){}, filteredMoves, false);
-        numNodes += tmp;
+        auto tmp = perft_instrumented(board, generator, depth-1, bulkCounting, false);
+        result.moves.emplace_back(move, tmp.numNodesSearched);
+        result.numNodesFiltered += tmp.numNodesFiltered;
+        result.numNodesSearched += tmp.numNodesSearched;
+    }
 
-        printFn(move, tmp);
+    return result;
+}
+
+template<bool bulkCounting>
+int perftHelper(Board& board, MoveGenerator& generator, int depth){
+    if (depth == 0) return 1;
+
+    auto moves = generator.generateAllMoves(board);
+    if (bulkCounting && depth == 1){
+        return moves.size();
+    }
+
+    int numNodes = 0;
+    for (auto const& move : moves){
+        board.applyMove(move);
+        numNodes += perftHelper<bulkCounting>(board, generator, depth-1);
+        board.rewindMove();
     }
 
     return numNodes;
+};
+
+PerftResult perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting){
+    if (depth == 0) return {1, {}};
+
+    PerftResult result;
+
+    auto moves = generator.generateAllMoves(board);
+    if (bulkCounting && depth == 1){
+        result.numNodesSearched = moves.size();
+        for (auto move : moves){
+            result.moves.emplace_back(move, 1);
+        }
+        return result;
+    }
+
+    for (auto move : moves){
+        board.applyMove(move);
+        Utils::ScopeGuard boardRestore([&](){
+            board.rewindMove();
+        });
+        
+        int tmp;
+        
+        if (bulkCounting) tmp = perftHelper<true>(board, generator, depth-1);
+        else              tmp = perftHelper<false>(board, generator, depth-1);
+
+        result.numNodesSearched += tmp;
+        result.moves.emplace_back(move, tmp);
+    }
+
+    return result;
 }
 
 }

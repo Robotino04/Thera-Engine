@@ -38,7 +38,7 @@ int perftMode(Options& options){
     }
 
     std::cout << "Running perft(" << options.perftDepth << ") for \"" << fen << "\"";
-    std::cout << " (bulk counting " << setConditionalColor(options.bulkCounting, ANSI::Foreground) << (options.bulkCounting? "enabled" : "disabled") << ANSI::reset(ANSI::Foreground) << ")\n";
+    std::cout << " (bulk counting " << setConditionalColor(options.bulkCounting, ANSI::Foreground) << (options.bulkCounting? "enabled" : "disabled") << ANSI::reset() << ")\n";
 
     Thera::Board board;
     Thera::MoveGenerator generator;
@@ -46,15 +46,14 @@ int perftMode(Options& options){
 
     board.loadFromFEN(fen);
 
-    int filteredMoves = 0;
     auto start = std::chrono::high_resolution_clock::now();
-    auto numNodes = Thera::perft(board, generator, options.perftDepth, options.bulkCounting, printMove, filteredMoves);
+    auto result = Thera::perft_instrumented(board, generator, options.perftDepth, options.bulkCounting);
     auto stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = stop - start;
 
-    std::cout << "perft(" << options.perftDepth << ") = " << numNodes << "\n";
-    std::cout << "Filtered " << filteredMoves << " moves\n";
+    std::cout << "perft(" << options.perftDepth << ") = " << result.numNodesSearched << "\n";
+    std::cout << "Filtered " << result.numNodesFiltered << " moves\n";
     std::cout << "Completed in " << duration.count() << "s.\n";
 
     return 0;

@@ -81,10 +81,9 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 			// print the piece
 			std::cout
 				<< pieces.at({board.at(square).getColor(), board.at(square).getType()})
-				<< " ";
+				<< " " << ANSI::reset();
 		}
-		std::cout
-			<< ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << ANSI::reset(ANSI::Foreground) << y+1 << " " << ANSI::reset();
+		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " " << ANSI::reset();
 
 		// print board stats
 		std::cout << "  ";
@@ -99,11 +98,11 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 			case 2:
 				std::cout << "          ";
 				std::cout << setConditionalColor(board.getCurrentState().canWhiteCastleLeft, ANSI::Background) << "[Q]";
-				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << ANSI::reset() << " ";
 				std::cout << setConditionalColor(board.getCurrentState().canWhiteCastleRight, ANSI::Background) << "[K]";
-				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << ANSI::reset() << " ";
 				std::cout << setConditionalColor(board.getCurrentState().canBlackCastleLeft, ANSI::Background) << "[Q]";
-				std::cout << ANSI::reset(ANSI::Background) << " ";
+				std::cout << ANSI::reset() << " ";
 				std::cout << setConditionalColor(board.getCurrentState().canBlackCastleRight, ANSI::Background) << "[K]";
 
 				break;
@@ -140,7 +139,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 				}
 				break;
 			case 5:
-				std::cout << "FEN: " << ANSI::set4BitColor(ANSI::Blue, ANSI::Foreground) << board.storeToFEN() << ANSI::reset(ANSI::Foreground);
+				std::cout << "FEN: " << ANSI::set4BitColor(ANSI::Blue, ANSI::Foreground) << board.storeToFEN() << ANSI::reset();
 			default:
 				break;
 		}
@@ -169,6 +168,7 @@ struct MoveInputResult{
 	int perftDepth=0;
 	bool failed = false;
 	std::string message;
+	bool perftInstrumented;
 };
 
 static void handleShowCommand(MoveInputResult& result, Options& options){
@@ -338,6 +338,13 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 	else if (buffer == "analyze"){
 		handlePerftCommand(result, options);
 		result.op = MoveInputResult::Analyze;
+		result.perftInstrumented = true;
+		return;
+	}
+	else if (buffer == "fanalyze"){
+		handlePerftCommand(result, options);
+		result.op = MoveInputResult::Analyze;
+		result.perftInstrumented = false;
 		return;
 	}
 	else if (buffer == "flip"){
@@ -439,7 +446,7 @@ static void redrawGUI(Options const& options, Thera::Board const& board, Thera::
  * @param options 
  * @param message 
  */
-static void analyzePosition(MoveInputResult const& userInput, Thera::Board& board, Thera::MoveGenerator& generator, std::string& message, int originalDepth){
+static void analyzePosition(MoveInputResult const& userInput, Thera::Board& board, Thera::MoveGenerator& generator, std::string& message, int originalDepth, bool instrumented){
 	if (userInput.perftDepth == 0) return;
 	if (userInput.perftDepth == originalDepth) message = "";
 
@@ -457,8 +464,7 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 	fputs("quit\n", in.get());
 	fflush(in.get());
 
-	std::vector<std::pair<Thera::Move, int>> stockfishMoves;
-	int stockfishNodesSearched = 0;
+	Thera::PerftResult stockfishResult;
 	
 	while (true){
 		char c_buffer[1024];
@@ -474,92 +480,89 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 			Thera::Utils::isInRange(buffer.at(i++), 'a', 'h') &&
 			Thera::Utils::isInRange(buffer.at(i++), '1', '8')
 		){
-			auto& movePair = stockfishMoves.emplace_back();
-			auto& move = movePair.first;
-			auto& numSubmoves = movePair.second;
+			auto& movePair = stockfishResult.moves.emplace_back();
 
-			move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
-			move.endIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(2, 2));
+			movePair.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
+			movePair.move.endIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(2, 2));
 
 			char promotion = buffer.at(i);
 			switch(tolower(promotion)){
-				case 'b': move.promotionType = Thera::PieceType::Bishop; i++; break;
-				case 'n': move.promotionType = Thera::PieceType::Knight; i++; break;
-				case 'r': move.promotionType = Thera::PieceType::Rook; i++; break;
-				case 'q': move.promotionType = Thera::PieceType::Queen; i++; break;
+				case 'b': movePair.move.promotionType = Thera::PieceType::Bishop; i++; break;
+				case 'n': movePair.move.promotionType = Thera::PieceType::Knight; i++; break;
+				case 'r': movePair.move.promotionType = Thera::PieceType::Rook; i++; break;
+				case 'q': movePair.move.promotionType = Thera::PieceType::Queen; i++; break;
 			}
 
 			if (buffer.at(i++) != ':') continue;
 			if (buffer.at(i++) != ' ') continue;
-			numSubmoves = stoi(buffer.substr(i));
+			movePair.numNodesSearched = stoi(buffer.substr(i));
 		}
 		else if (buffer.starts_with(NODES_SEARCHED_TEXT)){
-			stockfishNodesSearched = stoi(buffer.substr(NODES_SEARCHED_TEXT.size()));
+			stockfishResult.numNodesSearched = stoi(buffer.substr(NODES_SEARCHED_TEXT.size()));
 		}
 	}
 
-	std::vector<std::pair<Thera::Move, int>> theraMoves;
-	std::vector<Thera::Move> theraMovesRaw;
-	const auto storeMove = [&](Thera::Move const& move, int numSubmoves){
-		theraMoves.emplace_back(move, numSubmoves);
-		theraMovesRaw.push_back(move);
-	};
 
-	int filteredMoves = 0;
-	int theraNodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, storeMove, filteredMoves);
+	Thera::PerftResult theraResult;
+	if (instrumented) 	theraResult = Thera::perft_instrumented(board, generator, userInput.perftDepth, true);
+	else 				theraResult = Thera::perft(board, generator, userInput.perftDepth, true);
 	
 	enum class MoveSource{
 		Thera,
 		Stockfish
 	};
 
-	std::vector<std::tuple<Thera::Move, int, MoveSource>> differentMoves;
+	std::vector<std::pair<Thera::PerftResult::SingleMove, MoveSource>> differentMoves;
 
-	for (auto movePair : theraMoves){
-		if (std::find(stockfishMoves.begin(), stockfishMoves.end(), movePair) == stockfishMoves.end()){
-			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Thera));
+	for (auto move : theraResult.moves){
+		if (std::find(stockfishResult.moves.begin(), stockfishResult.moves.end(), move) == stockfishResult.moves.end()){
+			differentMoves.emplace_back(move, MoveSource::Thera);
 		}
-
 	}
 	
-	for (auto movePair : stockfishMoves){
-		if (std::find(theraMoves.begin(), theraMoves.end(), movePair) == theraMoves.end()){
-			differentMoves.push_back(std::make_tuple(movePair.first, movePair.second, MoveSource::Stockfish));
+	for (auto move : stockfishResult.moves){
+		if (std::find(theraResult.moves.begin(), theraResult.moves.end(), move) == theraResult.moves.end()){
+			differentMoves.emplace_back(move, MoveSource::Stockfish);
 		}
 	}
 
 	std::sort(differentMoves.begin(), differentMoves.end());
 
-	for (auto [move, numSubmoves, source] : differentMoves){
+	for (auto [move, source] : differentMoves){
 		message += indentation + std::string("[") + (source == MoveSource::Thera ? "Thera]     " : "Stockfish] ");
-		message += Thera::Utils::squareToAlgebraicNotation(move.startIndex) + Thera::Utils::squareToAlgebraicNotation(move.endIndex);
-		switch (move.promotionType){
+		message += Thera::Utils::squareToAlgebraicNotation(move.move.startIndex) + Thera::Utils::squareToAlgebraicNotation(move.move.endIndex);
+		switch (move.move.promotionType){
 			case Thera::PieceType::Bishop: message += "b"; break;
 			case Thera::PieceType::Knight: message += "n"; break;
 			case Thera::PieceType::Rook:   message += "r"; break;
 			case Thera::PieceType::Queen:  message += "q"; break;
 			default: break;
 		}
-		message += ": " + std::to_string(numSubmoves) + "\n";
+		message += ": " + std::to_string(move.numNodesSearched) + "\n";
 		if (userInput.perftDepth > 0){
-			auto moveIt = std::find_if(theraMoves.begin(), theraMoves.end(), [move = move](auto other){return Thera::Move::isSameBaseMove(move, other.first);});
-			if (moveIt == theraMoves.end()){
+			auto moveIt = std::find_if(theraResult.moves.begin(), theraResult.moves.end(), [move](auto other){return move.move == other.move;});
+			if (moveIt == theraResult.moves.end()){
 				message += indentation + "\tMove not found!\n";
 			}
 			else{
 				MoveInputResult newUserInput = userInput;
 				newUserInput.perftDepth--;
-				board.applyMove(moveIt->first);
-				analyzePosition(newUserInput, board, generator, message, originalDepth);
+				board.applyMove(moveIt->move);
+				analyzePosition(newUserInput, board, generator, message, originalDepth, instrumented);
 				board.rewindMove();
 			}
 		}
 	}
 
+	std::vector<Thera::Move> theraRawMoves;
+	for (auto move : theraResult.moves){
+		theraRawMoves.push_back(move.move);
+	}
+
 	// find moves that got generated twice
-	std::sort(theraMovesRaw.begin(), theraMovesRaw.end());
-	auto duplicate = std::adjacent_find(theraMovesRaw.begin(), theraMovesRaw.end());
-	while (duplicate != theraMovesRaw.end()){
+	std::sort(theraRawMoves.begin(), theraRawMoves.end());
+	auto duplicate = std::adjacent_find(theraRawMoves.begin(), theraRawMoves.end());
+	while (duplicate != theraRawMoves.end()){
 		message += indentation + std::string("[Thera]     ");
 		message += Thera::Utils::squareToAlgebraicNotation(duplicate->startIndex) + Thera::Utils::squareToAlgebraicNotation(duplicate->endIndex);
 		switch (duplicate->promotionType){
@@ -570,19 +573,19 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 			default: break;
 		}
 		message += ": " + ANSI::set4BitColor(ANSI::Red) + "Duplicate!" + ANSI::reset() + "\n";
-		duplicate = std::adjacent_find(std::next(duplicate), theraMovesRaw.end());
+		duplicate = std::adjacent_find(std::next(duplicate), theraRawMoves.end());
 	}
 
 	if (userInput.perftDepth != originalDepth) return;
 
 	message += ANSI::set4BitColor(ANSI::Blue);
-	message += indentation + "Stockfish searched " + std::to_string(stockfishMoves.size()) + " moves (" + std::to_string(stockfishNodesSearched) + " nodes)\n";
-	message += indentation + "Thera searched " + std::to_string(theraMoves.size()) + " moves (" + std::to_string(theraNodesSearched) + " nodes)\n";
+	message += indentation + "Stockfish searched " + std::to_string(stockfishResult.moves.size()) + " moves (" + std::to_string(stockfishResult.numNodesSearched) + " nodes)\n";
+	message += indentation + "Thera searched " + std::to_string(theraResult.moves.size()) + " moves (" + std::to_string(theraResult.numNodesSearched) + " nodes)\n";
 
-	message += "Filtered " + std::to_string(filteredMoves) + " moves\n";
+	message += "Filtered " + std::to_string(theraResult.numNodesFiltered) + " moves\n";
 
 	message += indentation + "Results are ";
-	if (differentMoves.size() || theraMoves.size() != stockfishMoves.size())
+	if (differentMoves.size() || theraResult.numNodesSearched != stockfishResult.numNodesSearched)
 		message += indentation + ANSI::set4BitColor(ANSI::Red) + "different" + ANSI::set4BitColor(ANSI::Blue) +".\n";
 	else
 		message += indentation + ANSI::set4BitColor(ANSI::Green) + "identical" + ANSI::set4BitColor(ANSI::Blue) +".\n";
@@ -632,7 +635,8 @@ int playMode(Options& options){
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Analyze){
-			analyzePosition(userInput, board, generator, message, userInput.perftDepth);
+			analyzePosition(userInput, board, generator, message, userInput.perftDepth, userInput.perftInstrumented);
+			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. Results may be inaccurate.";
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::FlipColors){
@@ -641,37 +645,37 @@ int playMode(Options& options){
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Perft){
-			const auto messageLoggingMovePrint = [&](Thera::Move const& move, int numSubmoves){
+			message = "";
+
+			auto result = Thera::perft_instrumented(board, generator, userInput.perftDepth, true);
+
+			for (auto move : result.moves){
 				message
-					+= Thera::Utils::squareToAlgebraicNotation(move.startIndex)
-					+  Thera::Utils::squareToAlgebraicNotation(move.endIndex);
-				switch (move.promotionType){
+					+= Thera::Utils::squareToAlgebraicNotation(move.move.startIndex)
+					+  Thera::Utils::squareToAlgebraicNotation(move.move.endIndex);
+				switch (move.move.promotionType){
 					case Thera::PieceType::Bishop: message += "b"; break;
 					case Thera::PieceType::Knight: message += "n"; break;
 					case Thera::PieceType::Rook:   message += "r"; break;
 					case Thera::PieceType::Queen:  message += "q"; break;
 					default: break;
 				}
-				message += ": " + std::to_string(numSubmoves) + "\n";
-			};
+				message += ": " + std::to_string(move.numNodesSearched) + "\n";
+			}
 
-			message = "";
-
-			int filteredMoves = 0;
-			int nodesSearched = Thera::perft(board, generator, userInput.perftDepth, true, messageLoggingMovePrint, filteredMoves);
 
 			// write the perft output to a file for easier debugging
 			std::ofstream logFile("/tmp/thera.txt", std::ofstream::trunc);
 			if (!logFile.is_open()){
-				message += ANSI::set4BitColor(ANSI::Red) + "Unable to open logfile! Ignoring." + ANSI::reset(ANSI::Foreground) + "\n";
+				message += ANSI::set4BitColor(ANSI::Red) + "Unable to open logfile! Ignoring." + ANSI::reset() + "\n";
 			}
 			else{
 				logFile << message;
 				logFile.close();
 			}
 
-			message += "Filtered " + std::to_string(filteredMoves) + " moves\n";
-			message += "Nodes searched: " + std::to_string(nodesSearched) + "\n";
+			message += "Filtered " + std::to_string(result.numNodesFiltered) + " moves\n";
+			message += "Nodes searched: " + std::to_string(result.numNodesSearched) + "\n";
 
 			continue;
 		}

@@ -43,7 +43,7 @@ int main(int argc, const char** argv){
     const int expectedNodes = std::atoi(argv[4]);
 
     std::cout << "Running perft(" << depth << ") for \"" << fen << "\"";
-    std::cout << " (bulk counting " << (bulkCounting ? ANSI::set4BitColor(ANSI::Green) + "enabled" : ANSI::set4BitColor(ANSI::Red) + "disabled") << ANSI::reset(ANSI::Foreground) << ")\n";
+    std::cout << " (bulk counting " << (bulkCounting ? ANSI::set4BitColor(ANSI::Green) + "enabled" : ANSI::set4BitColor(ANSI::Red) + "disabled") << ANSI::reset() << ")\n";
 
     Thera::Board board;
     Thera::MoveGenerator generator;
@@ -52,14 +52,18 @@ int main(int argc, const char** argv){
     int filteredMoves = 0;
 
     const auto start = std::chrono::high_resolution_clock::now();
-    const int numNodes = Thera::perft(board, generator, depth, bulkCounting, printMove, filteredMoves);
+    auto result = Thera::perft(board, generator, depth, bulkCounting);
     const auto stop = std::chrono::high_resolution_clock::now();
 
     std::chrono::duration<double> duration = stop - start;
 
-    const bool passed = expectedNodes == numNodes;
+    for (auto move : result.moves){
+        printMove(move.move, move.numNodesSearched);
+    }
 
-    std::cout << "perft(" << depth << ") = " << numNodes << " (expected " << expectedNodes << ") " << (passed ? "✓" : "✗") << " \n";
+    const bool passed = expectedNodes == result.numNodesSearched;
+
+    std::cout << "perft(" << depth << ") = " << result.numNodesSearched << " (expected " << expectedNodes << ") " << (passed ? "✓" : "✗") << " \n";
     std::cout << "Filtered " << filteredMoves << " moves\n";
     std::cout << "Completed in " << duration.count() << "s.\n";
 

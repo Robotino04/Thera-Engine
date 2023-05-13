@@ -9,6 +9,34 @@
 
 namespace Thera{
 
+struct PerftResult{
+    int numNodesSearched = 0;
+
+    struct SingleMove{
+        Move move;
+        int numNodesSearched = 0;
+
+        /**
+         * @brief Compare two moves
+         * 
+         * Only used for sorting
+         * 
+         * @param other the single move to compare to
+         * @return bool 
+         */
+        bool operator < (SingleMove other) const{ return move < other.move || numNodesSearched < other.numNodesSearched; }
+        /**
+         * @brief Test if two moves are equal
+         * 
+         * @param other the single move to compare to
+         * @return bool are they equal
+         */
+        bool operator == (SingleMove other) const{ return move == other.move && numNodesSearched == other.numNodesSearched; }
+    };
+    std::vector<SingleMove> moves;
+    int numNodesFiltered = 0;
+};
+
 /**
  * @brief Run the perft algorithm on a given board.
  * 
@@ -18,7 +46,18 @@ namespace Thera{
  * @param bulkCounting is bulk counting allowed
  * @param printFn called for every move with the number of submoves
  * @param isInitialCall is this the first call, so not yet recursive
- * @return int the number of nodes searched
+ * @return PerftResult the result
  */
-int perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, std::function<void(Move const&, int)> printFn, int& filteredMoves, bool isInitialCall=true);
+PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, bool isInitialCall=true);
+
+/**
+ * @brief Run the perft algorithm on a given board.
+ * 
+ * @param board the board to run perft for
+ * @param generator the move generator
+ * @param depth the maximum search depth
+ * @param bulkCounting is bulk counting allowed
+ * @return PerftResult the result
+ */
+PerftResult perft(Board& board, MoveGenerator& generator, int depth, bool bulkCounting);
 }
