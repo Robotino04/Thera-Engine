@@ -104,6 +104,7 @@ void MoveGenerator::generatePins(Board const& board) {
 void MoveGenerator::generateAttackData(Board const& board){
     attackedSquares = 0;
     squaresAttackedBySquare.fill(Bitboard(0));
+    squaresAttackingSquare.fill(Bitboard(0));
     generatePins(board);
 
     // sliding pieces
@@ -115,10 +116,16 @@ void MoveGenerator::generateAttackData(Board const& board){
     oppositeSlidingPiecesAndPawns |= bitboard;
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(slidingBlockers, Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
+        auto const origin_square = bitboard.getLS1B();
+        Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(slidingBlockers, Utils::binaryOneAt<uint64_t>(origin_square));
 
         attackedSquares |= targetSquares;
-        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
+        squaresAttackedBySquare[origin_square] |= targetSquares;
+        while (targetSquares.hasPieces()){
+            squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(origin_square);
+
+            targetSquares.clearLS1B();
+        }
 
         bitboard.clearLS1B();
     }
@@ -128,10 +135,16 @@ void MoveGenerator::generateAttackData(Board const& board){
     oppositeSlidingPiecesAndPawns |= bitboard;
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(slidingBlockers, Utils::binaryOneAt<uint64_t>(bitboard.getLS1B()));
+        auto const origin_square = bitboard.getLS1B();
+        Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(slidingBlockers, Utils::binaryOneAt<uint64_t>(origin_square));
 
         attackedSquares |= targetSquares;
-        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
+        squaresAttackedBySquare[origin_square] |= targetSquares;
+        while (targetSquares.hasPieces()){
+            squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(origin_square);
+
+            targetSquares.clearLS1B();
+        }
 
         bitboard.clearLS1B();
     }
@@ -141,9 +154,15 @@ void MoveGenerator::generateAttackData(Board const& board){
     bitboard = board.getBitboard({PieceType::Knight, board.getColorToNotMove()});
 
     while (bitboard.hasPieces()){
-        Bitboard targetSquares = knightSquaresValid.at(bitboard.getLS1B());
+        auto const knightSquare = bitboard.getLS1B();
+        Bitboard targetSquares = knightSquaresValid.at(knightSquare);
         attackedSquares |= targetSquares;
-        squaresAttackedBySquare[bitboard.getLS1B()] |= targetSquares;
+        squaresAttackedBySquare[knightSquare] |= targetSquares;
+        while (targetSquares.hasPieces()){
+            squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(knightSquare);
+
+            targetSquares.clearLS1B();
+        }
         bitboard.clearLS1B();
     }
 
@@ -153,8 +172,14 @@ void MoveGenerator::generateAttackData(Board const& board){
         if (!bitboard.hasPieces()) throw std::runtime_error("No king for the opposite color found.");
     }
 
-    attackedSquares |= kingSquaresValid.at(bitboard.getLS1B());
-    squaresAttackedBySquare[bitboard.getLS1B()] |= kingSquaresValid.at(bitboard.getLS1B()); 
+    const auto kingSquare = bitboard.getLS1B();
+    bitboard = kingSquaresValid.at(kingSquare);
+    attackedSquares |= bitboard;
+    squaresAttackedBySquare[kingSquare] |= bitboard;
+    while(bitboard.hasPieces()){
+        squaresAttackingSquare.at(bitboard.getLS1B()).setBit(kingSquare);
+        bitboard.clearLS1B();
+    }
     
     // pawn moves
     {
@@ -174,17 +199,18 @@ void MoveGenerator::generateAttackData(Board const& board){
             const int target_square = captures_left.getLS1B();
             const int origin_square = target_square + reverseDirectionLeft;
             squaresAttackedBySquare.at(origin_square).setBit(target_square);
+            squaresAttackingSquare.at(target_square).setBit(origin_square);
             captures_left.clearLS1B();
         }
         while (captures_right.hasPieces()) {
             const int target_square = captures_right.getLS1B();
             const int origin_square = target_square + reverseDirectionRight;
             squaresAttackedBySquare.at(origin_square).setBit(target_square);
+            squaresAttackingSquare.at(target_square).setBit(origin_square);
             captures_right.clearLS1B();
         }
     }
 
-    invertAttackData();
 
     // generate target restriction
     Bitboard kingBB = board.getBitboard({PieceType::King, board.getColorToMove()});
@@ -207,18 +233,6 @@ void MoveGenerator::generateAttackData(Board const& board){
     }
     else{
         possibleTargets = Utils::binaryOnes<uint64_t>(64);
-    }
-}
-
-void MoveGenerator::invertAttackData(){
-    squaresAttackingSquare.fill(Bitboard(0));
-    for (int j = 0; j < 64; j++) {
-        if (!squaresAttackedBySquare[j].hasPieces()) continue;
-        for (int i = 0; i < 64; i++) {
-            if (squaresAttackedBySquare[j][i]) {
-                squaresAttackingSquare[i] |= Utils::binaryOneAt<uint64_t>(j);
-            }
-        }
     }
 }
 

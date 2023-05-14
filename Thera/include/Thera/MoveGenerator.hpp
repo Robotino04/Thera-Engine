@@ -44,12 +44,6 @@ class MoveGenerator{
         bool isCheck(Board const& board) const;
 
         /**
-         * @brief Convert "squares attacked by single square" data to "squares attacking a single square". 
-         * 
-         */
-        void invertAttackData();
-
-        /**
          * @brief Generate all pin data.
          * 
          * @param board the position to operate on
