@@ -14,28 +14,13 @@
 
 namespace Thera{
 
-Piece& Board::at(Coordinate index){
-	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		if (!index.isOnBoard())
-			throw std::invalid_argument(std::to_string(index.x) + ";" + std::to_string(index.y) + " isn't on the board");
-	
-	return currentState.squares[index.getRaw()];
-}
-
-Piece const& Board::at(Coordinate index) const{
-	if constexpr(Utils::BuildType::Current == Utils::BuildType::Debug)
-		if (!index.isOnBoard())
-			throw std::invalid_argument(std::to_string(index.x) + ";" + std::to_string(index.y) + " isn't on the board");
-	
-	return currentState.squares[index.getRaw()];
-}
-
-bool Board::isOccupied(Coordinate square) const{
-	return at(square).getType() != PieceType::None;
-}
-
-bool Board::isFriendly(Coordinate square) const{
-	return at(square).getColor() == getColorToMove();
+Piece Board::at(Coordinate index) const{
+	for (auto piece : Utils::allPieces){
+		if (getBitboard(piece).isOccupied(index)){
+			return piece;
+		}
+	}
+	return {PieceType::None, PieceColor::White};
 }
 
 static std::string generateFenErrorText(std::string const& fen, int charIndex){
@@ -58,7 +43,6 @@ void Board::loadFromFEN(std::string fen){
 		{'q', PieceType::Queen},
 		{'k', PieceType::King},
 	};
-	currentState.squares.fill({PieceType::None, PieceColor::White});
 	currentState.allPieceBitboard = Bitboard();
 	for (auto& bitboard : currentState.pieceBitboards){
 		bitboard = Bitboard();
@@ -282,21 +266,16 @@ void Board::rewindMove(){
 
 
 void Board::placePiece(Coordinate square, Piece piece){
-	at(square) = piece;
-
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
 	getPieceBitboardForOneColor(piece.getColor()).placePiece(square);
 }
 
 void Board::removePiece(Coordinate square){
-	Piece& piece = at(square);
-
 	currentState.allPieceBitboard.removePiece(square);
-	getBitboard(piece).removePiece(square);
-	getPieceBitboardForOneColor(piece.getColor()).removePiece(square);
-
-	piece.clear();
+	for (auto& bb : currentState.pieceBitboards){
+		bb.removePiece(square);
+	}
 }
 
 void Board::removeCastlings(Coordinate movedSquare){

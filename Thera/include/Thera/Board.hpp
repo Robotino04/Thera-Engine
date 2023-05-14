@@ -25,34 +25,9 @@ class Board{
 		 * @brief Return the piece at (index).
 		 * 
 		 * @param index index
-		 * @return Piece& piece
+		 * @return Piece piece
 		 */
-		Piece& at(Coordinate index);
-
-		/**
-		 * @brief Return the piece at (index).
-		 * 
-		 * @param index index
-		 * @return Piece const& piece
-		 */
-		Piece const& at(Coordinate index) const;
-		
-		/**
-		 * @brief Return if a square is occupied
-		 * 
-		 * @param square
-		 * @return bool
-		 */
-		bool isOccupied(Coordinate square) const;
-
-		/**
-		 * @brief Return if a square is the color to move. WON'T TEST IF SQUARE IS FILLED!
-		 * 
-		 * @param square 
-		 * @return true 
-		 * @return false 
-		 */
-		bool isFriendly(Coordinate square) const;
+		Piece at(Coordinate index) const;
 
 		/**
 		 * @brief Load a board position from a FEN string.
@@ -210,8 +185,6 @@ class Board{
 
 	public:
 		struct BoardState{
-			std::array<Piece, 8*16> squares;
-
 			/**
 			 * @brief Bitboards for all pieces. None and some color represent all pieces of said color.
 			 * 

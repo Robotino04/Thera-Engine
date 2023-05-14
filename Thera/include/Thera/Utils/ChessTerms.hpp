@@ -21,9 +21,8 @@ namespace Detail{
         std::array<Piece, allPieceTypes.size() * allPieceColors.size()> result;
         int i=0;
         for (auto type : allPieceTypes){
-            for (auto color : allPieceColors){
-                result.at(i) = {type, color};
-            }
+            result.at(i++) = {type, PieceColor::White};
+            result.at(i++) = {type, PieceColor::Black};
         }
         return result;
     }
