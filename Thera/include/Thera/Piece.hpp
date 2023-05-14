@@ -77,6 +77,9 @@ class Piece{
 			return raw;
 		}
 
+		constexpr bool operator < (Piece other) const{
+			return getRaw() < other.getRaw();
+		}
 	
 	private:
 

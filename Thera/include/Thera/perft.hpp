@@ -24,7 +24,10 @@ struct PerftResult{
          * @param other the single move to compare to
          * @return bool 
          */
-        bool operator < (SingleMove other) const{ return move < other.move || numNodesSearched < other.numNodesSearched; }
+        bool operator < (SingleMove other) const{
+            if (move != other.move) return move < other.move;
+            else return numNodesSearched < other.numNodesSearched;
+        }
         /**
          * @brief Test if two moves are equal
          * 

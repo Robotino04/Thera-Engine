@@ -40,21 +40,21 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 
 	using PC = Thera::PieceColor;
 	using PT = Thera::PieceType;
-	static const std::map<std::pair<PC, PT>, std::string> pieces = {
-		{{PC::White, PT::None}, " "},
-		{{PC::Black, PT::None}, " "},
-		{{PC::White, PT::Pawn}, "♙"},
-		{{PC::Black, PT::Pawn}, "♟"},
-		{{PC::White, PT::Bishop}, "♗"},
-		{{PC::Black, PT::Bishop}, "♝"},
-		{{PC::White, PT::Knight}, "♘"},
-		{{PC::Black, PT::Knight}, "♞"},
-		{{PC::White, PT::Rook}, "♖"},
-		{{PC::Black, PT::Rook}, "♜"},
-		{{PC::White, PT::Queen}, "♕"},
-		{{PC::Black, PT::Queen}, "♛"},
-		{{PC::White, PT::King}, "♔"},
-		{{PC::Black, PT::King}, "♚"},
+	static const std::map<Thera::Piece, std::string> pieces = {
+		{{PT::None, PC::White}, " "},
+		{{PT::None, PC::Black}, " "},
+		{{PT::Pawn, PC::White}, "♙"},
+		{{PT::Pawn, PC::Black}, "♟"},
+		{{PT::Bishop, PC::White}, "♗"},
+		{{PT::Bishop, PC::Black}, "♝"},
+		{{PT::Knight, PC::White}, "♘"},
+		{{PT::Knight, PC::Black}, "♞"},
+		{{PT::Rook, PC::White}, "♖"},
+		{{PT::Rook, PC::Black}, "♜"},
+		{{PT::Queen, PC::White}, "♕"},
+		{{PT::Queen, PC::Black}, "♛"},
+		{{PT::King, PC::White}, "♔"},
+		{{PT::King, PC::Black}, "♚"},
 	};
 
 	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
@@ -81,7 +81,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 
 			// print the piece
 			std::cout
-				<< pieces.at({board.at(square).getColor(), board.at(square).getType()})
+				<< pieces.at(board.at(square))
 				<< " " << ANSI::reset();
 		}
 		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " " << ANSI::reset();

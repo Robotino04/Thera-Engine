@@ -14,8 +14,12 @@ struct Move{
     constexpr Move(Coordinate start, Coordinate end): startIndex(start), endIndex(end){
         debugValidate();
     }
+    constexpr Move(Coordinate start, Coordinate end, Piece piece): startIndex(start), endIndex(end), piece(piece){
+        debugValidate();
+    }
     constexpr Move(){}
     Coordinate startIndex, endIndex;
+    Piece piece;
 
     PieceType promotionType = PieceType::None;
 

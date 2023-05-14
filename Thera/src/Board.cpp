@@ -211,17 +211,13 @@ void Board::applyMoveStatic(Move const& move){
 	
 	// remove pieces from bitboards
 	getPieceBitboardForOneColor(getColorToNotMove()).removePiece(move.endIndex);
-	getBitboard(at(move.endIndex)).removePiece(move.endIndex);
+	removePiece(move.endIndex);
 	
 
 	// apply the move to the bitboards
 	currentState.allPieceBitboard.applyMove(move);
 	getPieceBitboardForOneColor(getColorToMove()).applyMove(move);
-	getBitboard(at(move.startIndex)).applyMove(move);
-
-	// apply the move to the square centric representation
-	at(move.endIndex) = at(move.startIndex);
-	at(move.startIndex).clear();
+	getBitboard(move.piece).applyMove(move);
 
 	// promotion
 	if (move.promotionType != PieceType::None){
@@ -239,11 +235,7 @@ void Board::applyMoveStatic(Move const& move){
 		// apply the rook move to the bitboards
 		getPieceBitboardForOneColor(getColorToMove()).applyMove(castlingMove);
 		currentState.allPieceBitboard.applyMove(castlingMove);
-		getBitboard(at(castlingMove.startIndex)).applyMove(castlingMove);
-
-		// apply the move to the square centric representation
-		at(castlingMove.endIndex) = at(castlingMove.startIndex);
-		at(castlingMove.startIndex).clear();
+		getBitboard({PieceType::Rook, move.piece.getColor()}).applyMove(castlingMove);
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
