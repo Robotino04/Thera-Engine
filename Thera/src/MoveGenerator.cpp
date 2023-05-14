@@ -20,18 +20,41 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
     return generatedMoves;
 }
 
-Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8) {
-   Bitboard flood = sliders;
-   int r = MoveGenerator::slidingPieceShiftAmounts[dir8]; // {+-1,7,8,9}
-   empty &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
-   flood |= sliders = (sliders << r) & empty;
-   flood |= sliders = (sliders << r) & empty;
-   flood |= sliders = (sliders << r) & empty;
-   flood |= sliders = (sliders << r) & empty;
-   flood |= sliders = (sliders << r) & empty;
-   flood |=           (sliders << r) & empty;
-   return             (flood << r)   & MoveGenerator::slidingPieceAvoidWrapping[dir8];
+// Kogge-Stone Algorithm
+Bitboard occludedFill (Bitboard gen, Bitboard pro, int dir8){
+   int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
+   pro &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
+   gen |= pro & gen.rotateLeft(r);
+   pro &=       pro.rotateLeft(r);
+   gen |= pro & gen.rotateLeft(2*r);
+   pro &=       pro.rotateLeft(2*r);
+   gen |= pro & gen.rotateLeft(4*r);
+   return gen;
 }
+
+Bitboard shiftOne (Bitboard b, int dir8){
+   int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
+   return b.rotateLeft(r) & MoveGenerator::slidingPieceAvoidWrapping[dir8];
+}
+
+Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8){
+   Bitboard fill = occludedFill(sliders, empty, dir8);
+   return shiftOne(fill, dir8);
+}
+
+// Dumb7fill
+// Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8) {
+//    Bitboard flood = sliders;
+//    int r = MoveGenerator::slidingPieceShiftAmounts[dir8]; // {+-1,7,8,9}
+//    empty &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
+//    flood |= sliders = (sliders << r) & empty;
+//    flood |= sliders = (sliders << r) & empty;
+//    flood |= sliders = (sliders << r) & empty;
+//    flood |= sliders = (sliders << r) & empty;
+//    flood |= sliders = (sliders << r) & empty;
+//    flood |=           (sliders << r) & empty;
+//    return             (flood << r)   & MoveGenerator::slidingPieceAvoidWrapping[dir8];
+// }
 
 template <int startDirectionIndex, int endDirectionIndex>
 Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){

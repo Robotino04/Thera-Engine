@@ -152,6 +152,10 @@ class Bitboard{
          * @return Bitboard the shifted Bitboard
         */
         constexpr Bitboard operator >> (int n) const{ return *this << -n; }
+        
+        constexpr Bitboard rotateLeft(int n) const { return std::rotl(bits, n); }
+        constexpr Bitboard rotateRight(int n) const { return std::rotr(bits, n); }
+
         constexpr Bitboard operator ~ () const{ return ~this->bits; }
 
         constexpr Bitboard operator |= (Bitboard other){ return this->bits |= other.bits; }
@@ -163,7 +167,7 @@ class Bitboard{
         constexpr Bitboard operator /= (Bitboard other){ return this->bits /= other.bits; }
         constexpr Bitboard operator <<= (int n){ return this->bits = this->bits << n; }
         constexpr Bitboard operator >>= (int n){ return this->bits = this->bits >> n; }
-        
+
         explicit constexpr operator uint64_t() const{
             return bits;
         }
