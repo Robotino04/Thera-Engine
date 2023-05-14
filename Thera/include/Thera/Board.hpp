@@ -143,7 +143,9 @@ class Board{
 		 * @param color whose pieces to return
 		 * @return Bitboard& the bitboard containing all pieces one color
 		 */
-		constexpr Bitboard& getPieceBitboardForOneColor(PieceColor color) { return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw()); }
+		constexpr Bitboard& getPieceBitboardForOneColor(PieceColor color){
+			return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
+		}
 
 		/**
 		 * @brief Get the bitboard containing all pieces of one color
@@ -151,7 +153,9 @@ class Board{
 		 * @param color whose pieces to return
 		 * @return Bitboard the bitboard containing all pieces one color
 		 */
-		constexpr Bitboard getPieceBitboardForOneColor(PieceColor color) const { return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw()); }
+		constexpr Bitboard getPieceBitboardForOneColor(PieceColor color) const {
+			return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
+		}
 
 		/**
 		 * @brief Place a piece onto the board.

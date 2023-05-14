@@ -143,8 +143,8 @@ std::string Board::storeToFEN() const{
 	for (int y=7; y >= 0; y--){
 		for (int x=0; x<8; x++){
 		try{
-			char c = pieceTypeToFenChars.at(at(Coordinate(x, y)).getType());
-			if (at(Coordinate(x, y)).getColor() == PieceColor::White){
+			char c = pieceTypeToFenChars.at(at(Coordinate(x, y)).type);
+			if (at(Coordinate(x, y)).color == PieceColor::White){
 				c = std::toupper(c);
 			}
 
@@ -235,7 +235,7 @@ void Board::applyMoveStatic(Move const& move){
 		// apply the rook move to the bitboards
 		getPieceBitboardForOneColor(getColorToMove()).applyMove(castlingMove);
 		currentState.allPieceBitboard.applyMove(castlingMove);
-		getBitboard({PieceType::Rook, move.piece.getColor()}).applyMove(castlingMove);
+		getBitboard({PieceType::Rook, move.piece.color}).applyMove(castlingMove);
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
@@ -260,7 +260,7 @@ void Board::rewindMove(){
 void Board::placePiece(Coordinate square, Piece piece){
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
-	getPieceBitboardForOneColor(piece.getColor()).placePiece(square);
+	getPieceBitboardForOneColor(piece.color).placePiece(square);
 }
 
 void Board::removePiece(Coordinate square){

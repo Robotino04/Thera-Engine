@@ -94,12 +94,6 @@ class Bitboard{
          * @param move 
          */
         constexpr void applyMove(Move move){
-            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
-                if (!isOccupied(move.startIndex)){
-                    throw std::runtime_error("Tried to make move starting on an empty square.");
-                }
-            }
-
             clearBit(move.startIndex.getIndex64()); // will remove the piece
             setBit(move.endIndex.getIndex64()); // will place the piece
         }

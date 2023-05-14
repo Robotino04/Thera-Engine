@@ -42,7 +42,7 @@ std::string pieceTypeToString(PieceType type, bool isPlural){
 }
 
 std::string pieceToString(Piece piece, bool isPlural){
-    return pieceColorToString(piece.getColor()) + " " + pieceTypeToString(piece.getType(), isPlural);
+    return pieceColorToString(piece.color) + " " + pieceTypeToString(piece.type, isPlural);
 }
 
 }

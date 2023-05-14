@@ -44,3 +44,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 1.83291;            3.63786;            0.0440487;              0.0828505;          Removed square centric bitboard representation.
 1.77966;            3.51023;            0.0451332;              0.0929509;          Reduced usage of Board::at.
 1.72265;            3.38511;            0.0477661;              0.0954718;          Made Coordinate store a 0-64 index.
+1.66586;            3.26342;            0.0487815;              0.0964467;          Removed bitfields from Piece.
