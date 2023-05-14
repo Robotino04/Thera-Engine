@@ -10,11 +10,11 @@
 namespace Thera{
 
 struct PerftResult{
-    int numNodesSearched = 0;
+    uint64_t numNodesSearched = 0;
 
     struct SingleMove{
         Move move;
-        int numNodesSearched = 0;
+        uint64_t numNodesSearched = 0;
 
         /**
          * @brief Compare two moves
@@ -37,7 +37,7 @@ struct PerftResult{
         bool operator == (SingleMove other) const{ return move == other.move && numNodesSearched == other.numNodesSearched; }
     };
     std::vector<SingleMove> moves;
-    int numNodesFiltered = 0;
+    uint64_t numNodesFiltered = 0;
 };
 
 /**

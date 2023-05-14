@@ -89,7 +89,7 @@ PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth
 }
 
 template<bool bulkCounting>
-static int perftHelper(Board& board, MoveGenerator& generator, int depth){
+static uint64_t perftHelper(Board& board, MoveGenerator& generator, int depth){
     if (depth == 0) return 1;
 
     auto moves = generator.generateAllMoves(board);
@@ -97,7 +97,7 @@ static int perftHelper(Board& board, MoveGenerator& generator, int depth){
         return moves.size();
     }
 
-    int numNodes = 0;
+    uint64_t numNodes = 0;
     for (auto const& move : moves){
         board.applyMove(move);
         numNodes += perftHelper<bulkCounting>(board, generator, depth-1);
@@ -127,7 +127,7 @@ PerftResult perft(Board& board, MoveGenerator& generator, int depth, bool bulkCo
             board.rewindMove();
         });
         
-        int tmp;
+        uint64_t tmp;
         
         if (bulkCounting) tmp = perftHelper<true>(board, generator, depth-1);
         else              tmp = perftHelper<false>(board, generator, depth-1);
