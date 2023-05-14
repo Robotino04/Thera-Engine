@@ -18,12 +18,12 @@ namespace Thera{
  * 
  */
 struct Coordinate{
-    uint8_t x: 4;
-    uint8_t y: 4;
+    uint8_t x:3;
+    uint8_t y:3;
 
     constexpr explicit Coordinate(uint8_t pos){
-        x = pos & Utils::binaryOnes<uint8_t>(4);
-        y = (pos >> 4) & Utils::binaryOnes<uint8_t>(4);
+        x = pos & Utils::binaryOnes<uint8_t>(3);
+        y = (pos >> 3) & Utils::binaryOnes<uint8_t>(3);
     }
     constexpr explicit Coordinate(uint8_t x, uint8_t y){
         this->x = x;
@@ -35,47 +35,19 @@ struct Coordinate{
     }
 
     /**
-     * @brief Create a Coordinate from an index.
-     * 
-     * @param index index into an array of size 64
-     * @return constexpr Coordinate 
-     */
-    static constexpr Coordinate fromIndex64(uint8_t index){
-        return Coordinate(index + (index & ~7));
-    }
-    
-    constexpr uint8_t getRaw() const{
-        return x | y << 4;
-    }
-
-    static constexpr uint8_t xyToIndex64(uint8_t x, uint8_t y){
-        return x + y * 8;
-    }
-
-
-    /**
-     * @brief Is the coordinate valid (in the playable area)?
-     * 
-     * @return bool
-     */
-    constexpr bool isOnBoard() const{
-        return !(getRaw() & 0x88);
-    }
-
-    /**
      * @brief Get the 0-63 index.
      * 
      * @return constexpr uint8_t index into array of size 64
      */
     constexpr uint8_t getIndex64() const{
-        return (getRaw() + (getRaw() & 7)) >> 1;
+        return x + y*8;
     }
 
     /**
      * @brief Apply an offset to a coordinate.
      * 
      */
-    constexpr Coordinate operator + (Coordinate const& other) const{
+    constexpr Coordinate operator + (Coordinate other) const{
         return Coordinate(this->x + other.x, this->y + other.y);
     }
 
@@ -83,7 +55,7 @@ struct Coordinate{
      * @brief Apply an offset to a coordinate.
      * 
      */
-    constexpr Coordinate operator += (Coordinate const& other){
+    constexpr Coordinate operator += (Coordinate other){
         this->x += other.x;
         this->y += other.y;
         
@@ -93,7 +65,7 @@ struct Coordinate{
      * @brief Apply an offset to a coordinate.
      * 
      */
-    constexpr Coordinate operator - (Coordinate const& other) const{
+    constexpr Coordinate operator - (Coordinate other) const{
         return Coordinate(this->x - other.x, this->y - other.y);
     }
 
@@ -101,7 +73,7 @@ struct Coordinate{
      * @brief Apply an offset to a coordinate.
      * 
      */
-    constexpr Coordinate operator -= (Coordinate const& other){
+    constexpr Coordinate operator -= (Coordinate other){
         this->x -= other.x;
         this->y -= other.y;
         
@@ -120,8 +92,11 @@ struct Coordinate{
         return Coordinate(-x, -y);
     }
 
-    constexpr bool operator == (Coordinate const& other) const{
-        return this->getRaw() == other.getRaw();
+    constexpr bool operator == (Coordinate other) const{
+        return this->getIndex64() == other.getIndex64();
+    }
+    constexpr bool operator < (Coordinate other) const{
+        return this->getIndex64() < other.getIndex64();
     }
 };
 
@@ -168,7 +143,7 @@ namespace SquareIndex64 {
 };
 
 namespace Square{
-    #define defSq(NAME) constexpr Coordinate NAME = Coordinate::fromIndex64(static_cast<uint8_t>(SquareIndex64::NAME));
+    #define defSq(NAME) constexpr Coordinate NAME = Coordinate(SquareIndex64::NAME);
     #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
 
     defRow(a);

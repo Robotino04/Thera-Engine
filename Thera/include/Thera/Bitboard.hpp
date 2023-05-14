@@ -26,6 +26,11 @@ class Bitboard{
 
         constexpr Bitboard(uint64_t raw): bits(raw){}
 
+
+        static constexpr Bitboard fromIndex64(int idx){
+            return Utils::binaryOneAt<uint64_t>(idx);
+        }
+
         /**
          * @brief Test if square is occupied. Only does bounds checking in debug builds.
          * 
@@ -78,11 +83,6 @@ class Bitboard{
          * @param square 
          */
         constexpr void removePiece(Coordinate square){
-            if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
-                if (!square.isOnBoard())
-                    throw std::invalid_argument("Tried to remove piece from outside the board.");
-            }
-            
             clearBit(square.getIndex64());
         }
 
@@ -98,10 +98,6 @@ class Bitboard{
                 if (!isOccupied(move.startIndex)){
                     throw std::runtime_error("Tried to make move starting on an empty square.");
                 }
-                if (!move.startIndex.isOnBoard())
-                    throw std::out_of_range("Move start index is outside the board");
-                if (!move.endIndex.isOnBoard())
-                    throw std::out_of_range("Move end index is outside the board");
             }
 
             clearBit(move.startIndex.getIndex64()); // will remove the piece
@@ -196,7 +192,7 @@ class Bitboard{
 };
 
 namespace SquareBitboard{
-    #define defSq(NAME) constexpr Bitboard NAME = Bitboard(Utils::binaryOneAt<uint64_t>(static_cast<uint8_t>(SquareIndex64::NAME)));
+    #define defSq(NAME) constexpr Bitboard NAME = Bitboard::fromIndex64(SquareIndex64::NAME);
     #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
 
     defRow(a);

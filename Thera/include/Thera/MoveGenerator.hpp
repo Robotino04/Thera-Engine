@@ -179,7 +179,7 @@ class MoveGenerator{
             - list of squares in this direction
 
         */
-        static constexpr auto isKingKnightMoveValidGenerator = [](auto const& offsets) constexpr {
+        static constexpr auto isKingKnightMoveValidGenerator = [](auto const& offsets, int maxDelta) constexpr {
             std::array<Bitboard, 8*8> result = {};
             for (int x=0; x<8; x++){
                 for (int y=0; y<8; y++){
@@ -187,52 +187,20 @@ class MoveGenerator{
                     result.at(square.getIndex64()) = 0;
                     for (int dirIdx = 0; dirIdx < offsets.size(); dirIdx++){
                         const Coordinate targetSquare = Coordinate(square) + offsets.at(dirIdx);
+                        const int deltaX = int(targetSquare.x) - int(square.x);
+                        const int deltaY = int(targetSquare.y) - int(square.y);
+                        if (std::abs(deltaX) > maxDelta) continue;
+                        if (std::abs(deltaY) > maxDelta) continue;
 
-                        if (targetSquare.isOnBoard())
-                            result.at(square.getIndex64()).setBit(targetSquare.getIndex64());
+                        result.at(square.getIndex64()).setBit(targetSquare.getIndex64());
                     }
                 }
             }
             return result;
         };
         
-        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets);
-        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::slidingPieceOffsets);
-
-        
-        
-        /*
-        returns: 
-        - squares:
-          - directions:
-            - is target valid
-            - target square
-
-        */
-       static constexpr auto squaresInDirection = []() constexpr{
-            std::array<std::array<std::pair<int, std::array<Coordinate, 7>>, MoveGenerator::slidingPieceOffsets.size()>, 8*8> result;
-            for (int x=0; x<8; x++){
-                for (int y=0; y<8; y++){
-                    for (int dirIdx = 0; dirIdx < MoveGenerator::slidingPieceOffsets.size(); dirIdx++){
-                        const Coordinate square = Coordinate(x, y);
-                        int& numSquares = result.at(square.getIndex64()).at(dirIdx).first;
-                        auto& squares = result.at(square.getIndex64()).at(dirIdx).second;
-
-                        auto target = square + MoveGenerator::slidingPieceOffsets.at(dirIdx);
-                        numSquares = 0;
-                        while (target.isOnBoard()){
-                            squares.at(numSquares) = target;
-                            numSquares++;
-
-                            target += MoveGenerator::slidingPieceOffsets.at(dirIdx);
-                        }
-                    }
-                }
-            }
-            return result;
-        }();
-
-
+        static constexpr auto knightSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::knightOffsets, 2);
+        static constexpr auto kingSquaresValid = isKingKnightMoveValidGenerator(MoveGenerator::slidingPieceOffsets, 1);
 
         static constexpr auto obstructedLUT = []() constexpr {
             // https://www.chessprogramming.org/Square_Attacked_By#Pure_Calculation

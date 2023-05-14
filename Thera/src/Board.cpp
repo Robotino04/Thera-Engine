@@ -271,19 +271,19 @@ void Board::removePiece(Coordinate square){
 }
 
 void Board::removeCastlings(Coordinate movedSquare){
-	switch(movedSquare.getRaw()){
+	switch(movedSquare.getIndex64()){
 		// rook moves
-		case Square::a8.getRaw(): currentState.canBlackCastleLeft = false; break;
-		case Square::h8.getRaw(): currentState.canBlackCastleRight = false; break;
-		case Square::a1.getRaw(): currentState.canWhiteCastleLeft = false; break;
-		case Square::h1.getRaw(): currentState.canWhiteCastleRight = false; break;
+		case SquareIndex64::a8: currentState.canBlackCastleLeft = false; break;
+		case SquareIndex64::h8: currentState.canBlackCastleRight = false; break;
+		case SquareIndex64::a1: currentState.canWhiteCastleLeft = false; break;
+		case SquareIndex64::h1: currentState.canWhiteCastleRight = false; break;
 
 		// king moves
-		case Square::e8.getRaw():
+		case SquareIndex64::e8:
 			currentState.canBlackCastleLeft = false;
 			currentState.canBlackCastleRight = false;
 			break;
-		case Square::e1.getRaw():
+		case SquareIndex64::e1:
 			currentState.canWhiteCastleLeft = false;
 			currentState.canWhiteCastleRight = false;
 			break;

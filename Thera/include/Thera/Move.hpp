@@ -12,10 +12,8 @@ namespace Thera{
 
 struct Move{
     constexpr Move(Coordinate start, Coordinate end): startIndex(start), endIndex(end){
-        debugValidate();
     }
     constexpr Move(Coordinate start, Coordinate end, Piece piece): startIndex(start), endIndex(end), piece(piece){
-        debugValidate();
     }
     constexpr Move(){}
     Coordinate startIndex, endIndex;
@@ -47,22 +45,6 @@ struct Move{
             eq &= true; 
         return eq;
     }
-    
-    /**
-     * @brief Validate that the move only contains squares on the board.
-     * 
-     * Should reduce to nop in release builds
-     */
-    constexpr void debugValidate() const{
-        if (Utils::BuildType::Current == Utils::BuildType::Debug){
-            if (!startIndex.isOnBoard()) throw std::invalid_argument(std::to_string(startIndex.x) + ";" + std::to_string(startIndex.y) + " isn't on the board (start square)");
-            if (!endIndex.isOnBoard()) throw std::invalid_argument(std::to_string(endIndex.x) + ";" + std::to_string(endIndex.y) + " isn't on the board (end square)");
-        
-            if (isCastling){
-                Move(castlingStart, castlingEnd).debugValidate();
-            }
-        }
-    }
 
     /**
      * @brief Compare moves for less than or equal. Only used for sorting.
@@ -72,9 +54,9 @@ struct Move{
      */
     constexpr bool operator < (auto const& other) const{
 		if (this->startIndex != other.startIndex)
-			return this->startIndex.getRaw() < other.startIndex.getRaw();
+			return this->startIndex < other.startIndex;
 		if (this->endIndex != other.endIndex)
-			return this->endIndex.getRaw() < other.endIndex.getRaw();
+			return this->endIndex < other.endIndex;
 		if (this->promotionType != other.promotionType)
 			return static_cast<int>(this->promotionType) < static_cast<int>(other.promotionType);
 		
@@ -82,11 +64,8 @@ struct Move{
 	}
 
     constexpr static bool isSameBaseMove(Move a, Move b){
-        a.debugValidate();
-        b.debugValidate();
-
-        return  a.startIndex.getRaw() == b.startIndex.getRaw() &&
-                a.endIndex.getRaw() == b.endIndex.getRaw() &&
+        return  a.startIndex == b.startIndex &&
+                a.endIndex == b.endIndex &&
                 a.promotionType == b.promotionType;
     }
 };
