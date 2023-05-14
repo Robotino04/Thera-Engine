@@ -97,40 +97,40 @@ class Board{
 		 * 
 		 * @return PieceColor 
 		 */
-		PieceColor getColorToMove() const;
+		constexpr PieceColor getColorToMove() const { return currentState.isWhiteToMove ? PieceColor::White : PieceColor::Black; }
 
 		/**
 		 * @brief Get the color that has just made a move.
 		 * 
 		 * @return PieceColor 
 		 */
-		PieceColor getColorToNotMove() const;
+		constexpr PieceColor getColorToNotMove() const { return currentState.isWhiteToMove ? PieceColor::Black : PieceColor::White; }
 
 		/**
 		 * @brief Get the current state.
 		 * 
 		 * @return BoardState the current board state
 		 */
-		BoardState const& getCurrentState() const;
+		constexpr BoardState const& getCurrentState() const { return currentState; }
 
 		/**
 		 * @brief Get the en passant square.
 		 * 
 		 * @return Coordinate 
 		 */
-		Coordinate getEnPassantSquareForFEN() const;
+		constexpr Coordinate getEnPassantSquareForFEN() const { return currentState.enPassantSquareForFEN; }
 
 		/**
 		 * @brief Get the en passant square to capture.
 		 * 
 		 * @return Coordinate 
 		 */
-		Coordinate getEnPassantSquareToCapture() const;
+		constexpr Coordinate getEnPassantSquareToCapture() const { return currentState.enPassantSquareToCapture; }
 
 		/**
 		 * @brief Is en passant possible.
 		*/
-		bool hasEnPassant() const;
+		constexpr bool hasEnPassant() const{ return currentState.hasEnPassant; }
 
 		/**
 		 * @brief Get the bitboard containing a particular piece. 
@@ -138,7 +138,7 @@ class Board{
 		 * @param piece the piece
 		 * @return Bitboard& the bitboard containing these pieces
 		 */
-		Bitboard& getBitboard(Piece piece);
+		constexpr Bitboard& getBitboard(Piece piece){ return currentState.pieceBitboards.at(piece.getRaw()); }
 		
 		/**
 		 * @brief Get the bitboard to place a particular piece. 
@@ -146,21 +146,21 @@ class Board{
 		 * @param piece the piece
 		 * @return Bitboard the bitboard containing these pieces
 		 */
-		Bitboard getBitboard(Piece piece) const;
+		constexpr Bitboard getBitboard(Piece piece) const{ return currentState.pieceBitboards.at(piece.getRaw()); }
 
 		/**
 		 * @brief Get the bitboard containing all pieces 
 		 * 
 		 * @return Bitboard& the bitboard containing all pieces
 		 */
-		Bitboard& getAllPieceBitboard();
+		constexpr Bitboard& getAllPieceBitboard(){ return currentState.allPieceBitboard; }
 
 		/**
 		 * @brief Get the bitboard containing all pieces 
 		 * 
 		 * @return Bitboard the bitboard containing all pieces
 		 */
-		Bitboard getAllPieceBitboard() const;
+		constexpr Bitboard getAllPieceBitboard() const{ return currentState.allPieceBitboard; }
 
 		/**
 		 * @brief Get the bitboard containing all pieces of one color
@@ -168,7 +168,7 @@ class Board{
 		 * @param color whose pieces to return
 		 * @return Bitboard& the bitboard containing all pieces one color
 		 */
-		Bitboard& getPieceBitboardForOneColor(PieceColor color);
+		constexpr Bitboard& getPieceBitboardForOneColor(PieceColor color) { return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw()); }
 
 		/**
 		 * @brief Get the bitboard containing all pieces of one color
@@ -176,7 +176,7 @@ class Board{
 		 * @param color whose pieces to return
 		 * @return Bitboard the bitboard containing all pieces one color
 		 */
-		Bitboard getPieceBitboardForOneColor(PieceColor color) const;
+		constexpr Bitboard getPieceBitboardForOneColor(PieceColor color) const { return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw()); }
 
 		/**
 		 * @brief Place a piece onto the board.
@@ -206,7 +206,7 @@ class Board{
 		 * Essentially views the board from the opposite side.
 		 * 
 		 */
-		void switchPerspective();
+		constexpr void switchPerspective(){ currentState.isWhiteToMove = !currentState.isWhiteToMove; }
 
 	public:
 		struct BoardState{

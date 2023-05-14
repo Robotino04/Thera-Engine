@@ -40,3 +40,4 @@ position6_4 Debug;  startpos_5 Debug;   position6_4 Release;    startpos_5 Relea
 2.37074;            4.83161;            0.169037;               0.378452;           General cleanup.
 1.81238;            3.61085;            0.0668798;              0.138206;           Removed invertAttackData.
 1.74618;            3.45212;            0.0515013;              0.105808;           Implemented Kogge-Stone Algorithm.
+1.77954;            3.517;              0.0458851;              0.090091;           Made small functions constexpr.

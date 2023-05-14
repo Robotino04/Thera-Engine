@@ -113,7 +113,7 @@ class MoveGenerator{
          * @param startIndex the starting square
          * @param endIndex the ending square
          */
-        void addPawnMovePossiblyPromotion(Move const& move, Board const& board);
+        void addPawnMovePossiblyPromotion(Move move, Board const& board);
 
     public:
 

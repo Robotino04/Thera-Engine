@@ -500,7 +500,7 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     }
 }
 
-void MoveGenerator::addPawnMovePossiblyPromotion(Move const& move, Board const& board){
+void MoveGenerator::addPawnMovePossiblyPromotion(Move move, Board const& board){
     const uint8_t targetLine = board.getCurrentState().isWhiteToMove ? 7 : 0;
 
     if (move.endIndex.y == targetLine){

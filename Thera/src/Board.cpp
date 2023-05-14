@@ -137,7 +137,7 @@ void Board::loadFromFEN(std::string fen){
 		currentState.hasEnPassant = true;
 		charIndex += 1;
 	}
-	charIndex += 2; // skip sth and space
+	charIndex += 2; // skip sth. and space
 	
 
 	// TODO: Implement move counters
@@ -159,7 +159,7 @@ std::string Board::storeToFEN() const{
 	for (int y=7; y >= 0; y--){
 		for (int x=0; x<8; x++){
 		try{
-			char c = pieceTypeToFenChars.at(this->at(Coordinate(x, y)).getType());
+			char c = pieceTypeToFenChars.at(at(Coordinate(x, y)).getType());
 			if (at(Coordinate(x, y)).getColor() == PieceColor::White){
 				c = std::toupper(c);
 			}
@@ -280,47 +280,6 @@ void Board::rewindMove(){
 	rewindStack.pop();
 }
 
-PieceColor Board::getColorToMove() const{
-	return currentState.isWhiteToMove ? PieceColor::White : PieceColor::Black;
-}
-PieceColor Board::getColorToNotMove() const{
-	return currentState.isWhiteToMove ? PieceColor::Black : PieceColor::White;
-}
-
-Board::BoardState const& Board::getCurrentState() const{
-	return currentState;
-}
-
-Bitboard& Board::getBitboard(Piece piece){
-	return currentState.pieceBitboards.at(piece.getRaw());
-}
-Bitboard Board::getBitboard(Piece piece) const {
-	return currentState.pieceBitboards.at(piece.getRaw());
-}
-Bitboard& Board::getAllPieceBitboard(){
-	return currentState.allPieceBitboard;
-}
-Bitboard Board::getAllPieceBitboard() const{
-	return currentState.allPieceBitboard;
-}
-Bitboard& Board::getPieceBitboardForOneColor(PieceColor color){
-	return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
-}
-Bitboard Board::getPieceBitboardForOneColor(PieceColor color) const{
-	return currentState.pieceBitboards.at(Piece(PieceType::None, color).getRaw());
-}
-
-Coordinate Board::getEnPassantSquareForFEN() const{
-	return currentState.enPassantSquareForFEN;
-}
-
-Coordinate Board::getEnPassantSquareToCapture() const{
-	return currentState.enPassantSquareToCapture;
-}
-
-bool Board::hasEnPassant() const{
-	return currentState.hasEnPassant;
-}
 
 void Board::placePiece(Coordinate square, Piece piece){
 	at(square) = piece;
@@ -359,9 +318,4 @@ void Board::removeCastlings(Coordinate movedSquare){
 			break;
 	}
 }
-
-void Board::switchPerspective(){
-	currentState.isWhiteToMove = !currentState.isWhiteToMove;
-}
-
 }
