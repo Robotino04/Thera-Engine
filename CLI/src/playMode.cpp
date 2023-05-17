@@ -25,6 +25,7 @@
 #include <bitset>
 #include <unordered_set>
 #include <chrono>
+#include <sstream>
 
 static const float highlightOpacity = 0.5;
 static const RGB highlightMovePossible = {82, 255, 220};
