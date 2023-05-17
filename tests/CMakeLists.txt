@@ -54,7 +54,7 @@ add_fen_test_range(en_passant_when_pinned_pawn_disallowed_black_left2 "8/8/k7/8/
 
 
 # en passant tests (black, right side)
-add_fen_test_range(en_passant_when_pinn ed_pawn_allowed_black_right1 "8/8/6k1/8/3Pp3/8/8/1Q5K b - d3 0 1" "9")
+add_fen_test_range(en_passant_when_pinned_pawn_allowed_black_right1 "8/8/6k1/8/3Pp3/8/8/1Q5K b - d3 0 1" "9")
 add_fen_test_range(en_passant_when_pinned_pawn_disallowed_black_right1 "8/8/4k3/8/3Pp3/8/8/4Q2K b - d3 0 1" "8")
 add_fen_test_range(en_passant_when_pinned_pawn_allowed_black_right2 "8/8/3k4/8/3Pp3/8/8/3Q3K b - d3 0 1" "8")
 
