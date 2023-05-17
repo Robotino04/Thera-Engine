@@ -11,6 +11,7 @@
 #include "Thera/Utils/exceptions.hpp"
 
 #include "Thera/perft.hpp"
+#include "Thera/search.hpp"
 
 #include "ANSI/ANSI.hpp"
 
@@ -92,6 +93,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 			case 0:
 				std::cout << (board.getColorToMove() == Thera::PieceColor::White ? "White" : "Black")
 						  << " to move.";
+				std::cout << "  (eval: " + std::to_string(Thera::evaluate(board)) + ")";
 				break;
 			case 1:
 				std::cout << "Castling: [White] [Black]";
@@ -169,6 +171,8 @@ struct MoveInputResult{
 		LoadFEN,
 		Analyze,
 		FlipColors,
+		Search,
+		NOP,
 	};
 
 	Thera::Move move;
@@ -377,10 +381,34 @@ static void getUserMoveStart(MoveInputResult& result, Options& options){
 		result.perftInstrumented = false;
 		return;
 	}
+	else if (buffer == "search"){
+		result.op = MoveInputResult::Search;
+		std::cin >> buffer;
+		try{
+			result.perftDepth = std::stoi(buffer);
+		}
+		catch (std::invalid_argument){
+			result.message = ANSI::set4BitColor(ANSI::Red) + "Invalid search depth!" + ANSI::reset();
+			result.op = MoveInputResult::Continue;
+		}
+		return;
+	}
+	else if (buffer == "autoplay"){
+		result.op = MoveInputResult::Continue;
+		std::cin >> buffer;
+		try{
+			options.autoplayDepth = std::stoi(buffer);
+		}
+		catch (std::invalid_argument){
+			result.message = ANSI::set4BitColor(ANSI::Red) + "Invalid search depth!" + ANSI::reset();
+		}
+		return;
+	}
 	else if (buffer == "flip"){
 		result.op = MoveInputResult::FlipColors;
 		return;
 	}
+
 	else{
 		try{
 			result.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
@@ -640,7 +668,32 @@ int playMode(Options& options){
 	std::string message =  	"Enter move or type 'exit'.\n"
 							"Change your move by typing 'change'.\n"
 							"Undo last move using 'undo'.";
+
+	std::optional<Thera::PieceColor> computerColor;
+	auto lastOp = MoveInputResult::NOP;
+	std::stack<Thera::Move> moveStack;
 	while (true){
+		// make a computer move if requested
+		if (options.autoplayDepth){
+			if (!computerColor.has_value()){
+				computerColor = board.getColorToMove();
+			}
+			if (computerColor == board.getColorToMove() && lastOp != MoveInputResult::UndoMove){
+				auto [move, _] = Thera::search(board, generator, options.autoplayDepth);
+				board.applyMove(move);
+				moveStack.push(move);
+				continue;
+			}
+		}
+		else
+			computerColor.reset();
+
+		// highlight the last move
+		if (!moveStack.empty()){
+			highlights.at(moveStack.top().startIndex.getIndex64()) = RGB(255, 0, 0);
+			highlights.at(moveStack.top().endIndex.getIndex64()) = RGB(255, 0, 0);
+		}
+		
 		MoveInputResult userInput;
 
 		redrawGUI(options, board, generator, highlights, message);
@@ -657,27 +710,54 @@ int playMode(Options& options){
 		else if (userInput.op == MoveInputResult::UndoMove){
 			try{
 				board.rewindMove();
+				moveStack.pop();
 				message = ANSI::set4BitColor(ANSI::Blue) + "Undid move." + ANSI::reset();
 			}
 			catch(std::runtime_error){
 				message = ANSI::set4BitColor(ANSI::Red) + "No move to undo." + ANSI::reset();
 			}
+			lastOp = userInput.op;
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::LoadFEN){
 			board.loadFromFEN(options.fen);
 			message = ANSI::set4BitColor(ANSI::Blue) + "Loaded position from FEN." + ANSI::reset();
+			lastOp = userInput.op;
+			moveStack = std::stack<Thera::Move>();
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Analyze){
 			analyzePosition(userInput, board, generator, message, userInput.perftDepth, userInput.perftInstrumented);
 			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. No filtering was performed!";
+			lastOp = userInput.op;
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::FlipColors){
 			board.switchPerspective();
 			message = ANSI::set4BitColor(ANSI::Blue) + "Flipped color to move." + ANSI::reset();
+			lastOp = userInput.op;
 			continue;
+		}
+		else if (userInput.op == MoveInputResult::Search){
+			auto [move, eval] = Thera::search(board, generator, userInput.perftDepth);
+			message = ANSI::set4BitColor(ANSI::Blue) + "Best move: ";
+			message
+				+= Thera::Utils::squareToAlgebraicNotation(move.startIndex)
+				+  Thera::Utils::squareToAlgebraicNotation(move.endIndex);
+			switch (move.promotionType){
+				case Thera::PieceType::Bishop: message += "b"; break;
+				case Thera::PieceType::Knight: message += "n"; break;
+				case Thera::PieceType::Rook:   message += "r"; break;
+				case Thera::PieceType::Queen:  message += "q"; break;
+				default: break;
+			}
+			message += " (Eval: " + std::to_string(eval) + ")" + ANSI::reset();
+		
+			lastOp = userInput.op;
+			continue;
+		}
+		else if (userInput.op == MoveInputResult::NOP){
+			lastOp = userInput.op;
 		}
 		else if (userInput.op == MoveInputResult::Perft){
 			message = "";
@@ -719,10 +799,13 @@ int playMode(Options& options){
 			message += "Time spent: " + std::to_string(duration.count()) + "s (" + std::to_string((float(result.numNodesSearched)/duration.count())/1000'000) + "MN/s)\n";
 			if (!userInput.perftInstrumented) message += ANSI::set8BitColor(208) + "Performed fast analysis. No filtering was performed!";
 
+			lastOp = userInput.op;
 			continue;
 		}
-		else if (userInput.op == MoveInputResult::Continue)
+		else if (userInput.op == MoveInputResult::Continue){
+			lastOp = userInput.op;
 			continue;
+		}
 
 		auto const isCorrectStart = [&](auto const& move){
 			return move.startIndex == userInput.move.startIndex;
@@ -764,26 +847,34 @@ int playMode(Options& options){
 		if (userInput.op == MoveInputResult::Exit) break;
 		else if (userInput.op == MoveInputResult::Continue) continue;
 		else if (userInput.op == MoveInputResult::ForceMove){
-			if (board.getColorToMove() == board.at(userInput.move.startIndex).color)
+			if (board.getColorToMove() == board.at(userInput.move.startIndex).color){
 				board.applyMove(userInput.move);
-			else
+				moveStack.push(userInput.move);
+			}
+			else{
 				board.applyMoveStatic(userInput.move);
-			message = ANSI::set4BitColor(ANSI::Blue) + "Forced move." + ANSI::reset();
+				moveStack.push(userInput.move);
+				message = ANSI::set4BitColor(ANSI::Blue) + "Forced move." + ANSI::reset();
+			}
 		}
 		else if (userInput.op == MoveInputResult::UndoMove){
 			board.rewindMove();
+			moveStack.pop();
 			message = ANSI::set4BitColor(ANSI::Blue) + "Undone move." + ANSI::reset();
 		}
+		else if (userInput.op == MoveInputResult::NOP);
 		else{
 			auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(userInput.move, other);});
 			if (moveIt != possibleMoves.end()){
 				// apply the found move since the user move
 				// won't have any stats attached
 				board.applyMove(*moveIt);
+				moveStack.push(*moveIt);
 			}
 			else{
 				message = ANSI::set4BitColor(ANSI::Red) + "Invalid move!" + ANSI::reset();
 			}
+			lastOp = userInput.op;
 		}
 	}
 

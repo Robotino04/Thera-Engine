@@ -13,9 +13,11 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
     generateAttackData(board);
 
     generateAllKingMoves(board, Utils::binaryOnes<uint64_t>(64));
-    generateAllSlidingMoves(board, possibleTargets);
-    generateAllKnightMoves(board, possibleTargets);
-    generateAllPawnMoves(board, possibleTargets);
+    if (!isDoubleCheck){
+        generateAllSlidingMoves(board, possibleTargets);
+        generateAllKnightMoves(board, possibleTargets);
+        generateAllPawnMoves(board, possibleTargets);
+    }
 
     return generatedMoves;
 }
@@ -239,10 +241,12 @@ void MoveGenerator::generateAttackData(Board const& board){
     Bitboard kingBB = board.getBitboard({PieceType::King, board.getColorToMove()});
     Bitboard attackers = squaresAttackingSquare.at(kingBB.getLS1B());
     const auto preselection = obstructedLUT.at(kingBB.getLS1B());
+    isDoubleCheck = attackers.getNumPieces() >= 2;
     
     if (attackers.getNumPieces() >= 2){
         possibleTargets = 0;
     }
+
     if ((attackers & board.getBitboard({PieceType::Knight, board.getColorToNotMove()})).hasPieces()){
         possibleTargets = attackers;
     }

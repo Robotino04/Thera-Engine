@@ -39,9 +39,9 @@ class MoveGenerator{
         }
         constexpr Bitboard getPossibleMoveTargets() const{ return possibleTargets; }
 
+        bool isCheck(Board const& board) const;
     private:
         
-        bool isCheck(Board const& board) const;
 
         /**
          * @brief Generate all pin data.
@@ -245,5 +245,6 @@ class MoveGenerator{
         Bitboard pinnedPieces;
         Bitboard possibleTargets;
         std::array<DirectionPair, 64> pinDirection;
+        bool isDoubleCheck;
 };
 }
