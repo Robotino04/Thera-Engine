@@ -1,0 +1,142 @@
+#include "Thera/Board.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/MoveGenerator.hpp"
+#include "Thera/search.hpp"
+
+#include "TheraUCI/MultiStream.hpp"
+#include "TheraUCI/stringUtils.hpp"
+
+#include <string>
+#include <iostream>
+#include <sstream>
+#include <stdexcept>
+#include <fstream>
+#include <chrono>
+
+MultiStream out;
+std::ofstream logfile;
+
+int main(){
+    std::string line;
+    std::stringstream lineStream;
+    std::string buffer;
+
+    Thera::Board board;
+    Thera::MoveGenerator generator;
+
+    logfile.open("/tmp/TheraUCI.log");
+    if (!logfile.is_open()){
+        std::cerr << "Unable to open logfile. Exiting...\n";
+        return 1;
+    }
+    out.linkStream(logfile);
+    out.linkStream(std::cout);
+
+    // expect the UCI command
+    std::getline(std::cin, line);
+    lineStream.clear();
+    lineStream << line;
+    lineStream >> buffer;
+    if (buffer != "uci"){
+        out << "Non UCI compliant GUI detected! Exiting...\n";
+        return 0;
+    }
+
+    // send ids
+    out << "id name Thera\n";
+    out << "id author Robotino\n";
+    out << "id country switzerland\n";
+
+    out << "uciok\n";
+
+    while (true){
+        out.flush();
+        logfile.flush();
+        std::getline(std::cin, line);
+        out << "info string [cin] " + line + "\n";
+        logfile.flush();
+        lineStream = std::stringstream();
+        lineStream << line;
+        
+        lineStream >> buffer;
+        if (buffer == "position"){
+            lineStream >> buffer;
+            if (buffer == "startpos"){
+                board.loadFromFEN(Thera::Utils::startingFEN);
+
+                // remove the "moves" subcommand
+                buffer = "";
+                lineStream >> buffer;
+                buffer = trim(buffer);
+                if (buffer.length() && buffer != "moves"){
+                    out << "info string Invalid subcommand to 'position': '" + buffer + "'\n";
+                    break;
+                }
+            }
+            else if (buffer == "fen"){
+                std::string fen;
+                lineStream >> buffer;
+                while (lineStream.rdbuf()->in_avail() && buffer != "moves"){
+                    fen += buffer + " ";
+                    lineStream >> buffer;
+                }
+
+                try{
+                    board.loadFromFEN(fen);
+                }
+                catch (std::invalid_argument){
+                    out << "info string Invalid FEN string: \"" + lineStream.str() + "\"\n";
+                }
+            }
+            else{
+                out << "info string Invalid subcommand for 'position'\n";
+                continue;
+            }
+
+            // apply the moves
+            while (lineStream.rdbuf()->in_avail()){
+                const auto possibleMoves = generator.generateAllMoves(board);
+                lineStream >> buffer;
+                Thera::Move inputMove = Thera::Move::fromString(trim(buffer));
+                
+                auto moveIt = std::find_if(possibleMoves.begin(), possibleMoves.end(), [&](auto other){return Thera::Move::isSameBaseMove(inputMove, other);});
+                if (moveIt != possibleMoves.end()){
+                    // apply the found move since the input move
+                    // won't have any stats attached
+                    board.applyMove(*moveIt);
+                    out << "info string Made move: " << moveIt->toString() << "\n";
+                }
+                else{
+                    out << "info string Invalid move detected.\n";
+                    break;
+                }
+            }
+
+            // log the resulting position
+            out << "info string " << board.storeToFEN() << "\n";
+        }
+        else if (buffer == "isready"){
+            out << "readyok\n";
+        }
+        else if (buffer == "quit"){
+            return 0;
+        }
+        else if (buffer == "go"){
+            // currently ignores all parameters
+            const auto start = std::chrono::high_resolution_clock::now();
+            auto [move, _] = Thera::search(board, generator, 5);
+            const auto end = std::chrono::high_resolution_clock::now();
+            board.applyMove(move);
+            std::chrono::duration<double> dur = end-start;
+            out << "bestmove " << move.toString() << "\n";
+            out << "info string Search took " << dur.count() << "s.\n";
+        }
+
+        if (lineStream.rdbuf()->in_avail()){
+            std::string remainder(lineStream.str().substr(lineStream.tellg()));
+            out << "info string Not completely processed line: \"" + remainder + "\"\n";
+        }
+    }
+
+    return 0;
+}

@@ -36,13 +36,21 @@ struct Move{
      *  "h7d4"
      * 
      * @param str the string to parse from
+     * @return Move the parsed move
      */
-    void fromString(std::string const& str);
+    static Move fromString(std::string const& str);
+
+    /**
+     * @brief Convert the move to long algebraic notation
+     * 
+     * @return std::string the move in long algebraic notation
+     */
+    std::string toString() const;
 
     constexpr bool operator ==(Move const& other) const{
         bool eq = Move::isSameBaseMove(*this, other);
-        if (this->isCastling && other.isCastling && this->castlingStart == other.castlingStart && this->castlingEnd == other.castlingEnd)
-            eq &= true; 
+        if (this->isCastling && other.isCastling)
+            eq &= this->castlingStart == other.castlingStart && this->castlingEnd == other.castlingEnd; 
         return eq;
     }
 

@@ -546,16 +546,9 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 		){
 			auto& movePair = stockfishResult.moves.emplace_back();
 
-			movePair.move.startIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(0, 2));
-			movePair.move.endIndex = Thera::Utils::squareFromAlgebraicNotation(buffer.substr(2, 2));
+			while (buffer.at(i) != ':') i++;
 
-			char promotion = buffer.at(i);
-			switch(tolower(promotion)){
-				case 'b': movePair.move.promotionType = Thera::PieceType::Bishop; i++; break;
-				case 'n': movePair.move.promotionType = Thera::PieceType::Knight; i++; break;
-				case 'r': movePair.move.promotionType = Thera::PieceType::Rook; i++; break;
-				case 'q': movePair.move.promotionType = Thera::PieceType::Queen; i++; break;
-			}
+			movePair.move = Thera::Move::fromString(buffer.substr(0, i));
 
 			if (buffer.at(i++) != ':') continue;
 			if (buffer.at(i++) != ' ') continue;

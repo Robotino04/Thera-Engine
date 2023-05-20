@@ -17,15 +17,7 @@ static void printFilteredMove(Thera::Move const& move, Thera::Board const& board
     // removed for performance evaluation
     std::cout
         << ANSI::set4BitColor(ANSI::Red) << "Filtered move " << ANSI::reset()
-        << Utils::squareToAlgebraicNotation(move.startIndex)
-        << Utils::squareToAlgebraicNotation(move.endIndex);
-    switch (move.promotionType){
-        case PieceType::Bishop: std::cout << "b"; break;
-        case PieceType::Knight: std::cout << "n"; break;
-        case PieceType::Rook:   std::cout << "r"; break;
-        case PieceType::Queen:  std::cout << "q"; break;
-        default: break;
-    }
+        << move.toString();
     std::cout << "     (" << board.storeToFEN() << ")\n";
 }
 

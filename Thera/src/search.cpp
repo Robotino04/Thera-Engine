@@ -85,7 +85,8 @@ std::pair<Move, float> search(Board& board, MoveGenerator& generator, int depth)
         if (alpha > beta)
             break;
 
-        if (eval > bestEvaluation){
+        // has to be >= to make sura a move is selected even if the position is unwinnable
+        if (eval >= bestEvaluation){
             bestEvaluation = eval;
             bestMove = move;
         }
