@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 
 // https://stackoverflow.com/a/25385766

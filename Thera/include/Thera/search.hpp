@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Thera/Move.hpp"
 #include "Thera/Board.hpp"
 #include "Thera/MoveGenerator.hpp"
