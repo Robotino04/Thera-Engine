@@ -53,7 +53,7 @@ int main(){
         out.flush();
         logfile.flush();
         std::getline(std::cin, line);
-        out << "info string [cin] " + line + "\n";
+        logfile << "[cin] " + line + "\n";
         logfile.flush();
         lineStream = std::stringstream();
         lineStream << line;
@@ -69,7 +69,7 @@ int main(){
                 lineStream >> buffer;
                 buffer = trim(buffer);
                 if (buffer.length() && buffer != "moves"){
-                    out << "info string Invalid subcommand to 'position': '" + buffer + "'\n";
+                    logfile << "Invalid subcommand to 'position': '" + buffer + "'\n";
                     break;
                 }
             }
@@ -85,11 +85,11 @@ int main(){
                     board.loadFromFEN(fen);
                 }
                 catch (std::invalid_argument){
-                    out << "info string Invalid FEN string: \"" + lineStream.str() + "\"\n";
+                    logfile << "Invalid FEN string: \"" + lineStream.str() + "\"\n";
                 }
             }
             else{
-                out << "info string Invalid subcommand for 'position'\n";
+                logfile << "Invalid subcommand for 'position'\n";
                 continue;
             }
 
@@ -104,16 +104,16 @@ int main(){
                     // apply the found move since the input move
                     // won't have any stats attached
                     board.applyMove(*moveIt);
-                    out << "info string Made move: " << moveIt->toString() << "\n";
+                    logfile << "Made move: " << moveIt->toString() << "\n";
                 }
                 else{
-                    out << "info string Invalid move detected.\n";
+                    logfile << "Invalid move detected.\n";
                     break;
                 }
             }
 
             // log the resulting position
-            out << "info string " << board.storeToFEN() << "\n";
+            logfile << board.storeToFEN() << "\n";
         }
         else if (buffer == "isready"){
             out << "readyok\n";
@@ -129,12 +129,12 @@ int main(){
             board.applyMove(move);
             std::chrono::duration<double> dur = end-start;
             out << "bestmove " << move.toString() << "\n";
-            out << "info string Search took " << dur.count() << "s.\n";
+            logfile << "Search took " << dur.count() << "s.\n";
         }
 
         if (lineStream.rdbuf()->in_avail()){
             std::string remainder(lineStream.str().substr(lineStream.tellg()));
-            out << "info string Not completely processed line: \"" + remainder + "\"\n";
+            logfile << "Not completely processed line: \"" + remainder + "\"\n";
         }
     }
 
