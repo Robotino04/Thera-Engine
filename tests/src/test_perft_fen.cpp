@@ -6,6 +6,7 @@
 
 #include "Thera/Utils/ScopeGuard.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
+#include "Thera/Utils/GitInfo.hpp"
 
 #include "Thera/perft.hpp"
 
@@ -41,6 +42,11 @@ int main(int argc, const char** argv){
     const char* const fen = argv[2];
     const bool bulkCounting = std::atoi(argv[3]);
     const int expectedNodes = std::atoi(argv[4]);
+    
+    std::cout << "Thera (Git " << Thera::Utils::GitInfo::hash;
+    if (Thera::Utils::GitInfo::isDirty)
+        std::cout << " + local changes";
+    std::cout << ")\n";
 
     std::cout << "Running perft(" << depth << ") for \"" << fen << "\"";
     std::cout << " (bulk counting " << (bulkCounting ? ANSI::set4BitColor(ANSI::Green) + "enabled" : ANSI::set4BitColor(ANSI::Red) + "disabled") << ANSI::reset() << ")\n";
