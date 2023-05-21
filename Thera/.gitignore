@@ -1,1 +1,1 @@
-include/Thera/Utils/GitInfo.hpp
+src/Utils/GitInfo.cpp

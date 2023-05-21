@@ -66,7 +66,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 	std::cout << Thera::Utils::GitInfo::hash;
 	if (Thera::Utils::GitInfo::isDirty)
 		std::cout << " + local changes";
-	std::cout << "|----------\n";
+	std::cout << ")|----------\n";
 	
 	for(int y=7; y >= 0; y--){
 		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " ";

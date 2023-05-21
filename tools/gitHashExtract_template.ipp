@@ -1,6 +1,8 @@
+#include "Thera/Utils/GitInfo.hpp"
+
 namespace Thera::Utils::GitInfo{{
 
-static constexpr const char* hash = "{sha}";
-static constexpr bool isDirty = {is_dirty};
+const char* hash = "{sha}";
+const bool isDirty = {is_dirty};
 
 }}

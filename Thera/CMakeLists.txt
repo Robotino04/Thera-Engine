@@ -4,8 +4,8 @@ file(GLOB_RECURSE THERA_SRC "*.cpp" "*.hpp" "*.tpp")
 
 
 
-set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/include/Thera/Utils/GitInfo.hpp")
-set(VERSION_FILE_TMP "${CMAKE_CURRENT_BINARY_DIR}/GitInfo.hpp.tmp")
+set(VERSION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/Utils/GitInfo.cpp")
+set(VERSION_FILE_TMP "${CMAKE_CURRENT_BINARY_DIR}/GitInfo.cpp.tmp")
 set(VERSION_FILE_TEMPLATE "${CMAKE_SOURCE_DIR}/tools/gitHashExtract_template.ipp")
 set(VERSION_PYTHON "${CMAKE_SOURCE_DIR}/tools/gitHashExtract.py")
 list(APPEND THERA_SRC ${VERSION_FILE})
