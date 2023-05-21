@@ -9,6 +9,7 @@
 
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/Utils/exceptions.hpp"
+#include "Thera/Utils/GitInfo.hpp"
 
 #include "Thera/perft.hpp"
 #include "Thera/search.hpp"
@@ -59,7 +60,14 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 		{{PT::King, PC::Black}, "♚"},
 	};
 
-	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset()  << "\n";	
+	std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << "  a b c d e f g h   " << ANSI::reset();	
+	// print the current git commit
+	std::cout << ANSI::set8BitColor(93) << "  ----------| Thera (Git ";
+	std::cout << Thera::Utils::GitInfo::hash;
+	if (Thera::Utils::GitInfo::isDirty)
+		std::cout << " + local changes";
+	std::cout << "|----------\n";
+	
 	for(int y=7; y >= 0; y--){
 		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " ";
 		for(int x=0; x<8; x++){

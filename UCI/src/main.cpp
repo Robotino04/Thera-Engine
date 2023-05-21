@@ -2,6 +2,7 @@
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/MoveGenerator.hpp"
 #include "Thera/search.hpp"
+#include "Thera/Utils/GitInfo.hpp"
 
 #include "TheraUCI/MultiStream.hpp"
 #include "TheraUCI/stringUtils.hpp"
@@ -42,10 +43,15 @@ int main(){
         return 0;
     }
 
+    // construct the current version
+    std::string version = Thera::Utils::GitInfo::hash;
+    if (Thera::Utils::GitInfo::isDirty){
+        version += "+local_changes";
+    }
+
     // send ids
-    out << "id name Thera\n";
+    out << "id name Thera (Git " + version + ")\n";
     out << "id author Robotino\n";
-    out << "id country switzerland\n";
 
     out << "uciok\n";
 

@@ -1,4 +1,6 @@
-﻿#include "ANSI/ANSI.hpp"
+﻿#include "Thera/Utils/GitInfo.hpp"
+
+#include "ANSI/ANSI.hpp"
 
 #include "CLI/Options.hpp"
 #include "CLI/IO.hpp"
@@ -13,6 +15,7 @@ R"(Options:
 	-i                  Print pieces in inverted colors
 	-m/--mode [mode]    Run in given mode. Possible values: "play"
 	--fen [fen]			Set the FEN string for play mode
+	--version			Get the current version (git hash) and exit.
 )";
 }
 
@@ -50,6 +53,13 @@ int main(int argc, const char** argv){
 				return 1;
 			}
 			options.fen = argv[++i];
+		}
+		else if (arg == "--version"){
+			std::cout << "Commit " << Thera::Utils::GitInfo::hash;
+			if (Thera::Utils::GitInfo::isDirty)
+				std::cout << " + local changes";
+			std::cout << "\n";
+			return 0;
 		}
 		else{
 			std::cout << "Unknown option \"" << argv[i] << "\"\n";
