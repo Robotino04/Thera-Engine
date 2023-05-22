@@ -128,13 +128,22 @@ int main(){
             return 0;
         }
         else if (buffer == "go"){
+            int depth = 6;
+            int numMoves = generator.generateAllMoves(board).size();
+            if (numMoves < 20)
+                depth++;
+            if (numMoves < 10)
+                depth++;
+
             // currently ignores all parameters
             const auto start = std::chrono::high_resolution_clock::now();
-            auto [move, _] = Thera::search(board, generator, 5);
+            auto moves = Thera::search(board, generator, depth);
             const auto end = std::chrono::high_resolution_clock::now();
-            board.applyMove(move);
+
+            auto bestMove = getRandomBestMove(moves);
+            board.applyMove(bestMove.move);
             std::chrono::duration<double> dur = end-start;
-            out << "bestmove " << move.toString() << "\n";
+            out << "bestmove " << bestMove.move.toString() << "\n";
             logfile << "Search took " << dur.count() << "s.\n";
         }
 

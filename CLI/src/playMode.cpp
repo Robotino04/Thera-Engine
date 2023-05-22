@@ -681,9 +681,11 @@ int playMode(Options& options){
 				computerColor = board.getColorToMove();
 			}
 			if (computerColor == board.getColorToMove() && lastOp != MoveInputResult::UndoMove){
-				auto [move, _] = Thera::search(board, generator, options.autoplayDepth);
-				board.applyMove(move);
-				moveStack.push(move);
+				auto moves = Thera::search(board, generator, options.autoplayDepth);
+
+				auto bestMove = getRandomBestMove(moves);
+				board.applyMove(bestMove.move);
+				moveStack.push(bestMove.move);
 				continue;
 			}
 		}
@@ -741,19 +743,22 @@ int playMode(Options& options){
 			continue;
 		}
 		else if (userInput.op == MoveInputResult::Search){
-			auto [move, eval] = Thera::search(board, generator, userInput.perftDepth);
+			auto moves = Thera::search(board, generator, userInput.perftDepth);
+
+            auto bestMove = getRandomBestMove(moves);
+
 			message = ANSI::set4BitColor(ANSI::Blue) + "Best move: ";
 			message
-				+= Thera::Utils::squareToAlgebraicNotation(move.startIndex)
-				+  Thera::Utils::squareToAlgebraicNotation(move.endIndex);
-			switch (move.promotionType){
+				+= Thera::Utils::squareToAlgebraicNotation(bestMove.move.startIndex)
+				+  Thera::Utils::squareToAlgebraicNotation(bestMove.move.endIndex);
+			switch (bestMove.move.promotionType){
 				case Thera::PieceType::Bishop: message += "b"; break;
 				case Thera::PieceType::Knight: message += "n"; break;
 				case Thera::PieceType::Rook:   message += "r"; break;
 				case Thera::PieceType::Queen:  message += "q"; break;
 				default: break;
 			}
-			message += " (Eval: " + std::to_string(eval) + ")" + ANSI::reset();
+			message += " (Eval: " + std::to_string(bestMove.eval) + ")" + ANSI::reset();
 		
 			lastOp = userInput.op;
 			continue;

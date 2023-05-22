@@ -1,6 +1,8 @@
 #include "Thera/search.hpp"
 
 #include <numeric>
+#include <cstdlib>
+#include <algorithm>
 
 namespace Thera{
 
@@ -67,33 +69,53 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     return bestEvaluation;
 }
 
-std::pair<Move, float> search(Board& board, MoveGenerator& generator, int depth){
+std::vector<EvaluatedMove> search(Board& board, MoveGenerator& generator, int depth){
     if (depth == 0) throw std::invalid_argument("Depth may not be 0");
 
     auto moves = generator.generateAllMoves(board);
-
-    float bestEvaluation = -std::numeric_limits<float>::infinity();
-    Move bestMove;
-    float alpha = -std::numeric_limits<float>::infinity();
-    float beta = std::numeric_limits<float>::infinity();
+    // move preordering
+    std::vector<EvaluatedMove> evaluatedMoves;
     for (auto move : moves){
-        board.applyMove(move);
-        float eval = -negamax(board, generator, depth-1, -beta, -alpha);
-        board.rewindMove();
-
-        alpha = std::max(alpha, eval);
-        if (alpha > beta)
-            break;
-
-        // has to be >= to make sura a move is selected even if the position is unwinnable
-        if (eval >= bestEvaluation){
-            bestEvaluation = eval;
-            bestMove = move;
-        }
-
+        evaluatedMoves.emplace_back(move);
     }
 
-    return {bestMove, bestEvaluation};
+
+    // iterative deepening
+    for (int currentDepth=1; currentDepth < depth; currentDepth++){
+        float alpha = -std::numeric_limits<float>::infinity();
+        float beta = std::numeric_limits<float>::infinity();
+        std::sort(evaluatedMoves.begin(), evaluatedMoves.end());
+
+        for (auto& move : evaluatedMoves){
+            board.applyMove(move.move);
+            move.eval = -negamax(board, generator, currentDepth-1, -beta, -alpha);
+            board.rewindMove();
+
+            alpha = std::max(alpha, move.eval);
+            if (alpha > beta)
+                break;
+
+        }
+    }
+
+    return evaluatedMoves;
+}
+
+EvaluatedMove getRandomBestMove(std::vector<EvaluatedMove> const& moves){
+    float bestEval = moves.front().eval;
+    std::vector<EvaluatedMove> bestMoves;
+    for (auto move : moves){
+        if (move.eval > bestEval){
+            bestMoves.clear();
+            bestEval = move.eval;
+        }
+        if (move.eval == bestEval){
+            bestMoves.push_back(move);
+        }
+    }
+
+    const int selectedMoveIndex = rand() % bestMoves.size();
+    return bestMoves.at(selectedMoveIndex);
 }
 
 }
