@@ -129,9 +129,6 @@ int main(){
         }
         else if (buffer == "go"){
             int depth = 6;
-            int numMoves = generator.generateAllMoves(board).size();
-            if (numMoves < 10)
-                depth++;
 
             // currently ignores all parameters
             const auto start = std::chrono::high_resolution_clock::now();
