@@ -66,7 +66,7 @@ static void printBoard(Thera::Board& board, Thera::MoveGenerator& generator, std
 	std::cout << Thera::Utils::GitInfo::hash;
 	if (Thera::Utils::GitInfo::isDirty)
 		std::cout << " + local changes";
-	std::cout << ")|----------\n";
+	std::cout << ")|----------" << ANSI::reset() << "\n";
 	
 	for(int y=7; y >= 0; y--){
 		std::cout << ANSI::set4BitColor(ANSI::Gray, ANSI::Background) << y+1 << " ";
