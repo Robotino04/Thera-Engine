@@ -33,7 +33,7 @@ static const RGB highlightMovePossible = {82, 255, 220};
 static const RGB highlightSquareSelected = {247, 92, 255};
 static const RGB highlightBitboardPresent = {255, 242, 0};
 
-static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squareHighlights, Options const& options){
+static void printBoard(Thera::Board& board, Thera::MoveGenerator& generator, std::array<RGB, 64> const& squareHighlights, Options const& options){
 
 	const RGB whiteBoardColor = {255, 210, 153};
 	const RGB blackBoardColor = {130, 77, 39};
@@ -102,7 +102,7 @@ static void printBoard(Thera::Board const& board, std::array<RGB, 64> const& squ
 			case 0:
 				std::cout << (board.getColorToMove() == Thera::PieceColor::White ? "White" : "Black")
 						  << " to move.";
-				std::cout << "  (eval: " + std::to_string(Thera::evaluate(board)) + ")";
+				std::cout << "  (eval: " + std::to_string(Thera::evaluate(board, generator)) + ")";
 				break;
 			case 1:
 				std::cout << "Castling: [White] [Black]";
@@ -504,10 +504,10 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 	}
 }
 
-static void redrawGUI(Options const& options, Thera::Board const& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights, std::string const& message){
+static void redrawGUI(Options const& options, Thera::Board& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights, std::string const& message){
 	std::cout << ANSI::clearScreen() << ANSI::reset() << "-------------------\n" << message << ANSI::reset() << "\n";
 	setBitboardHighlight(options, board, generator, highlights);
-	printBoard(board, highlights, options);
+	printBoard(board, generator, highlights, options);
 	highlights.fill(RGB());
 }
 

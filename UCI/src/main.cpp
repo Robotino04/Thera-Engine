@@ -130,8 +130,6 @@ int main(){
         else if (buffer == "go"){
             int depth = 6;
             int numMoves = generator.generateAllMoves(board).size();
-            if (numMoves < 20)
-                depth++;
             if (numMoves < 10)
                 depth++;
 

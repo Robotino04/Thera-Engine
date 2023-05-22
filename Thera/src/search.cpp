@@ -1,24 +1,49 @@
 #include "Thera/search.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
 #include <numeric>
 #include <cstdlib>
 #include <algorithm>
+#include <unordered_map>
 
 namespace Thera{
 
-float evaluate(Board const& board){
+namespace EvaluationValues{
+static const std::unordered_map<PieceType, float> pieceValues = {
+    {PieceType::Pawn, 100},
+    {PieceType::Bishop, 300},
+    {PieceType::Knight, 300},
+    {PieceType::Rook, 500},
+    {PieceType::Queen, 900},
+    {PieceType::King, 0},
+};
+
+static const float checkBonus = 50;
+}
+
+float evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
-    return board.getBitboard({PieceType::Pawn, color}).getNumPieces()
-        +  board.getBitboard({PieceType::Bishop, color}).getNumPieces() * 3
-        +  board.getBitboard({PieceType::Knight, color}).getNumPieces() * 3
-        +  board.getBitboard({PieceType::Rook, color}).getNumPieces() * 5
-        +  board.getBitboard({PieceType::Queen, color}).getNumPieces() * 9
-        -  board.getBitboard({PieceType::Pawn, otherColor}).getNumPieces()
-        -  board.getBitboard({PieceType::Bishop, otherColor}).getNumPieces() * 3
-        -  board.getBitboard({PieceType::Knight, otherColor}).getNumPieces() * 3
-        -  board.getBitboard({PieceType::Rook, otherColor}).getNumPieces() * 5
-        -  board.getBitboard({PieceType::Queen, otherColor}).getNumPieces() * 9;
+
+    float eval = 0;
+    // piece values
+    for (auto type : Utils::allPieceTypes){
+        eval += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+        eval -= board.getBitboard({type, otherColor}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+    }
+    // check bonus
+    // are we giving check
+    board.switchPerspective();
+    generator.generateAttackData(board);
+    if (generator.isCheck(board)) eval += EvaluationValues::checkBonus;
+
+    // does our opponent give check
+    board.switchPerspective();
+    generator.generateAttackData(board);
+    if (generator.isCheck(board)) eval -= EvaluationValues::checkBonus;
+
+
+    return eval;
 }
 
 
@@ -42,7 +67,7 @@ float evaluate(Board const& board){
 
 
 float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta){
-    if (depth == 0) return evaluate(board);
+    if (depth == 0) return evaluate(board, generator);
 
     auto moves = generator.generateAllMoves(board);
     if (moves.size() == 0){

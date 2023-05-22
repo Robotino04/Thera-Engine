@@ -22,7 +22,7 @@ struct EvaluatedMove{
     }
 };
 
-float evaluate(Board const& board);
+float evaluate(Board& board, MoveGenerator& generator);
 
 std::vector<EvaluatedMove> search(Board& board, MoveGenerator& generator, int depth);
 
