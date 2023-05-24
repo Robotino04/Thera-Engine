@@ -128,7 +128,14 @@ int main(){
             return 0;
         }
         else if (buffer == "go"){
-            std::chrono::seconds maxSearchTime(5);
+            auto const searchString = (board.getColorToMove() == Thera::PieceColor::White ? "winc" : "binc");
+            while (buffer != searchString && buffer != "movetime"){
+                lineStream >> buffer;
+            }
+            auto argType = buffer;
+            lineStream >> buffer;
+            std::chrono::milliseconds maxSearchTime(std::stoi(buffer)+(argType == "movetime" ? 0 : 1000));
+            logfile << "Searching for " << maxSearchTime.count() << "ms.\n"; 
             int depth = 9999;
 
             // currently ignores all parameters

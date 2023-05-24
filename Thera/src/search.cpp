@@ -143,10 +143,12 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
         resultTmp.depthReached = currentDepth;
         result = resultTmp;
         // exit early if a checkmate is found
+        float maxEval = -evalInfinity;
         for (auto move : result.moves){
-            if (std::abs(move.eval) == evalInfinity){
-                return result;
-            }
+            maxEval = std::max(maxEval, move.eval);
+        }
+        if (std::abs(maxEval) == evalInfinity){
+            return result;
         }
     }
 
