@@ -61,3 +61,4 @@ add_fen_test_range(en_passant_when_pinned_pawn_allowed_black_right2 "8/8/3k4/8/3
 add_fen_test_range(en_passant_when_pinned_pawn_disallowed_black_right2 "8/8/1k6/8/3Pp3/8/5Q2/7K b - d3 0 1" "8")
 
 add_fen_test_range(additional_tests1 "8/2Qpb3/2p1p3/r4k2/3pp3/K7/8/8 w - - 0 1" "2;60")
+add_fen_test_range(additional_tests2 "5K2/P6P/1r4P1/2P4N/1b2q3/p6Q/2pP4/3k4 w - - 0 1" "35;1352")

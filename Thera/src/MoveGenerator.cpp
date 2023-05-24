@@ -405,11 +405,16 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     const int8_t reverseDirectionLeft = reverseDirection + DirectionIndex64::E;
     const int8_t reverseDirectionRight = reverseDirection + DirectionIndex64::W;
 
+    const int allowedLeftDirection1 = board.getCurrentState().isWhiteToMove ? 4 : 6;
+    const int allowedLeftDirection2 = board.getCurrentState().isWhiteToMove ? 7 : 5;
+    const int allowedRightDirection1 = board.getCurrentState().isWhiteToMove ? 5 : 7;
+    const int allowedRightDirection2 = board.getCurrentState().isWhiteToMove ? 6 : 4;
+
     pinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & pinnedPieces;
     while (pinnedPawns.hasPieces()){
-        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 4 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 6)
+        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection1 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection2)
             unpinnedPawnsLeft.setBit(pinnedPawns.getLS1B());
-        else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 5 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == 7)
+        else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection1 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection2)
             unpinnedPawnsRight.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
     }
