@@ -39,7 +39,7 @@ class MoveGenerator{
         }
         constexpr Bitboard getPossibleMoveTargets() const{ return possibleTargets; }
 
-        bool isCheck(Board const& board) const;
+        bool isInCheck(Board const& board) const;
     private:
         
 

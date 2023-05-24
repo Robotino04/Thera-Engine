@@ -6,9 +6,16 @@
 
 #include <tuple>
 #include <limits>
+#include <stdexcept>
+#include <optional>
+#include <chrono>
 
 
 namespace Thera{
+
+static constexpr float evalInfinity = std::numeric_limits<float>::max();
+
+struct SearchStopException : public std::exception{};
 
 struct EvaluatedMove{
     Move move;
@@ -21,11 +28,15 @@ struct EvaluatedMove{
         return move < other.move;
     }
 };
+struct SearchResult{
+    std::vector<EvaluatedMove> moves;
+    int depthReached;
+};
 
 float evaluate(Board& board, MoveGenerator& generator);
 
-std::vector<EvaluatedMove> search(Board& board, MoveGenerator& generator, int depth);
+SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime);
 
-EvaluatedMove getRandomBestMove(std::vector<EvaluatedMove> const& moves);
+EvaluatedMove getRandomBestMove(SearchResult const& moves);
 
 }

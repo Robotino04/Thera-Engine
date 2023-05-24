@@ -5,6 +5,7 @@
 #include "Thera/Coordinate.hpp"
 
 #include <string>
+#include <chrono>
 
 enum class Mode{
 	Play,
@@ -32,5 +33,7 @@ struct Options {
 	Thera::Piece shownPieceBitboard = {Thera::PieceType::None, Thera::PieceColor::White};
 	BitboardSelection selectedBitboard = BitboardSelection::None;
 	Thera::Coordinate squareSelection;
+
 	int autoplayDepth = 0;
+	std::chrono::milliseconds autoplaySearchTime;
 };

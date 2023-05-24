@@ -128,11 +128,12 @@ int main(){
             return 0;
         }
         else if (buffer == "go"){
-            int depth = 6;
+            std::chrono::seconds maxSearchTime(5);
+            int depth = 9999;
 
             // currently ignores all parameters
             const auto start = std::chrono::high_resolution_clock::now();
-            auto moves = Thera::search(board, generator, depth);
+            auto moves = Thera::search(board, generator, depth, maxSearchTime);
             const auto end = std::chrono::high_resolution_clock::now();
 
             auto bestMove = getRandomBestMove(moves);

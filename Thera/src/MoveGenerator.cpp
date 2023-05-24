@@ -78,7 +78,7 @@ Bitboard xRayAttacks(Bitboard occupiedSquares, Bitboard blockers, Bitboard squar
    return attacks ^ allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares ^ blockers, square);
 }
 
-bool MoveGenerator::isCheck(Board const& board) const{
+bool MoveGenerator::isInCheck(Board const& board) const{
     return (attackedSquares & board.getBitboard({PieceType::King, board.getColorToMove()})).hasPieces();
 }
 
