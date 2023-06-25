@@ -1,5 +1,8 @@
 import sys
-import git
+try:
+    import git
+except(ImportError):
+    raise Exception("\n\npython git isn't installed. Execute: pip install git-python\n\n")
 
 repo = git.Repo(search_parent_directories=True)
 sha = repo.head.object.hexsha
