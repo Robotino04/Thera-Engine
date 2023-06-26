@@ -55,6 +55,8 @@ int main(){
 
     out << "uciok\n";
 
+    int numMoves;
+
     while (true){
         out.flush();
         logfile.flush();
@@ -99,6 +101,7 @@ int main(){
                 continue;
             }
 
+            numMoves = 0;
             // apply the moves
             while (lineStream.rdbuf()->in_avail()){
                 const auto possibleMoves = generator.generateAllMoves(board);
@@ -116,6 +119,7 @@ int main(){
                     logfile << "Invalid move detected.\n";
                     break;
                 }
+                numMoves++;
             }
 
             // log the resulting position
@@ -128,13 +132,45 @@ int main(){
             return 0;
         }
         else if (buffer == "go"){
-            auto const searchString = (board.getColorToMove() == Thera::PieceColor::White ? "winc" : "binc");
-            while (buffer != searchString && buffer != "movetime"){
+            std::chrono::milliseconds wtime;
+            std::chrono::milliseconds btime;
+            std::chrono::milliseconds winc;
+            std::chrono::milliseconds binc;
+            std::optional<std::chrono::milliseconds> movetime;
+            while (lineStream.rdbuf()->in_avail()){
                 lineStream >> buffer;
+                if (buffer == "wtime"){
+                    lineStream >> buffer;
+                    wtime = std::chrono::milliseconds(std::stoi(buffer));
+                }
+                else if (buffer == "btime"){
+                    lineStream >> buffer;
+                    btime = std::chrono::milliseconds(std::stoi(buffer));
+                }
+                else if (buffer == "winc"){
+                    lineStream >> buffer;
+                    winc = std::chrono::milliseconds(std::stoi(buffer));
+                }
+                else if (buffer == "binc"){
+                    lineStream >> buffer;
+                    binc = std::chrono::milliseconds(std::stoi(buffer));
+                }
+                else if (buffer == "movetime"){
+                    lineStream >> buffer;
+                    movetime = std::chrono::milliseconds(std::stoi(buffer));
+                }
             }
-            auto argType = buffer;
-            lineStream >> buffer;
-            std::chrono::milliseconds maxSearchTime(std::stoi(buffer)+(argType == "movetime" ? 0 : 1000));
+            std::chrono::milliseconds maxSearchTime;
+            
+            if (movetime.has_value()) maxSearchTime = movetime.value();
+            else{
+                auto inc = board.getColorToMove() == Thera::PieceColor::White ? winc : binc;
+                auto time = (board.getColorToMove() == Thera::PieceColor::White ? wtime : btime) - std::chrono::seconds(2);
+
+                int movesLeft = 80-numMoves;
+                auto maxTimePerMoveLeft = std::max(time / movesLeft, std::chrono::milliseconds(10));
+                maxSearchTime = inc - maxTimePerMoveLeft;
+            }
             logfile << "Searching for " << maxSearchTime.count() << "ms.\n"; 
             int depth = 9999;
 
