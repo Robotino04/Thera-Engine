@@ -14,8 +14,29 @@
 #include <fstream>
 #include <chrono>
 
-MultiStream out;
-std::ofstream logfile;
+static MultiStream out;
+static std::ofstream logfile;
+static std::chrono::high_resolution_clock::time_point search_start;
+
+void iterationEndCallback(Thera::SearchResult const& result){
+    const auto end = std::chrono::high_resolution_clock::now();
+    out << "info depth " << result.depthReached << " ";
+    if (result.isMate){
+        int movesLeft = (result.depthReached+3)/2;
+        if (result.maxEval < 0){
+            movesLeft = -movesLeft;
+        }
+        out << "score mate " << movesLeft << " ";
+    }
+    else{
+        out << "score cp " << static_cast<int>(result.maxEval) << " ";
+    }
+    out << "nodes " << result.nodesSearched << " ";
+    std::chrono::milliseconds dur = std::chrono::duration_cast<std::chrono::milliseconds>(end - search_start);
+    out << "time " << dur.count() << " ";
+    out << "\n";
+    out.flush();
+}
 
 int main(){
     std::string line;
@@ -46,7 +67,7 @@ int main(){
     // construct the current version
     std::string version = Thera::Utils::GitInfo::hash;
     if (Thera::Utils::GitInfo::isDirty){
-        version += "+local_changes";
+        version += " + local changes";
     }
 
     // send ids
@@ -176,13 +197,13 @@ int main(){
             int depth = 9999;
 
             // currently ignores all parameters
-            const auto start = std::chrono::high_resolution_clock::now();
-            auto moves = Thera::search(board, generator, depth, maxSearchTime);
+            search_start = std::chrono::high_resolution_clock::now();
+            auto moves = Thera::search(board, generator, depth, maxSearchTime, iterationEndCallback);
             const auto end = std::chrono::high_resolution_clock::now();
 
             auto bestMove = getRandomBestMove(moves);
             board.applyMove(bestMove.move);
-            std::chrono::duration<double> dur = end-start;
+            std::chrono::duration<double> dur = end-search_start;
             out << "bestmove " << bestMove.move.toString() << "\n";
             logfile << "Search took " << dur.count() << "s.\n";
         }

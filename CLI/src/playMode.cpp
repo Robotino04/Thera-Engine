@@ -543,7 +543,7 @@ static void setBitboardHighlight(Options const& options, Thera::Board const& boa
 }
 
 static void redrawGUI(Options const& options, Thera::Board& board, Thera::MoveGenerator& generator, std::array<RGB, 64>& highlights, std::string const& message){
-	std::cout << ANSI::clearScreen() << ANSI::reset() << "-------------------\n" << message << ANSI::reset() << "\n";
+	std::cout << ANSI::reset() << "-------------------\n" << message << ANSI::reset() << "\n";
 	setBitboardHighlight(options, board, generator, highlights);
 	printBoard(board, generator, highlights, options);
 	highlights.fill(RGB());
@@ -694,6 +694,16 @@ static void analyzePosition(MoveInputResult const& userInput, Thera::Board& boar
 		message += indentation + ANSI::set4BitColor(ANSI::Green) + "identical" + ANSI::set4BitColor(ANSI::Blue) +".\n";
 }
 
+void searchIterationEndCallback(Thera::SearchResult const& result){
+    std::cout << "Finished depth " << result.depthReached << " (" + std::to_string(result.nodesSearched) + " nodes)\n";
+    if (result.isMate){
+        std::cout << "Found mate in " << (result.depthReached+3)/2 << "\n";
+    }
+    else{
+        std::cout << "Eval: " << result.maxEval << " cp\n";
+    }
+}
+
 int playMode(Options& options){
 	Thera::Board board;
 	board.loadFromFEN(options.fen);
@@ -720,7 +730,7 @@ int playMode(Options& options){
 			}
 			if (computerColor == board.getColorToMove() && lastOp != MoveInputResult::UndoMove){
 				auto const start = std::chrono::high_resolution_clock::now();
-				auto moves = Thera::search(board, generator, options.autoplayDepth, options.autoplaySearchTime);
+				auto moves = Thera::search(board, generator, options.autoplayDepth, options.autoplaySearchTime, searchIterationEndCallback);
 				auto const end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float> duration = end - start;
 				if (moves.moves.size() == 0){
@@ -792,7 +802,7 @@ int playMode(Options& options){
 		}
 	else if (userInput.op == MoveInputResult::Search){
 			auto const start = std::chrono::high_resolution_clock::now();
-			auto moves = Thera::search(board, generator, userInput.perftDepth, userInput.maxSearchTime);
+			auto moves = Thera::search(board, generator, userInput.perftDepth, userInput.maxSearchTime, searchIterationEndCallback);
 			auto const end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float> duration = end - start;
 
@@ -810,8 +820,14 @@ int playMode(Options& options){
 
 				message +=
 					ANSI::set4BitColor(ANSI::Blue) + "Best move: " + bestMove.move.toString()
-					+ " (Eval: " + std::to_string(bestMove.eval)
-					+ "  Depth: " + std::to_string(moves.depthReached)
+					+ " (Eval: ";
+				if (moves.isMate){
+					message += "Mate in " + std::to_string((moves.depthReached+3)/2);
+				}
+				else{
+					message += std::to_string(bestMove.eval);
+				}
+				message += "  Depth: " + std::to_string(moves.depthReached)
 					+ "  Time: " + std::to_string(duration.count())
 					+ ")" + ANSI::reset();
 			}

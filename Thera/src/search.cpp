@@ -84,8 +84,11 @@ float evaluate(Board& board, MoveGenerator& generator){
 //     return maxWert;
 //  }
 
-float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<Board, std::pair<float, int>>& transpositionTable){
-    if (depth == 0) return evaluate(board, generator);
+float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<Board, std::pair<float, int>>& transpositionTable, SearchResult& searchResult){
+    if (depth == 0){
+        searchResult.nodesSearched++;
+        return evaluate(board, generator);
+    }
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
     if (transpositionTable.contains(board)){
         auto [eval, trans_depth] = transpositionTable.at(board);
@@ -100,7 +103,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     for (auto move : moves){
         board.applyMove(move);
         Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-        float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable);
+        float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
         alpha = std::max(alpha, eval);
         bestEvaluation = std::max(bestEvaluation, eval);
         if (alpha > beta)
@@ -117,7 +120,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     return bestEvaluation;
 }
 
-SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime){
+SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback){
     if (depth == 0) throw std::invalid_argument("Depth may not be 0");
 
     auto moves = generator.generateAllMoves(board);
@@ -143,7 +146,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
                 std::unordered_map<Board, std::pair<float, int>> transpositionTable;
                 board.applyMove(move.move);
                 Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-                move.eval = -negamax(board, generator, currentDepth-1, -beta, -alpha, searchStopTP, transpositionTable);
+                move.eval = -negamax(board, generator, currentDepth-1, -beta, -alpha, searchStopTP, transpositionTable, resultTmp);
 
                 alpha = std::max(alpha, move.eval);
                 if (alpha > beta)
@@ -155,12 +158,17 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
         }
         resultTmp.depthReached = currentDepth;
         result = resultTmp;
+        resultTmp.nodesSearched = 0;
         // exit early if a checkmate is found
-        float maxEval = -evalInfinity;
+        result.maxEval = -evalInfinity;
         for (auto move : result.moves){
-            maxEval = std::max(maxEval, move.eval);
+            result.maxEval = std::max(result.maxEval, move.eval);
         }
-        if (std::abs(maxEval) == evalInfinity){
+        result.isMate = std::abs(result.maxEval) == evalInfinity;
+        
+        iterationEndCallback(result);
+
+        if (result.isMate){
             return result;
         }
     }

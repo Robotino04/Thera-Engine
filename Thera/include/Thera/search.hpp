@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <optional>
 #include <chrono>
+#include <functional>
 
 
 namespace Thera{
@@ -30,12 +31,15 @@ struct EvaluatedMove{
 };
 struct SearchResult{
     std::vector<EvaluatedMove> moves;
-    int depthReached;
+    int depthReached=0;
+    bool isMate=false;
+    float maxEval;
+    uint64_t nodesSearched=0;
 };
 
 float evaluate(Board& board, MoveGenerator& generator);
 
-SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime);
+SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback);
 
 EvaluatedMove getRandomBestMove(SearchResult const& moves);
 
