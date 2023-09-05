@@ -165,6 +165,9 @@ static void printBoard(Thera::Board& board, Thera::MoveGenerator& generator, std
 				std::cout << "FEN: " << ANSI::set4BitColor(ANSI::Blue, ANSI::Foreground) << board.storeToFEN() << ANSI::reset();
 				break;
 			case 5:
+				std::cout << "Zobrist hash: " << ANSI::set4BitColor(ANSI::Blue, ANSI::Foreground) << std::hex << std::uppercase << board.getCurrentHash() << std::dec << std::nouppercase << ANSI::reset();
+				break;
+			case 6:
 				if (Thera::evaluate(board, generator) == Thera::evalInfinity){
 					std::cout << ANSI::set4BitColor(ANSI::Green) << Thera::Utils::pieceColorToString(board.getColorToMove()) << " wins!" << ANSI::reset();
 				}
@@ -788,18 +791,24 @@ int playMode(Options& options){
 			continue;
 		}
 	else if (userInput.op == MoveInputResult::Search){
-				auto const start = std::chrono::high_resolution_clock::now();
+			auto const start = std::chrono::high_resolution_clock::now();
 			auto moves = Thera::search(board, generator, userInput.perftDepth, userInput.maxSearchTime);
 			auto const end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float> duration = end - start;
 
+			std::sort(moves.moves.begin(), moves.moves.end());
+			message = "";
+			for (auto move : moves.moves){
+				message += move.move.toString() + ": " + std::to_string(move.eval) + "\n";
+			}
+
 			if (moves.moves.size() == 0){
-				message = ANSI::set8BitColor(warningColor8Bit) + "No moves possible! (Time: " + std::to_string(duration.count()) + ")" + ANSI::reset();
+				message += ANSI::set8BitColor(warningColor8Bit) + "No moves possible! (Time: " + std::to_string(duration.count()) + ")" + ANSI::reset();
 			}
 			else{
 				auto bestMove = getRandomBestMove(moves);
 
-				message =
+				message +=
 					ANSI::set4BitColor(ANSI::Blue) + "Best move: " + bestMove.move.toString()
 					+ " (Eval: " + std::to_string(bestMove.eval)
 					+ "  Depth: " + std::to_string(moves.depthReached)

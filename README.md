@@ -22,3 +22,6 @@ To test the engine more effectively and find potential bugs, I found [this](http
 
 # Performance
 Performance statistics are stored in "PerformanceStats.csv". They are eveluated using GCC and executed one at a time.
+
+# Problems
+`8/5P2/k3p1Np/1pp5/4p1P1/1n2K2P/1B1r4/8 b - - 1 34` results in a really bad move.

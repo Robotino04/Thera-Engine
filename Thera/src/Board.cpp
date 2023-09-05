@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <map>
 #include <sstream>
+#include <random>
 
 namespace Thera{
 
@@ -43,6 +44,18 @@ void Board::loadFromFEN(std::string fen){
 		{'q', PieceType::Queen},
 		{'k', PieceType::King},
 	};
+
+	std::default_random_engine randomGenerator;
+	std::uniform_int_distribution<uint64_t> distribution;
+	randomGenerator.seed(0);
+	for (auto& tableEntry : zobristTable){
+		for (auto& pieceEntry : tableEntry){
+			pieceEntry = distribution(randomGenerator);
+		}
+	}
+	zobristBlackToMove = distribution(randomGenerator);
+	currentState.zobristHash = 0;
+
 	currentState.allPieceBitboard = Bitboard();
 	for (auto& bitboard : currentState.pieceBitboards){
 		bitboard = Bitboard();
@@ -80,9 +93,9 @@ void Board::loadFromFEN(std::string fen){
 	parse_turn:
 	charIndex++; // skip space
 
-
-	if (fen.at(charIndex) == 'w') currentState.isWhiteToMove = true;
-	else if(fen.at(charIndex) == 'b') currentState.isWhiteToMove = false;
+	currentState.isWhiteToMove = true;
+	if (fen.at(charIndex) == 'w') ;
+	else if(fen.at(charIndex) == 'b') switchPerspective();
 	else
 		throw std::invalid_argument(generateFenErrorText(fen, charIndex));
 	charIndex += 2; // consume side to move and space
@@ -258,12 +271,14 @@ void Board::rewindMove(){
 
 
 void Board::placePiece(Coordinate square, Piece piece){
+	currentState.zobristHash ^= zobristTable.at(square.getIndex64()).at(piece.getRaw());
 	getBitboard(piece).placePiece(square);
 	currentState.allPieceBitboard.placePiece(square);
 	getPieceBitboardForOneColor(piece.color).placePiece(square);
 }
 
 void Board::removePiece(Coordinate square){
+	currentState.zobristHash ^= zobristTable.at(square.getIndex64()).at(at(square).getRaw());
 	currentState.allPieceBitboard.removePiece(square);
 	for (auto& bb : currentState.pieceBitboards){
 		bb.removePiece(square);

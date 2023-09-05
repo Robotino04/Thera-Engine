@@ -185,7 +185,30 @@ class Board{
 		 * Essentially views the board from the opposite side.
 		 * 
 		 */
-		constexpr void switchPerspective(){ currentState.isWhiteToMove = !currentState.isWhiteToMove; }
+		constexpr void switchPerspective(){
+			currentState.isWhiteToMove = !currentState.isWhiteToMove;
+			currentState.zobristHash ^= zobristBlackToMove;
+		}
+
+		/**
+		 * @brief Get the Current zorist hash
+		 * 
+		 * @return constexpr uint64_t 
+		 */
+		constexpr uint64_t getCurrentHash() const { return currentState.zobristHash; }
+
+		/**
+		 * @brief Compares the hashes of the boards. DO NOT USE OUTSIDE OF HASHMAP!
+		 * 
+		 * This is just for std::unordered_map to work. It completely ignores the actual equalness and thus avoids any collisions.
+		 * We can do this, since it is somewhat ok to use the wrong evaluation while searching.
+		 * 
+		 * @param other the other board
+		 * @return bool do they have the same hash
+		 */
+		bool operator==(Board const& other) const{
+			return this->getCurrentHash() == other.getCurrentHash();
+		}
 
 	public:
 		struct BoardState{
@@ -205,10 +228,24 @@ class Board{
 			bool canBlackCastleLeft: 1;
 			bool canWhiteCastleRight: 1;
 			bool canBlackCastleRight: 1;
+			uint64_t zobristHash;
 		};
 
 	private:
 		BoardState currentState;
 		std::stack<BoardState> rewindStack;
+
+		std::array<std::array<uint64_t, 16>, 64> zobristTable;
+		uint64_t zobristBlackToMove;
 };
+}
+
+
+namespace std{
+	template<>
+	struct hash<Thera::Board>{
+		uint64_t operator()(Thera::Board const& board) const{
+			return board.getCurrentHash();
+		}
+	};
 }

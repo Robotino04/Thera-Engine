@@ -167,9 +167,10 @@ int main(){
                 auto inc = board.getColorToMove() == Thera::PieceColor::White ? winc : binc;
                 auto time = (board.getColorToMove() == Thera::PieceColor::White ? wtime : btime) - std::chrono::seconds(2);
 
-                int movesLeft = 80-numMoves;
+                // assume a game lasts max. 60 moves.
+                int movesLeft = 60*2-numMoves;
                 auto maxTimePerMoveLeft = std::max(time / movesLeft, std::chrono::milliseconds(10));
-                maxSearchTime = inc - maxTimePerMoveLeft;
+                maxSearchTime = inc + maxTimePerMoveLeft;
             }
             logfile << "Searching for " << maxSearchTime.count() << "ms.\n"; 
             int depth = 9999;
