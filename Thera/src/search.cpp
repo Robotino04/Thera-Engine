@@ -22,6 +22,16 @@ static const std::unordered_map<PieceType, float> pieceValues = {
 static const float checkBonus = 50;
 }
 
+struct TranspositionTableEntry{
+    enum class Flag{
+        Exact,
+        LowerBound,
+        UpperBound,
+    } flag;
+    float eval;
+    int depth;
+};
+
 float evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
@@ -84,37 +94,70 @@ float evaluate(Board& board, MoveGenerator& generator){
 //     return maxWert;
 //  }
 
-float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<Board, std::pair<float, int>>& transpositionTable, SearchResult& searchResult){
+float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
     if (depth == 0){
         searchResult.nodesSearched++;
         return evaluate(board, generator);
     }
+    // const float originalAlpha = alpha;
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
-    if (transpositionTable.contains(board)){
-        auto [eval, trans_depth] = transpositionTable.at(board);
-        if (trans_depth >= depth){
-            return eval;
+    
+    if (transpositionTable.contains(board.getCurrentHash())){
+        auto entry = transpositionTable.at(board.getCurrentHash());
+        if (entry.depth >= depth){
+            if (entry.flag == TranspositionTableEntry::Flag::Exact){
+                return entry.eval;
+            }
+            else if (entry.flag == TranspositionTableEntry::Flag::LowerBound){
+                alpha = std::max(alpha, entry.eval);
+            }
+            else if (entry.flag == TranspositionTableEntry::Flag::UpperBound){
+                beta = std::min(beta, entry.eval);
+            }
+            if (alpha >= beta){
+                return entry.eval;
+            }
         }
     }
 
     auto moves = generator.generateAllMoves(board);
 
     float bestEvaluation = std::numeric_limits<float>::lowest();
-    for (auto move : moves){
-        board.applyMove(move);
-        Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-        float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
-        alpha = std::max(alpha, eval);
-        bestEvaluation = std::max(bestEvaluation, eval);
-        if (alpha > beta)
-            break;
-    }
 
-    if (transpositionTable.contains(board)){
-        transpositionTable.at(board) = {bestEvaluation, depth};
+    if (moves.size() == 0){
+        bestEvaluation = 0.0f;
     }
     else{
-        transpositionTable.insert({board, {bestEvaluation, depth}});
+        for (auto move : moves){
+            board.applyMove(move);
+            Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
+            float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
+            alpha = std::max(alpha, eval);
+            bestEvaluation = std::max(bestEvaluation, eval);
+            if (alpha > beta)
+                break;
+        }
+    }
+
+    TranspositionTableEntry entry;
+    entry.eval = bestEvaluation;
+    entry.depth = depth;
+
+    if (bestEvaluation <= alpha){
+        entry.flag = TranspositionTableEntry::Flag::UpperBound;
+    }
+    else if (bestEvaluation >= beta){
+        entry.flag = TranspositionTableEntry::Flag::LowerBound;
+    }
+    else{
+        entry.flag = TranspositionTableEntry::Flag::Exact;
+    }
+
+    if (transpositionTable.contains(board.getCurrentHash())){
+        transpositionTable.at(board.getCurrentHash()) = entry;
+    }
+    else{
+        transpositionTable.insert({board.getCurrentHash(), entry});
     }
 
     return bestEvaluation;
@@ -143,7 +186,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
         std::sort(resultTmp.moves.rbegin(), resultTmp.moves.rend());
         try{
             for (auto& move : resultTmp.moves){
-                std::unordered_map<Board, std::pair<float, int>> transpositionTable;
+                std::unordered_map<uint64_t, TranspositionTableEntry> transpositionTable;
                 board.applyMove(move.move);
                 Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
                 move.eval = -negamax(board, generator, currentDepth-1, -beta, -alpha, searchStopTP, transpositionTable, resultTmp);
@@ -165,7 +208,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
             result.maxEval = std::max(result.maxEval, move.eval);
         }
         result.isMate = std::abs(result.maxEval) == evalInfinity;
-        
+
         iterationEndCallback(result);
 
         if (result.isMate){

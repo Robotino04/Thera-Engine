@@ -239,13 +239,3 @@ class Board{
 		uint64_t zobristBlackToMove;
 };
 }
-
-
-namespace std{
-	template<>
-	struct hash<Thera::Board>{
-		uint64_t operator()(Thera::Board const& board) const{
-			return board.getCurrentHash();
-		}
-	};
-}

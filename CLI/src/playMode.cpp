@@ -822,7 +822,7 @@ int playMode(Options& options){
 					ANSI::set4BitColor(ANSI::Blue) + "Best move: " + bestMove.move.toString()
 					+ " (Eval: ";
 				if (moves.isMate){
-					message += "Mate in " + std::to_string((moves.depthReached+3)/2);
+					message += "Mate in " + std::to_string((moves.depthReached+1)/2);
 				}
 				else{
 					message += std::to_string(bestMove.eval);
