@@ -75,31 +75,12 @@ float evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
-
-// int miniMax(int spieler, int tiefe) {
-//     if (tiefe == 0 or keineZuegeMehr(spieler))
-//        return bewerten(spieler);
-//     int maxWert = -unendlich;
-//     generiereMoeglicheZuege(spieler);
-//     while (noch Zug da) {
-//        fuehreNaechstenZugAus();
-//        int wert = -miniMax(-spieler, tiefe-1);
-//        macheZugRueckgaengig();
-//        if (wert > maxWert) {
-//           maxWert = wert;
-//           if (tiefe == gewuenschteTiefe)
-//              gespeicherterZug = Zug;
-//        }
-//     }
-//     return maxWert;
-//  }
-
 float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
     if (depth == 0){
         searchResult.nodesSearched++;
         return evaluate(board, generator);
     }
-    // const float originalAlpha = alpha;
+    
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
     
     if (transpositionTable.contains(board.getCurrentHash())){
