@@ -75,73 +75,93 @@ float evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
-float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
-    if (depth == 0){
-        searchResult.nodesSearched++;
-        return evaluate(board, generator);
-    }
-    
+float quiesceNegamax(Board& board, MoveGenerator& generator, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
-    
+
+    float eval = evaluate(board, generator);
+    searchResult.nodesSearched++;
+    if (eval >= beta){
+        return beta;
+    }
+    alpha = std::max(alpha, eval);
+
+    generator.capturesOnly = true;
+    auto moves = generator.generateAllMoves(board);
+    generator.capturesOnly = false;
+    for (auto move : moves){
+        board.applyMove(move);
+        Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
+        eval = -quiesceNegamax(board, generator, -beta, -alpha, searchStop, searchResult);
+        if (eval >= beta){
+            return beta;
+        }
+        alpha = std::max(alpha, eval);
+    }
+
+    return alpha;
+}
+
+float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
+    if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
+
     if (transpositionTable.contains(board.getCurrentHash())){
         auto entry = transpositionTable.at(board.getCurrentHash());
         if (entry.depth >= depth){
-            if (entry.flag == TranspositionTableEntry::Flag::Exact){
+            if (entry.flag == TranspositionTableEntry::Flag::Exact)
                 return entry.eval;
-            }
-            else if (entry.flag == TranspositionTableEntry::Flag::LowerBound){
+            else if (entry.flag == TranspositionTableEntry::Flag::LowerBound)
                 alpha = std::max(alpha, entry.eval);
-            }
-            else if (entry.flag == TranspositionTableEntry::Flag::UpperBound){
+            else if (entry.flag == TranspositionTableEntry::Flag::UpperBound)
                 beta = std::min(beta, entry.eval);
-            }
-            if (alpha >= beta){
+            if (alpha >= beta)
                 return entry.eval;
-            }
         }
+    }
+
+    if (depth == 0){
+        float eval = quiesceNegamax(board, generator, alpha, beta, searchStop, searchResult);
+        return eval;
     }
 
     auto moves = generator.generateAllMoves(board);
 
-    float bestEvaluation = std::numeric_limits<float>::lowest();
-
     if (moves.size() == 0){
-        bestEvaluation = 0.0f;
+        if (generator.isInCheck(board)){
+            alpha = -evalInfinity;
+        }
+        else{
+            alpha = 0.0f;
+        }
     }
     else{
         for (auto move : moves){
             board.applyMove(move);
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
             float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
+            if (eval >= beta){
+                return beta;
+            }
             alpha = std::max(alpha, eval);
-            bestEvaluation = std::max(bestEvaluation, eval);
-            if (alpha > beta)
-                break;
         }
     }
 
     TranspositionTableEntry entry;
-    entry.eval = bestEvaluation;
+    entry.eval = alpha;
     entry.depth = depth;
 
-    if (bestEvaluation <= alpha){
+    if (entry.eval <= alpha)
         entry.flag = TranspositionTableEntry::Flag::UpperBound;
-    }
-    else if (bestEvaluation >= beta){
+    else if (entry.eval >= beta)
         entry.flag = TranspositionTableEntry::Flag::LowerBound;
-    }
-    else{
+    else
         entry.flag = TranspositionTableEntry::Flag::Exact;
-    }
 
-    if (transpositionTable.contains(board.getCurrentHash())){
+    if (transpositionTable.contains(board.getCurrentHash()))
         transpositionTable.at(board.getCurrentHash()) = entry;
-    }
-    else{
+    else
         transpositionTable.insert({board.getCurrentHash(), entry});
-    }
 
-    return bestEvaluation;
+    return entry.eval;
 }
 
 SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback){
