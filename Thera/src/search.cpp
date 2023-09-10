@@ -32,6 +32,58 @@ struct TranspositionTableEntry{
     int depth;
 };
 
+std::vector<Move> preorderMoves(std::vector<Move> const& moves, Board& board, MoveGenerator& generator){
+    struct ScoredMove{
+        Move move;
+        float score = 0;
+
+        bool operator <(ScoredMove const& other) const{
+            return score < other.score;
+        }
+    };
+
+    static const float million = 1'000'000;
+    static const float promotionScore = 6 * million;
+    static const float winningCaptureScore = 8 * million;
+    static const float loosingCaptureScore = 2 * million;
+
+    std::vector<ScoredMove> scoredMoves;
+    scoredMoves.reserve(moves.size());
+
+    board.switchPerspective();
+    generator.generateAttackData(board);
+    board.switchPerspective();
+
+    for (auto move : moves){
+        ScoredMove& scoredMove = scoredMoves.emplace_back();
+        scoredMove.move = move;
+
+        Piece capturedPiece = board.at(move.endIndex);
+        if (capturedPiece.type != PieceType::None){
+            float pieceValueDifference = EvaluationValues::pieceValues.at(capturedPiece.type) - EvaluationValues::pieceValues.at(move.piece.type);
+            if (generator.getAttackedSquares()[move.endIndex]){
+                scoredMove.score += (pieceValueDifference >= 0 ? winningCaptureScore : loosingCaptureScore) + pieceValueDifference;
+            }
+            else{
+                scoredMove.score += pieceValueDifference + winningCaptureScore;
+            }
+        }
+
+        if (move.promotionType != PieceType::None){
+            scoredMove.score += promotionScore + EvaluationValues::pieceValues.at(move.promotionType);
+        }
+    }
+
+    std::sort(scoredMoves.rbegin(), scoredMoves.rend());
+
+    std::vector<Move> sortedMoves;
+    sortedMoves.reserve(moves.size());
+    for (auto move : scoredMoves){
+        sortedMoves.push_back(move.move);
+    }
+    return sortedMoves;
+}
+
 float getMaterial(PieceColor color, Board const& board){
     float score = 0;
     for (auto type : Utils::allPieceTypes){
@@ -77,6 +129,7 @@ float quiesceNegamax(Board& board, MoveGenerator& generator, float alpha, float 
     generator.capturesOnly = true;
     auto moves = generator.generateAllMoves(board);
     generator.capturesOnly = false;
+    moves = preorderMoves(moves, board, generator);
     for (auto move : moves){
         board.applyMove(move);
         Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
@@ -113,6 +166,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     }
 
     auto moves = generator.generateAllMoves(board);
+    moves = preorderMoves(moves, board, generator);
 
     if (moves.size() == 0){
         if (generator.isInCheck(board)){
