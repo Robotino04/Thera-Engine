@@ -32,33 +32,22 @@ struct TranspositionTableEntry{
     int depth;
 };
 
+float getMaterial(PieceColor color, Board const& board){
+    float score = 0;
+    for (auto type : Utils::allPieceTypes){
+        score += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+    }
+    return score;
+}
+
 float evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
 
-    // checkmates
-    board.switchPerspective();
-    auto moves = generator.generateAllMoves(board);
-    if (moves.size() == 0){
-        if (generator.isInCheck(board)){
-            return evalInfinity;
-        }
-    }
-
-    board.switchPerspective();
-    moves = generator.generateAllMoves(board);
-    if (moves.size() == 0){
-        if (generator.isInCheck(board)){
-            return -evalInfinity;
-        }
-    }
-
     float eval = 0;
-    // piece values
-    for (auto type : Utils::allPieceTypes){
-        eval += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
-        eval -= board.getBitboard({type, otherColor}).getNumPieces() * EvaluationValues::pieceValues.at(type);
-    }
+    eval += getMaterial(color, board);
+    eval -= getMaterial(otherColor, board);
+
     // check bonus
     // are we giving check
     board.switchPerspective();

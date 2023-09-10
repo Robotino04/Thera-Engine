@@ -25,3 +25,4 @@ Performance statistics are stored in "PerformanceStats.csv". They are eveluated 
 
 ## `8/k7/3p4/p2P1p2/P2P1P2/8/8/K7 w - - 0 1` (Depth 18)
 AB-pruning + transpositions: 6.67s
+AB-pruning + transpositions + no checkmate in eval: 4.25s
