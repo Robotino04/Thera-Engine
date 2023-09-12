@@ -158,6 +158,7 @@ int main(){
             std::chrono::milliseconds winc;
             std::chrono::milliseconds binc;
             std::optional<std::chrono::milliseconds> movetime;
+            int depth = 9999;
             while (lineStream.rdbuf()->in_avail()){
                 lineStream >> buffer;
                 if (buffer == "wtime"){
@@ -180,6 +181,9 @@ int main(){
                     lineStream >> buffer;
                     movetime = std::chrono::milliseconds(std::stoi(buffer));
                 }
+                else if (buffer == "depth"){
+                    lineStream >> depth;
+                }
             }
             std::chrono::milliseconds maxSearchTime;
             
@@ -194,7 +198,6 @@ int main(){
                 maxSearchTime = inc + maxTimePerMoveLeft;
             }
             logfile << "Searching for " << maxSearchTime.count() << "ms.\n"; 
-            int depth = 9999;
 
             // currently ignores all parameters
             search_start = std::chrono::high_resolution_clock::now();
@@ -202,7 +205,6 @@ int main(){
             const auto end = std::chrono::high_resolution_clock::now();
 
             auto bestMove = getRandomBestMove(moves);
-            board.applyMove(bestMove.move);
             std::chrono::duration<double> dur = end-search_start;
             out << "bestmove " << bestMove.move.toString() << "\n";
             logfile << "Search took " << dur.count() << "s.\n";
