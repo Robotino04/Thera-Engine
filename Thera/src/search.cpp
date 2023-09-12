@@ -32,75 +32,33 @@ struct TranspositionTableEntry{
     int depth;
 };
 
-
-std::vector<Move> preorderMoves(std::vector<Move> const& moves, Board& board, MoveGenerator& generator){
-    struct ScoredMove{
-        Move move;
-        float score = 0;
-
-        bool operator <(ScoredMove const& other) const{
-            return score < other.score;
-        }
-    };
-
-    static const float million = 1'000'000;
-    static const float promotionScore = 6 * million;
-    static const float winningCaptureScore = 8 * million;
-    static const float loosingCaptureScore = 2 * million;
-
-    std::vector<ScoredMove> scoredMoves;
-    scoredMoves.reserve(moves.size());
-
-    board.switchPerspective();
-    generator.generateAttackData(board);
-    board.switchPerspective();
-
-    for (auto move : moves){
-        ScoredMove& scoredMove = scoredMoves.emplace_back();
-        scoredMove.move = move;
-
-        Piece capturedPiece = board.at(move.endIndex);
-        if (capturedPiece.type != PieceType::None){
-            float pieceValueDifference = EvaluationValues::pieceValues.at(capturedPiece.type) - EvaluationValues::pieceValues.at(move.piece.type);
-            if (generator.getAttackedSquares()[move.endIndex]){
-                scoredMove.score += (pieceValueDifference >= 0 ? winningCaptureScore : loosingCaptureScore) + pieceValueDifference;
-            }
-            else{
-                scoredMove.score += pieceValueDifference + winningCaptureScore;
-            }
-        }
-
-        if (move.promotionType != PieceType::None){
-            scoredMove.score += promotionScore + EvaluationValues::pieceValues.at(move.promotionType);
-        }
-    }
-
-    std::sort(scoredMoves.rbegin(), scoredMoves.rend());
-
-    std::vector<Move> sortedMoves;
-    sortedMoves.reserve(moves.size());
-    for (auto move : scoredMoves){
-        sortedMoves.push_back(move.move);
-    }
-    return sortedMoves;
-}
-
-float getMaterial(PieceColor color, Board const& board){
-    float score = 0;
-    for (auto type : Utils::allPieceTypes){
-        score += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
-    }
-    return score;
-}
-
 float evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
 
-    float eval = 0;
-    eval += getMaterial(color, board);
-    eval -= getMaterial(otherColor, board);
+    // checkmates
+    board.switchPerspective();
+    auto moves = generator.generateAllMoves(board);
+    if (moves.size() == 0){
+        if (generator.isInCheck(board)){
+            return evalInfinity;
+        }
+    }
 
+    board.switchPerspective();
+    moves = generator.generateAllMoves(board);
+    if (moves.size() == 0){
+        if (generator.isInCheck(board)){
+            return -evalInfinity;
+        }
+    }
+
+    float eval = 0;
+    // piece values
+    for (auto type : Utils::allPieceTypes){
+        eval += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+        eval -= board.getBitboard({type, otherColor}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+    }
     // check bonus
     // are we giving check
     board.switchPerspective();
@@ -128,37 +86,36 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     if (transpositionTable.contains(board.getCurrentHash())){
         auto entry = transpositionTable.at(board.getCurrentHash());
         if (entry.depth >= depth){
-            if (entry.flag == TranspositionTableEntry::Flag::Exact)
+            if (entry.flag == TranspositionTableEntry::Flag::Exact){
                 return entry.eval;
-            else if (entry.flag == TranspositionTableEntry::Flag::LowerBound)
+            }
+            else if (entry.flag == TranspositionTableEntry::Flag::LowerBound){
                 alpha = std::max(alpha, entry.eval);
-            else if (entry.flag == TranspositionTableEntry::Flag::UpperBound)
+            }
+            else if (entry.flag == TranspositionTableEntry::Flag::UpperBound){
                 beta = std::min(beta, entry.eval);
-            
-            if (alpha >= beta)
+            }
+            if (alpha >= beta){
                 return entry.eval;
             }
         }
+    }
 
     auto moves = generator.generateAllMoves(board);
 
-    float bestEvaluation = -evalInfinity;
+    float bestEvaluation = std::numeric_limits<float>::lowest();
 
     if (moves.size() == 0){
-        if (generator.isInCheck(board))
-            bestEvaluation = -evalInfinity;
-        else
-            bestEvaluation = 0.0f;
+        bestEvaluation = 0.0f;
     }
     else{
-        moves = preorderMoves(moves, board, generator);
         for (auto move : moves){
             board.applyMove(move);
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
             float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
             alpha = std::max(alpha, eval);
             bestEvaluation = std::max(bestEvaluation, eval);
-            if (alpha >= beta)
+            if (alpha > beta)
                 break;
         }
     }
@@ -167,19 +124,24 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     entry.eval = bestEvaluation;
     entry.depth = depth;
 
-    if (entry.eval <= alpha)
+    if (bestEvaluation <= alpha){
         entry.flag = TranspositionTableEntry::Flag::UpperBound;
-    else if (entry.eval >= beta)
+    }
+    else if (bestEvaluation >= beta){
         entry.flag = TranspositionTableEntry::Flag::LowerBound;
-    else
+    }
+    else{
         entry.flag = TranspositionTableEntry::Flag::Exact;
+    }
 
-    if (transpositionTable.contains(board.getCurrentHash()))
+    if (transpositionTable.contains(board.getCurrentHash())){
         transpositionTable.at(board.getCurrentHash()) = entry;
-    else
+    }
+    else{
         transpositionTable.insert({board.getCurrentHash(), entry});
+    }
 
-    return entry.eval;
+    return bestEvaluation;
 }
 
 SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback){

@@ -237,8 +237,6 @@ class MoveGenerator{
             uint8_t dir2: 3;
         };
 
-        bool capturesOnly = false;
-
     private:
         std::vector<Move> generatedMoves;
         std::array<Bitboard, 64> squaresAttackingSquare;
