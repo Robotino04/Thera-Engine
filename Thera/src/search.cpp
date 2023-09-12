@@ -32,33 +32,75 @@ struct TranspositionTableEntry{
     int depth;
 };
 
+
+std::vector<Move> preorderMoves(std::vector<Move> const& moves, Board& board, MoveGenerator& generator){
+    struct ScoredMove{
+        Move move;
+        float score = 0;
+
+        bool operator <(ScoredMove const& other) const{
+            return score < other.score;
+        }
+    };
+
+    static const float million = 1'000'000;
+    static const float promotionScore = 6 * million;
+    static const float winningCaptureScore = 8 * million;
+    static const float loosingCaptureScore = 2 * million;
+
+    std::vector<ScoredMove> scoredMoves;
+    scoredMoves.reserve(moves.size());
+
+    board.switchPerspective();
+    generator.generateAttackData(board);
+    board.switchPerspective();
+
+    for (auto move : moves){
+        ScoredMove& scoredMove = scoredMoves.emplace_back();
+        scoredMove.move = move;
+
+        Piece capturedPiece = board.at(move.endIndex);
+        if (capturedPiece.type != PieceType::None){
+            float pieceValueDifference = EvaluationValues::pieceValues.at(capturedPiece.type) - EvaluationValues::pieceValues.at(move.piece.type);
+            if (generator.getAttackedSquares()[move.endIndex]){
+                scoredMove.score += (pieceValueDifference >= 0 ? winningCaptureScore : loosingCaptureScore) + pieceValueDifference;
+            }
+            else{
+                scoredMove.score += pieceValueDifference + winningCaptureScore;
+            }
+        }
+
+        if (move.promotionType != PieceType::None){
+            scoredMove.score += promotionScore + EvaluationValues::pieceValues.at(move.promotionType);
+        }
+    }
+
+    std::sort(scoredMoves.rbegin(), scoredMoves.rend());
+
+    std::vector<Move> sortedMoves;
+    sortedMoves.reserve(moves.size());
+    for (auto move : scoredMoves){
+        sortedMoves.push_back(move.move);
+    }
+    return sortedMoves;
+}
+
+float getMaterial(PieceColor color, Board const& board){
+    float score = 0;
+    for (auto type : Utils::allPieceTypes){
+        score += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
+    }
+    return score;
+}
+
 float evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
 
-    // checkmates
-    board.switchPerspective();
-    auto moves = generator.generateAllMoves(board);
-    if (moves.size() == 0){
-        if (generator.isInCheck(board)){
-            return evalInfinity;
-        }
-    }
-
-    board.switchPerspective();
-    moves = generator.generateAllMoves(board);
-    if (moves.size() == 0){
-        if (generator.isInCheck(board)){
-            return -evalInfinity;
-        }
-    }
-
     float eval = 0;
-    // piece values
-    for (auto type : Utils::allPieceTypes){
-        eval += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
-        eval -= board.getBitboard({type, otherColor}).getNumPieces() * EvaluationValues::pieceValues.at(type);
-    }
+    eval += getMaterial(color, board);
+    eval -= getMaterial(otherColor, board);
+
     // check bonus
     // are we giving check
     board.switchPerspective();
@@ -106,9 +148,13 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     float bestEvaluation = std::numeric_limits<float>::lowest();
 
     if (moves.size() == 0){
-        bestEvaluation = 0.0f;
+        if (generator.isInCheck(board))
+            bestEvaluation = -evalInfinity;
+        else
+            bestEvaluation = 0.0f;
     }
     else{
+        moves = preorderMoves(moves, board, generator);
         for (auto move : moves){
             board.applyMove(move);
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
