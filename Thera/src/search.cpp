@@ -204,7 +204,13 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
     }
     SearchResult resultTmp = result;
 
-    std::chrono::steady_clock::time_point searchStopTP = std::chrono::steady_clock::now() + maxSearchTime.value_or(std::chrono::milliseconds(0));
+    std::chrono::steady_clock::time_point searchStopTP;
+    if (maxSearchTime.has_value()){
+        searchStopTP = std::chrono::steady_clock::now() + maxSearchTime.value();
+    }
+    else{
+        searchStopTP = std::chrono::steady_clock::time_point::max();
+    }
 
 
     // iterative deepening

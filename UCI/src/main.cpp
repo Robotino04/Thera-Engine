@@ -153,10 +153,10 @@ int main(){
             return 0;
         }
         else if (buffer == "go"){
-            std::chrono::milliseconds wtime;
-            std::chrono::milliseconds btime;
-            std::chrono::milliseconds winc;
-            std::chrono::milliseconds binc;
+            std::chrono::milliseconds wtime = std::chrono::milliseconds::zero();
+            std::chrono::milliseconds btime = std::chrono::milliseconds::zero();
+            std::chrono::milliseconds winc = std::chrono::milliseconds::zero();
+            std::chrono::milliseconds binc = std::chrono::milliseconds::zero();
             std::optional<std::chrono::milliseconds> movetime;
             int depth = 9999;
             while (lineStream.rdbuf()->in_avail()){
@@ -185,10 +185,10 @@ int main(){
                     lineStream >> depth;
                 }
             }
-            std::chrono::milliseconds maxSearchTime;
+            std::optional<std::chrono::milliseconds> maxSearchTime;
             
             if (movetime.has_value()) maxSearchTime = movetime.value();
-            else{
+            else if ((wtime + btime + winc + binc).count() != 0){
                 auto inc = board.getColorToMove() == Thera::PieceColor::White ? winc : binc;
                 auto time = (board.getColorToMove() == Thera::PieceColor::White ? wtime : btime) - std::chrono::seconds(2);
 
@@ -196,8 +196,11 @@ int main(){
                 int movesLeft = 60*2-numMoves;
                 auto maxTimePerMoveLeft = std::max(time / movesLeft, std::chrono::milliseconds(10));
                 maxSearchTime = inc + maxTimePerMoveLeft;
+                logfile << "Searching for " << maxSearchTime.value().count() << "ms.\n"; 
             }
-            logfile << "Searching for " << maxSearchTime.count() << "ms.\n"; 
+            if (depth < 9999){
+                logfile << "Searching to depth " << depth << ".\n"; 
+            }
 
             // currently ignores all parameters
             search_start = std::chrono::high_resolution_clock::now();
