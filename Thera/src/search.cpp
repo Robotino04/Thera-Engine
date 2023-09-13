@@ -117,14 +117,48 @@ float evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
-float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
-    if (depth == 0){
-        searchResult.nodesSearched++;
-        return evaluate(board, generator);
+bool negamaxStep(float newEval, float& bestEval, float& alpha, float beta){
+    alpha = std::max(alpha, newEval);
+    bestEval = std::max(bestEval, newEval);
+    return alpha > beta;
+}
+
+
+float capturesOnlyNegamax(Board& board, MoveGenerator& generator, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
+    if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
+
+    float bestEvaluation = -evalInfinity;
+    if (negamaxStep(evaluate(board, generator), bestEvaluation, alpha, beta))
+        return bestEvaluation;
+
+    generator.capturesOnly = true;
+    auto moves = generator.generateAllMoves(board);
+    generator.capturesOnly = false;
+
+    if (moves.size() == 0){
     }
-    
+    else{
+        moves = preorderMoves(std::move(moves), board, generator);
+        for (auto move : moves){
+            board.applyMove(move);
+            Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
+            float eval = -capturesOnlyNegamax(board, generator, -beta, -alpha, searchStop, searchResult);
+            if (negamaxStep(eval, bestEvaluation, alpha, beta))
+                break;
+        }
+    }
+
+    return bestEvaluation;
+}
+
+float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
     
+    if (depth == 0){
+        searchResult.nodesSearched++;
+        return capturesOnlyNegamax(board, generator, alpha, beta, searchStop, searchResult);
+    }
+
     if (transpositionTable.contains(board.getCurrentHash())){
         auto entry = transpositionTable.at(board.getCurrentHash());
         if (entry.depth >= depth){
@@ -142,10 +176,10 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
             }
         }
     }
+    
+    float bestEvaluation = -evalInfinity;
 
     auto moves = generator.generateAllMoves(board);
-
-    float bestEvaluation = -evalInfinity;
 
     if (moves.size() == 0){
         if (generator.isInCheck(board)){
@@ -161,9 +195,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
             board.applyMove(move);
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
             float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
-            alpha = std::max(alpha, eval);
-            bestEvaluation = std::max(bestEvaluation, eval);
-            if (alpha > beta)
+            if (negamaxStep(eval, bestEvaluation, alpha, beta))
                 break;
         }
     }
