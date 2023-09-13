@@ -12,11 +12,22 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
 
     generateAttackData(board);
 
-    generateAllKingMoves(board, Utils::binaryOnes<uint64_t>(64));
-    if (!isDoubleCheck){
-        generateAllSlidingMoves(board, possibleTargets);
-        generateAllKnightMoves(board, possibleTargets);
-        generateAllPawnMoves(board, possibleTargets);
+    if (capturesOnly){
+        possibleTargets &= board.getPieceBitboardForOneColor(board.getColorToNotMove());
+        generateAllKingMoves(board, board.getPieceBitboardForOneColor(board.getColorToNotMove()));
+        if (!isDoubleCheck){
+            generateAllSlidingMoves(board, possibleTargets);
+            generateAllKnightMoves(board, possibleTargets);
+            generateAllPawnMoves(board, possibleTargets);
+        }
+    }
+    else{
+        generateAllKingMoves(board, Utils::binaryOnes<uint64_t>(64));
+        if (!isDoubleCheck){
+            generateAllSlidingMoves(board, possibleTargets);
+            generateAllKnightMoves(board, possibleTargets);
+            generateAllPawnMoves(board, possibleTargets);
+        }
     }
 
     return generatedMoves;
@@ -350,32 +361,34 @@ void MoveGenerator::generateAllKingMoves(Board const& board, Bitboard targetMask
         targets.clearLS1B();
     }
 
-    const int shiftAmount = (board.getCurrentState().isWhiteToMove ? 0 : DirectionIndex64::N*7);
-    const Bitboard leftCastlingMap = Bitboard(0x00000000000000000e) << shiftAmount;
-    const Bitboard rightCastlingMap = Bitboard(0x000000000000000060) << shiftAmount;
-    const Bitboard leftCastlingMapKing = Bitboard(0x00000000000000001c) << shiftAmount;
-    const Bitboard rightCastlingMapKing = Bitboard(0x000000000000000070) << shiftAmount;
+    if (!capturesOnly){
+        const int shiftAmount = (board.getCurrentState().isWhiteToMove ? 0 : DirectionIndex64::N*7);
+        const Bitboard leftCastlingMap = Bitboard(0x00000000000000000e) << shiftAmount;
+        const Bitboard rightCastlingMap = Bitboard(0x000000000000000060) << shiftAmount;
+        const Bitboard leftCastlingMapKing = Bitboard(0x00000000000000001c) << shiftAmount;
+        const Bitboard rightCastlingMapKing = Bitboard(0x000000000000000070) << shiftAmount;
 
-    // add castling moves
-    if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
-        if (!uint64_t(rightCastlingMap & board.getAllPieceBitboard()) && !uint64_t(rightCastlingMapKing & attackedSquares)){
-                // king movement
-                Move& move = generatedMoves.emplace_back(square, square + Direction::E*2, piece);
-                move.isCastling = true;
-                // rook movement
-                move.castlingStart = square + Direction::E*3;
-                move.castlingEnd = square + Direction::E;
-            }
-    }
-    if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
-        if (!uint64_t(leftCastlingMap & board.getAllPieceBitboard()) && !uint64_t(leftCastlingMapKing & attackedSquares)){
-                // king movement
-                Move& move = generatedMoves.emplace_back(square, square + Direction::W*2, piece);
-                move.isCastling = true;
-                // rook movement
-                move.castlingStart = square + Direction::W*4;
-                move.castlingEnd = square + Direction::W;
-            }
+        // add castling moves
+        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
+            if (!uint64_t(rightCastlingMap & board.getAllPieceBitboard()) && !uint64_t(rightCastlingMapKing & attackedSquares)){
+                    // king movement
+                    Move& move = generatedMoves.emplace_back(square, square + Direction::E*2, piece);
+                    move.isCastling = true;
+                    // rook movement
+                    move.castlingStart = square + Direction::E*3;
+                    move.castlingEnd = square + Direction::E;
+                }
+        }
+        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
+            if (!uint64_t(leftCastlingMap & board.getAllPieceBitboard()) && !uint64_t(leftCastlingMapKing & attackedSquares)){
+                    // king movement
+                    Move& move = generatedMoves.emplace_back(square, square + Direction::W*2, piece);
+                    move.isCastling = true;
+                    // rook movement
+                    move.castlingStart = square + Direction::W*4;
+                    move.castlingEnd = square + Direction::W;
+                }
+        }
     }
 }
 
@@ -418,27 +431,30 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
             unpinnedPawnsRight.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
     }
+    
+    if (!capturesOnly){
+        Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
+        Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied & targetMask;
+        single_pushes &= targetMask;
 
-    Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
-    Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied & targetMask;
+        while (single_pushes.hasPieces()) {
+            const int target_square = single_pushes.getLS1B();
+            const int origin_square = target_square + reverseDirection;
+            addPawnMovePossiblyPromotion({Coordinate(origin_square), Coordinate(target_square)}, board);
+            single_pushes.clearLS1B();
+        }
+        while (double_pushes.hasPieces()) {
+            const int target_square = double_pushes.getLS1B();
+            const int origin_square = target_square + reverseDirection*2;
+            Move& move = generatedMoves.emplace_back(Coordinate(origin_square), Coordinate(target_square), piece);
+            move.isDoublePawnMove = true;
+            double_pushes.clearLS1B();
+        }
+    }
+    
     Bitboard captures_left = ((unpinnedPawnsLeft & 0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W)) & occupied_other_color & targetMask;
     Bitboard captures_right = ((unpinnedPawnsRight & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E)) & occupied_other_color & targetMask;
-
-    single_pushes &= targetMask;
-
-    while (single_pushes.hasPieces()) {
-        const int target_square = single_pushes.getLS1B();
-        const int origin_square = target_square + reverseDirection;
-        addPawnMovePossiblyPromotion({Coordinate(origin_square), Coordinate(target_square)}, board);
-        single_pushes.clearLS1B();
-    }
-    while (double_pushes.hasPieces()) {
-        const int target_square = double_pushes.getLS1B();
-        const int origin_square = target_square + reverseDirection*2;
-        Move& move = generatedMoves.emplace_back(Coordinate(origin_square), Coordinate(target_square), piece);
-        move.isDoublePawnMove = true;
-        double_pushes.clearLS1B();
-    }
+    
     while (captures_left.hasPieces()) {
         const int target_square = captures_left.getLS1B();
         const int origin_square = target_square + reverseDirectionLeft;
