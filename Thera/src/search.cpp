@@ -137,7 +137,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
             else if (entry.flag == TranspositionTableEntry::Flag::UpperBound){
                 beta = std::min(beta, entry.eval);
             }
-            if (alpha >= beta){
+            if (alpha > beta){
                 return entry.eval;
             }
         }
@@ -172,24 +172,19 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
     entry.eval = bestEvaluation;
     entry.depth = depth;
 
-    if (bestEvaluation <= alpha){
+    if (entry.eval <= alpha){
         entry.flag = TranspositionTableEntry::Flag::UpperBound;
     }
-    else if (bestEvaluation >= beta){
+    else if (entry.eval >= beta){
         entry.flag = TranspositionTableEntry::Flag::LowerBound;
     }
     else{
         entry.flag = TranspositionTableEntry::Flag::Exact;
     }
 
-    if (transpositionTable.contains(board.getCurrentHash())){
-        transpositionTable.at(board.getCurrentHash()) = entry;
-    }
-    else{
-        transpositionTable.insert({board.getCurrentHash(), entry});
-    }
+    transpositionTable.insert_or_assign(board.getCurrentHash(), entry);
 
-    return bestEvaluation;
+    return entry.eval;
 }
 
 SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback){
