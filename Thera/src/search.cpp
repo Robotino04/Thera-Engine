@@ -6,20 +6,96 @@
 #include <cstdlib>
 #include <algorithm>
 #include <unordered_map>
+#include <array>
 
 namespace Thera{
 
 namespace EvaluationValues{
-static const std::unordered_map<PieceType, float> pieceValues = {
+static const std::unordered_map<PieceType, int> pieceValues = {
     {PieceType::Pawn, 100},
     {PieceType::Bishop, 300},
     {PieceType::Knight, 300},
     {PieceType::Rook, 500},
     {PieceType::Queen, 900},
-    {PieceType::King, 0},
+    {PieceType::King, 20000},
 };
 
-static const float checkBonus = 50;
+static const int checkBonus = 10;
+
+// https://www.chessprogramming.org/Simplified_Evaluation_Function
+static const std::array<std::array<int, 64>, 7> simplifiedEvalScores{
+    std::array<int, 64>{  // no piece / placeholder
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,
+    },
+    { // pawn
+         0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+         5,  5, 10, 25, 25, 10,  5,  5,
+         0,  0,  0, 20, 20,  0,  0,  0,
+         5, -5,-10,  0,  0,-10, -5,  5,
+         5, 10, 10,-30,-30, 10, 10,  5,
+         0,  0,  0,  0,  0,  0,  0,  0
+    },
+    {  // knight
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-35,-30,-30,-30,-30,-35,-50,
+    },
+    {  // bishop
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20,
+    },
+    {  // rook
+         0,  0,  0,  0,  0,  0,  0,  0,
+         5, 10, 10, 10, 10, 10, 10,  5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+         0,  0,  0,  5,  5,  0,  0,  0
+    },
+    {  // queen
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+          0,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20
+    },
+    {  // king
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -20,-30,-30,-40,-40,-30,-30,-20,
+        -10,-20,-20,-20,-20,-20,-20,-10,
+         20, 20,  0,  0,  0,  0, 20, 20,
+         20, 30, 10,  0,  0, 10, 30, 20
+    }
+};
+
 }
 
 struct TranspositionTableEntry{
@@ -28,7 +104,7 @@ struct TranspositionTableEntry{
         LowerBound,
         UpperBound,
     } flag;
-    float eval;
+    int eval;
     int depth;
 };
 
@@ -36,17 +112,17 @@ struct TranspositionTableEntry{
 std::vector<Move> preorderMoves(std::vector<Move> const&& moves, Board& board, MoveGenerator& generator){
     struct ScoredMove{
         Move move;
-        float score = 0;
+        int score = 0;
 
         bool operator <(ScoredMove const& other) const{
             return score < other.score;
         }
     };
 
-    static const float million = 1'000'000;
-    static const float promotionScore = 6 * million;
-    static const float winningCaptureScore = 8 * million;
-    static const float loosingCaptureScore = 2 * million;
+    static const int million = 1'000'000;
+    static const int promotionScore = 6 * million;
+    static const int winningCaptureScore = 8 * million;
+    static const int loosingCaptureScore = 2 * million;
 
     std::vector<ScoredMove> scoredMoves;
     scoredMoves.reserve(moves.size());
@@ -61,7 +137,7 @@ std::vector<Move> preorderMoves(std::vector<Move> const&& moves, Board& board, M
 
         Piece capturedPiece = board.at(move.endIndex);
         if (capturedPiece.type != PieceType::None){
-            float pieceValueDifference = EvaluationValues::pieceValues.at(capturedPiece.type) - EvaluationValues::pieceValues.at(move.piece.type);
+            int pieceValueDifference = EvaluationValues::pieceValues.at(capturedPiece.type) - EvaluationValues::pieceValues.at(move.piece.type);
             if (generator.getAttackedSquares()[move.endIndex]){
                 scoredMove.score += (pieceValueDifference >= 0 ? winningCaptureScore : loosingCaptureScore) + pieceValueDifference;
             }
@@ -85,21 +161,42 @@ std::vector<Move> preorderMoves(std::vector<Move> const&& moves, Board& board, M
     return sortedMoves;
 }
 
-float getMaterial(PieceColor color, Board const& board){
-    float score = 0;
+int getMaterial(PieceColor color, Board const& board){
+    int score = 0;
     for (auto type : Utils::allPieceTypes){
         score += board.getBitboard({type, color}).getNumPieces() * EvaluationValues::pieceValues.at(type);
     }
     return score;
 }
 
-float evaluate(Board& board, MoveGenerator& generator){
+int getPiecePositionValue(PieceType piece, Bitboard positions){
+    int score = 0;
+    while (positions.hasPieces()){
+        auto pos = positions.getLS1B();
+        positions.clearLS1B();
+        score += EvaluationValues::simplifiedEvalScores.at(static_cast<int>(piece)).at(pos);
+    }
+    return score;
+}
+
+int evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
 
-    float eval = 0;
+    int eval = 0;
     eval += getMaterial(color, board);
     eval -= getMaterial(otherColor, board);
+
+    for (auto pieceType : Utils::allPieceTypes){
+        if (board.getColorToMove() == PieceColor::White){
+            eval += getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::White}));
+            eval -= getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::Black}).flipped());
+        }
+        else{
+            eval -= getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::White}));
+            eval += getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::Black}).flipped());
+        }
+    }
 
     // check bonus
     // are we giving check
@@ -117,17 +214,17 @@ float evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
-bool negamaxStep(float newEval, float& bestEval, float& alpha, float beta){
+bool negamaxStep(int newEval, int& bestEval, int& alpha, int beta){
     alpha = std::max(alpha, newEval);
     bestEval = std::max(bestEval, newEval);
     return alpha > beta;
 }
 
 
-float capturesOnlyNegamax(Board& board, MoveGenerator& generator, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
+int capturesOnlyNegamax(Board& board, MoveGenerator& generator, int alpha, int beta, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
 
-    float bestEvaluation = -evalInfinity;
+    int bestEvaluation = -evalInfinity;
     if (negamaxStep(evaluate(board, generator), bestEvaluation, alpha, beta))
         return bestEvaluation;
 
@@ -135,23 +232,19 @@ float capturesOnlyNegamax(Board& board, MoveGenerator& generator, float alpha, f
     auto moves = generator.generateAllMoves(board);
     generator.capturesOnly = false;
 
-    if (moves.size() == 0){
-    }
-    else{
-        moves = preorderMoves(std::move(moves), board, generator);
-        for (auto move : moves){
-            board.applyMove(move);
-            Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-            float eval = -capturesOnlyNegamax(board, generator, -beta, -alpha, searchStop, searchResult);
-            if (negamaxStep(eval, bestEvaluation, alpha, beta))
-                break;
-        }
+    moves = preorderMoves(std::move(moves), board, generator);
+    for (auto move : moves){
+        board.applyMove(move);
+        Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
+        int eval = -capturesOnlyNegamax(board, generator, -beta, -alpha, searchStop, searchResult);
+        if (negamaxStep(eval, bestEvaluation, alpha, beta))
+            break;
     }
 
     return bestEvaluation;
 }
 
-float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, float beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
+int negamax(Board& board, MoveGenerator& generator, int depth, int alpha, int beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
     
     if (depth == 0){
@@ -177,7 +270,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
         }
     }
     
-    float bestEvaluation = -evalInfinity;
+    int bestEvaluation = -evalInfinity;
 
     auto moves = generator.generateAllMoves(board);
 
@@ -194,7 +287,7 @@ float negamax(Board& board, MoveGenerator& generator, int depth, float alpha, fl
         for (auto move : moves){
             board.applyMove(move);
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-            float eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
+            int eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
             if (negamaxStep(eval, bestEvaluation, alpha, beta))
                 break;
         }
@@ -242,8 +335,8 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
 
     // iterative deepening
     for (int currentDepth=1; currentDepth <= depth; currentDepth++){
-        float alpha = -evalInfinity;
-        float beta = evalInfinity;
+        int alpha = -evalInfinity;
+        int beta = evalInfinity;
         // sort in reverse to first search the best moves
         std::sort(resultTmp.moves.rbegin(), resultTmp.moves.rend());
         try{
@@ -282,7 +375,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
 }
 
 EvaluatedMove getRandomBestMove(SearchResult const& moves){
-    float bestEval = moves.moves.front().eval;
+    int bestEval = moves.moves.front().eval;
     std::vector<EvaluatedMove> bestMoves;
     for (auto move : moves.moves){
         if (move.eval > bestEval){

@@ -14,13 +14,13 @@
 
 namespace Thera{
 
-static constexpr float evalInfinity = std::numeric_limits<float>::max();
+static constexpr int evalInfinity = std::numeric_limits<int>::max();
 
 struct SearchStopException : public std::exception{};
 
 struct EvaluatedMove{
     Move move;
-    float eval = -std::numeric_limits<float>::infinity();
+    int eval = -std::numeric_limits<int>::infinity();
 
     bool operator < (EvaluatedMove other) const{
         if (eval != other.eval){
@@ -33,11 +33,11 @@ struct SearchResult{
     std::vector<EvaluatedMove> moves;
     int depthReached=0;
     bool isMate=false;
-    float maxEval;
+    int maxEval;
     uint64_t nodesSearched=0;
 };
 
-float evaluate(Board& board, MoveGenerator& generator);
+int evaluate(Board& board, MoveGenerator& generator);
 
 SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback);
 

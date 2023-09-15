@@ -36,6 +36,7 @@ void iterationEndCallback(Thera::SearchResult const& result){
     out << "time " << dur.count() << " ";
     out << "\n";
     out.flush();
+    std::cout.flush();
 }
 
 int main(){

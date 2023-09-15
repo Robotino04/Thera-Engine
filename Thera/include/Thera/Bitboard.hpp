@@ -172,6 +172,18 @@ class Bitboard{
         constexpr void clearBit(uint8_t bitIndex){
             bits &= ~ Utils::binaryOneAt<uint64_t>(bitIndex);
         }
+        constexpr Bitboard flipped() const{
+            return Bitboard(
+                ((bits >> 8*0) & 0b11111111) << 8*7 |
+                ((bits >> 8*1) & 0b11111111) << 8*6 |
+                ((bits >> 8*2) & 0b11111111) << 8*5 |
+                ((bits >> 8*3) & 0b11111111) << 8*4 |
+                ((bits >> 8*4) & 0b11111111) << 8*3 |
+                ((bits >> 8*5) & 0b11111111) << 8*2 |
+                ((bits >> 8*6) & 0b11111111) << 8*1 |
+                ((bits >> 8*7) & 0b11111111) << 8*0
+            );
+        }
 
         constexpr uint8_t getLS1B() const {
             return std::countr_zero(bits);
