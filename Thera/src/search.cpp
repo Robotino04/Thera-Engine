@@ -214,6 +214,18 @@ int evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
+int getSearchExtensionDepth(Board const& board, MoveGenerator& generator){
+    generator.generateAttackData(board);
+
+    int searchExtensions = 0;
+
+    if (generator.isInCheck(board)){
+        searchExtensions++;
+    }
+
+    return searchExtensions;
+}
+
 bool negamaxStep(int newEval, int& bestEval, int& alpha, int beta){
     alpha = std::max(alpha, newEval);
     bestEval = std::max(bestEval, newEval);
@@ -286,8 +298,11 @@ int negamax(Board& board, MoveGenerator& generator, int depth, int alpha, int be
         moves = preorderMoves(std::move(moves), board, generator);
         for (auto move : moves){
             board.applyMove(move);
+
+            int searchExtensions = getSearchExtensionDepth(board, generator);
+
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-            int eval = -negamax(board, generator, depth-1, -beta, -alpha, searchStop, transpositionTable, searchResult);
+            int eval = -negamax(board, generator, depth-1 + searchExtensions, -beta, -alpha, searchStop, transpositionTable, searchResult);
             if (negamaxStep(eval, bestEvaluation, alpha, beta))
                 break;
         }
