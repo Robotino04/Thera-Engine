@@ -337,6 +337,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
     for (int currentDepth=1; currentDepth <= depth; currentDepth++){
         int alpha = -evalInfinity;
         int beta = evalInfinity;
+
         // sort in reverse to first search the best moves
         std::sort(resultTmp.moves.rbegin(), resultTmp.moves.rend());
         try{
@@ -352,7 +353,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
             }
         }
         catch(SearchStopException){
-            return result;
+            return resultTmp;
         }
         resultTmp.depthReached = currentDepth;
         result = resultTmp;
