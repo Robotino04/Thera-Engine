@@ -214,12 +214,18 @@ int evaluate(Board& board, MoveGenerator& generator){
     return eval;
 }
 
-int getSearchExtensionDepth(Board const& board, MoveGenerator& generator){
+int getSearchExtensionDepth(Move const& lastMove, Board const& board, MoveGenerator& generator){
     generator.generateAttackData(board);
 
     int searchExtensions = 0;
 
+    // extend checks
     if (generator.isInCheck(board)){
+        searchExtensions++;
+    }
+
+    // extend promotions
+    if (lastMove.promotionType != PieceType::None){
         searchExtensions++;
     }
 
@@ -299,7 +305,7 @@ int negamax(Board& board, MoveGenerator& generator, int depth, int alpha, int be
         for (auto move : moves){
             board.applyMove(move);
 
-            int searchExtensions = getSearchExtensionDepth(board, generator);
+            int searchExtensions = getSearchExtensionDepth(move, board, generator);
 
             Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
             int eval = -negamax(board, generator, depth-1 + searchExtensions, -beta, -alpha, searchStop, transpositionTable, searchResult);
