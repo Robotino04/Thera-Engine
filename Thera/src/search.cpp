@@ -183,6 +183,10 @@ int evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
 
+    if (board.is3FoldRepetition()){
+        return 0;
+    }
+
     int eval = 0;
     eval += getMaterial(color, board);
     eval -= getMaterial(otherColor, board);
@@ -242,6 +246,10 @@ bool negamaxStep(int newEval, int& bestEval, int& alpha, int beta){
 int capturesOnlyNegamax(Board& board, MoveGenerator& generator, int alpha, int beta, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
 
+    if (board.is3FoldRepetition()){
+        return 0;
+    }
+
     int bestEvaluation = -evalInfinity;
     if (negamaxStep(evaluate(board, generator), bestEvaluation, alpha, beta))
         return bestEvaluation;
@@ -264,7 +272,11 @@ int capturesOnlyNegamax(Board& board, MoveGenerator& generator, int alpha, int b
 
 int negamax(Board& board, MoveGenerator& generator, int depth, int alpha, int beta, std::optional<std::chrono::steady_clock::time_point> searchStop, std::unordered_map<uint64_t, TranspositionTableEntry>& transpositionTable, SearchResult& searchResult){
     if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
-    
+
+    if (board.is3FoldRepetition()){
+        return 0;
+    }
+
     if (depth == 0){
         searchResult.nodesSearched++;
         return capturesOnlyNegamax(board, generator, alpha, beta, searchStop, searchResult);

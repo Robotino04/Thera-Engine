@@ -9,6 +9,7 @@
 #include <string>
 #include <stack>
 #include <optional>
+#include <unordered_map>
 
 namespace Thera{
 struct Move;
@@ -210,6 +211,11 @@ class Board{
 			return this->getCurrentHash() == other.getCurrentHash();
 		}
 
+		bool is3FoldRepetition() const{
+			uint64_t hash = getCurrentHash();
+			return numberOfPositionRepetitions.contains(hash) && numberOfPositionRepetitions.at(hash) >= 3;
+		}
+
 	public:
 		struct BoardState{
 			/**
@@ -237,5 +243,7 @@ class Board{
 
 		std::array<std::array<uint64_t, 16>, 64> zobristTable;
 		uint64_t zobristBlackToMove;
+		
+		std::unordered_map<uint64_t, int> numberOfPositionRepetitions;
 };
 }

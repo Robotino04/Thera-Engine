@@ -49,8 +49,10 @@ void Board::loadFromFEN(std::string fen){
 	std::uniform_int_distribution<uint64_t> distribution;
 	randomGenerator.seed(0);
 	for (auto& tableEntry : zobristTable){
-		for (auto& pieceEntry : tableEntry){
-			pieceEntry = distribution(randomGenerator);
+		for (uint64_t& entry : tableEntry)
+			entry = 0;
+		for (auto piece : Utils::allPieces){
+			tableEntry.at(piece.getRaw()) = distribution(randomGenerator);
 		}
 	}
 	zobristBlackToMove = distribution(randomGenerator);
@@ -140,6 +142,9 @@ void Board::loadFromFEN(std::string fen){
 	// TODO: Implement move counters
 
 	while (!rewindStack.empty()) rewindStack.pop();
+
+	numberOfPositionRepetitions.clear();
+	numberOfPositionRepetitions.insert({getCurrentHash(), 1});
 }
 std::string Board::storeToFEN() const{
 	static const std::map<PieceType, char> pieceTypeToFenChars = {
@@ -214,6 +219,14 @@ void Board::applyMove(Move const& move){
 
 	// update State
 	switchPerspective();
+
+	uint64_t hash = getCurrentHash();
+	if (numberOfPositionRepetitions.contains(hash)){
+		numberOfPositionRepetitions.at(hash)++;
+	}
+	else{
+		numberOfPositionRepetitions.insert({hash, 1});
+	}
 }
 
 void Board::applyMoveStatic(Move const& move){
@@ -231,6 +244,8 @@ void Board::applyMoveStatic(Move const& move){
 	currentState.allPieceBitboard.applyMove(move);
 	getPieceBitboardForOneColor(getColorToMove()).applyMove(move);
 	getBitboard(move.piece).applyMove(move);
+	currentState.zobristHash ^= zobristTable.at(move.startIndex.getIndex64()).at(move.piece.getRaw());
+	currentState.zobristHash ^= zobristTable.at(move.endIndex.getIndex64()).at(move.piece.getRaw());
 
 	// promotion
 	if (move.promotionType != PieceType::None){
@@ -244,11 +259,14 @@ void Board::applyMoveStatic(Move const& move){
 		currentState.hasEnPassant = false;
 	}
 	if (move.isCastling){
-		auto const castlingMove = Move(move.castlingStart, move.castlingEnd);
+		Move castlingMove = Move(move.castlingStart, move.castlingEnd);
+		castlingMove.piece = {PieceType::Rook, move.piece.color};
 		// apply the rook move to the bitboards
-		getPieceBitboardForOneColor(getColorToMove()).applyMove(castlingMove);
+		getPieceBitboardForOneColor(castlingMove.piece.color).applyMove(castlingMove);
 		currentState.allPieceBitboard.applyMove(castlingMove);
-		getBitboard({PieceType::Rook, move.piece.color}).applyMove(castlingMove);
+		getBitboard(castlingMove.piece).applyMove(castlingMove);
+		currentState.zobristHash ^= zobristTable.at(castlingMove.startIndex.getIndex64()).at(castlingMove.piece.getRaw());
+		currentState.zobristHash ^= zobristTable.at(castlingMove.endIndex.getIndex64()).at(castlingMove.piece.getRaw());
 	}
 	if (move.isDoublePawnMove){
 		// get the "jumped" square
@@ -265,6 +283,11 @@ void Board::rewindMove(){
 	if (rewindStack.empty())
 		throw std::runtime_error("Tried to rewind move, but no moves were made.");
 	
+	const int newCount = --numberOfPositionRepetitions.at(getCurrentHash());
+	if (newCount == 0){
+		numberOfPositionRepetitions.erase(getCurrentHash());
+	}
+
 	currentState = rewindStack.top();
 	rewindStack.pop();
 }

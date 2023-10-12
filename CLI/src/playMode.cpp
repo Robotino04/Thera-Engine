@@ -175,7 +175,10 @@ static void printBoard(Thera::Board& board, Thera::MoveGenerator& generator, std
 					std::cout << ANSI::set4BitColor(ANSI::Green) << Thera::Utils::pieceColorToString(board.getColorToNotMove()) << " wins!" << ANSI::reset();
 				}
 				else if (generator.generateAllMoves(board).size() == 0){
-					std::cout << ANSI::set4BitColor(ANSI::Green) << "It's a draw!" << ANSI::reset();
+					std::cout << ANSI::set4BitColor(ANSI::Green) << "It's a draw! (no moves)" << ANSI::reset();
+				}
+				else if (board.is3FoldRepetition()){
+					std::cout << ANSI::set4BitColor(ANSI::Green) << "It's a draw! (3-fold repetition)" << ANSI::reset();
 				}
 				break;
 			default:
