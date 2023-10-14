@@ -77,4 +77,38 @@ std::string pieceTypeToString(PieceType type, bool isPlural=false);
  */
 std::string pieceToString(Piece piece, bool isPlural=false);
 
+
+constexpr int manhattanDistance(Coordinate pos1, Coordinate pos2){
+    return std::abs(int(pos1.x) - int(pos2.x)) + std::abs(int(pos1.y) - int(pos2.y));
+}
+static_assert(manhattanDistance(Square::a1, Square::a1) == 0);
+static_assert(manhattanDistance(Square::a1, Square::h8) == 14);
+static_assert(manhattanDistance(Square::a1, Square::a8) == 7);
+static_assert(manhattanDistance(Square::h1, Square::h8) == 7);
+static_assert(manhattanDistance(Square::a1, Square::h1) == 7);
+static_assert(manhattanDistance(Square::a8, Square::h8) == 7);
+
+static_assert(manhattanDistance(Square::h8, Square::a1) == 14);
+static_assert(manhattanDistance(Square::a8, Square::a1) == 7);
+static_assert(manhattanDistance(Square::h8, Square::h1) == 7);
+static_assert(manhattanDistance(Square::h1, Square::a1) == 7);
+static_assert(manhattanDistance(Square::h8, Square::a8) == 7);
+
+constexpr int chebyshevDistance(Coordinate pos1, Coordinate pos2){
+    return std::max(std::abs(int(pos1.x) - int(pos2.x)), std::abs(int(pos1.y) - int(pos2.y)));
+}
+
+static_assert(chebyshevDistance(Square::a1, Square::a1) == 0);
+static_assert(chebyshevDistance(Square::a1, Square::h8) == 7);
+static_assert(chebyshevDistance(Square::a1, Square::a8) == 7);
+static_assert(chebyshevDistance(Square::h1, Square::h8) == 7);
+static_assert(chebyshevDistance(Square::a1, Square::h1) == 7);
+static_assert(chebyshevDistance(Square::a8, Square::h8) == 7);
+
+static_assert(chebyshevDistance(Square::h1, Square::a8) == 7);
+static_assert(chebyshevDistance(Square::a8, Square::a1) == 7);
+static_assert(chebyshevDistance(Square::h8, Square::h1) == 7);
+static_assert(chebyshevDistance(Square::h1, Square::a1) == 7);
+static_assert(chebyshevDistance(Square::h8, Square::a8) == 7);
+
 }

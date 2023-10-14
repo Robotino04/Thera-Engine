@@ -1,6 +1,7 @@
 #include "Thera/search.hpp"
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/Utils/ScopeGuard.hpp"
+#include "Thera/Utils/ChessTerms.hpp"
 
 #include <numeric>
 #include <cstdlib>
@@ -19,8 +20,6 @@ static const std::unordered_map<PieceType, int> pieceValues = {
     {PieceType::Queen, 900},
     {PieceType::King, 20000},
 };
-
-static const int checkBonus = 10;
 
 // https://www.chessprogramming.org/Simplified_Evaluation_Function
 static const std::array<std::array<int, 64>, 7> simplifiedEvalScores{
@@ -187,33 +186,40 @@ int evaluate(Board& board, MoveGenerator& generator){
         return 0;
     }
 
+    const int maxMaterial = 2*EvaluationValues::pieceValues.at(PieceType::Rook) + EvaluationValues::pieceValues.at(PieceType::Knight) + EvaluationValues::pieceValues.at(PieceType::Bishop);
+
     int eval = 0;
-    eval += getMaterial(color, board);
-    eval -= getMaterial(otherColor, board);
+    const int whiteMaterial = getMaterial(color, board);
+    const int blackMaterial = getMaterial(otherColor, board);
+    eval += whiteMaterial;
+    eval -= blackMaterial;
+    const int materialLeft = whiteMaterial + blackMaterial - 2 * EvaluationValues::pieceValues.at(PieceType::King);
+    const float gameDirection = (eval >= 0) ? 1.f : -1.f;
+    const float endgameProgress = 1.f - (std::min(1.0f, float(materialLeft) / float(maxMaterial)));
 
     for (auto pieceType : Utils::allPieceTypes){
+        int whiteMaterial = getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::White}));
+        int blackMaterial = getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::Black}).flipped());
         if (board.getColorToMove() == PieceColor::White){
-            eval += getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::White}));
-            eval -= getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::Black}).flipped());
+            eval += float(whiteMaterial) * (1.0f - endgameProgress);
+            eval -= float(blackMaterial) * (1.0f - endgameProgress);
         }
         else{
-            eval -= getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::White}));
-            eval += getPiecePositionValue(pieceType, board.getBitboard({pieceType, PieceColor::Black}).flipped());
+            eval -= float(whiteMaterial) * (1.0f - endgameProgress);
+            eval += float(blackMaterial) * (1.0f - endgameProgress);
         }
     }
 
-    // check bonus
-    // are we giving check
-    board.switchPerspective();
-    generator.generateAttackData(board);
-    if (generator.isInCheck(board))
-        eval += EvaluationValues::checkBonus;
+    const int kingDistance = Utils::chebyshevDistance(
+        Coordinate(board.getBitboard({PieceType::King, PieceColor::White}).getLS1B()),
+        Coordinate(board.getBitboard({PieceType::King, PieceColor::Black}).getLS1B())
+    );
+    const int relativeKingDistance = 14 - kingDistance;
+    eval += gameDirection * endgameProgress * float(relativeKingDistance) * 15.0f;
 
-    // does our opponent give check
-    board.switchPerspective();
-    generator.generateAttackData(board);
-    if (generator.isInCheck(board))
-        eval -= EvaluationValues::checkBonus;
+    Coordinate enemyKingPos = Coordinate(board.getBitboard({PieceType::King, otherColor}).getLS1B());
+    int relativeDistanceFromEdges = 3 - std::min<int>({enemyKingPos.x, enemyKingPos.y, 7 - int(enemyKingPos.x), 7 - int(enemyKingPos.y)});
+    eval += gameDirection * endgameProgress * float(relativeDistanceFromEdges) * 10.0f;
 
     return eval;
 }
@@ -280,6 +286,10 @@ int negamax(Board& board, MoveGenerator& generator, int depth, int alpha, int be
     if (depth == 0){
         searchResult.nodesSearched++;
         return capturesOnlyNegamax(board, generator, alpha, beta, searchStop, searchResult);
+    }
+
+    if (board.is3FoldRepetition()){
+        return 0;
     }
 
     if (transpositionTable.contains(board.getCurrentHash())){
@@ -410,7 +420,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
 
 EvaluatedMove getRandomBestMove(SearchResult const& moves){
     int bestEval = moves.moves.front().eval;
-    std::vector<EvaluatedMove> bestMoves;
+        std::vector<EvaluatedMove> bestMoves;
     for (auto move : moves.moves){
         if (move.eval > bestEval){
             bestMoves.clear();
