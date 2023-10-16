@@ -178,6 +178,24 @@ int getPiecePositionValue(PieceType piece, Bitboard positions){
     return score;
 }
 
+int endgameKingEval(Board const& board, float endgameProgress, PieceColor otherColor, float gameDirection){
+    int eval = 0;
+
+    if (gameDirection > 0.0f){
+        Coordinate enemyKingPos = Coordinate(board.getBitboard({PieceType::King, otherColor}).getLS1B());
+        int enemyKingDistanceFromCenter = std::max(3 - int(enemyKingPos.x), int(enemyKingPos.x) - 4) + std::max(3 - int(enemyKingPos.y), int(enemyKingPos.y) - 4);
+        eval += enemyKingDistanceFromCenter;
+
+        int kingDistance = Utils::manhattanDistance(
+            Coordinate(board.getBitboard({PieceType::King, PieceColor::White}).getLS1B()),
+            Coordinate(board.getBitboard({PieceType::King, PieceColor::Black}).getLS1B())
+        );
+        eval += 14 - kingDistance;
+    }
+
+    return eval * 10 * endgameProgress;
+}
+
 int evaluate(Board& board, MoveGenerator& generator){
     PieceColor color = board.getColorToMove();
     PieceColor otherColor = board.getColorToNotMove();
@@ -210,16 +228,8 @@ int evaluate(Board& board, MoveGenerator& generator){
         }
     }
 
-    const int kingDistance = Utils::chebyshevDistance(
-        Coordinate(board.getBitboard({PieceType::King, PieceColor::White}).getLS1B()),
-        Coordinate(board.getBitboard({PieceType::King, PieceColor::Black}).getLS1B())
-    );
-    const int relativeKingDistance = 14 - kingDistance;
-    eval += gameDirection * endgameProgress * float(relativeKingDistance) * 15.0f;
-
-    Coordinate enemyKingPos = Coordinate(board.getBitboard({PieceType::King, otherColor}).getLS1B());
-    int relativeDistanceFromEdges = 3 - std::min<int>({enemyKingPos.x, enemyKingPos.y, 7 - int(enemyKingPos.x), 7 - int(enemyKingPos.y)});
-    eval += gameDirection * endgameProgress * float(relativeDistanceFromEdges) * 10.0f;
+    eval += endgameKingEval(board, endgameProgress, otherColor, gameDirection);
+    eval -= endgameKingEval(board, endgameProgress, color, -gameDirection);
 
     return eval;
 }
