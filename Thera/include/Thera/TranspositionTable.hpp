@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Thera/Board.hpp"
+#include "Thera/search.hpp"
 
 #include <unordered_map>
 #include <optional>
@@ -19,9 +20,9 @@ class TranspositionTable{
             int depth;
         };
 
-        void addEntry(Board const& board, int eval, int depth, int alpha, int beta);
+        void addEntry(Board const& board, int eval, NegamaxState nstate);
 
-        std::optional<int> readPotentialEntry(Board const& board, int depth, int& alpha, int& beta);
+        std::optional<int> readPotentialEntry(Board const& board, NegamaxState& nstate);
 
     private:
         std::unordered_map<uint64_t, Entry> internalTable;
