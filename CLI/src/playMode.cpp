@@ -733,7 +733,7 @@ int playMode(Options& options){
 			}
 			if (computerColor == board.getColorToMove() && lastOp != MoveInputResult::UndoMove){
 				auto const start = std::chrono::high_resolution_clock::now();
-				auto moves = Thera::search(board, generator, options.autoplayDepth, options.autoplaySearchTime, searchIterationEndCallback);
+				auto moves = Thera::search(board, generator, options.autoplayDepth, options.autoplaySearchTime, std::atomic<bool>(false), searchIterationEndCallback);
 				auto const end = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<float> duration = end - start;
 				if (moves.moves.size() == 0){
@@ -805,7 +805,7 @@ int playMode(Options& options){
 		}
 	else if (userInput.op == MoveInputResult::Search){
 			auto const start = std::chrono::high_resolution_clock::now();
-			auto moves = Thera::search(board, generator, userInput.perftDepth, userInput.maxSearchTime, searchIterationEndCallback);
+			auto moves = Thera::search(board, generator, userInput.perftDepth, userInput.maxSearchTime, std::atomic<bool>(false), searchIterationEndCallback);
 			auto const end = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<float> duration = end - start;
 

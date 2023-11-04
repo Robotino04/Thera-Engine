@@ -10,6 +10,7 @@
 #include <optional>
 #include <chrono>
 #include <functional>
+#include <atomic>
 
 
 namespace Thera{
@@ -21,6 +22,7 @@ struct SearchStopException : public std::exception{};
 struct EvaluatedMove{
     Move move;
     int eval = -std::numeric_limits<int>::infinity();
+    std::optional<Move> ponderMove;
 
     bool operator < (EvaluatedMove other) const{
         if (eval != other.eval){
@@ -59,7 +61,7 @@ struct NegamaxState{
 
 int evaluate(Board& board, MoveGenerator& generator);
 
-SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback);
+SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::atomic<bool> const& searchWasTerminated, std::function<void(SearchResult const&)> iterationEndCallback);
 
 EvaluatedMove getRandomBestMove(SearchResult const& moves);
 

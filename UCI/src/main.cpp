@@ -13,6 +13,9 @@
 #include <stdexcept>
 #include <fstream>
 #include <chrono>
+#include <atomic>
+#include <thread>
+#include <condition_variable>
 
 static MultiStream out;
 static std::ofstream logfile;
@@ -39,13 +42,57 @@ void iterationEndCallback(Thera::SearchResult const& result){
     std::cout.flush();
 }
 
+constexpr int infiniteDepth = 9999;
+
+static Thera::Board board;
+static Thera::MoveGenerator generator;
+
+static std::condition_variable searchStartCond;
+static std::mutex searchStartMutex;
+
+static std::atomic<bool> searchShouldStop = false;
+static std::atomic<bool> searchThreadShouldExit = false;
+static struct SearchParameters{
+    std::optional<std::chrono::milliseconds> maxSearchTime;
+    int depth = infiniteDepth;
+    bool silent = false;
+} searchParameters;
+
+void searchThreadFunction(){
+    while (!searchThreadShouldExit){
+        std::unique_lock lock(searchStartMutex);
+        searchStartCond.wait(lock);
+        if (searchThreadShouldExit){
+            return;
+        }
+
+        search_start = std::chrono::high_resolution_clock::now();
+        auto moves = Thera::search(board, generator, searchParameters.depth, searchParameters.maxSearchTime, searchShouldStop, iterationEndCallback);
+        const auto end = std::chrono::high_resolution_clock::now();
+
+        auto bestMove = getRandomBestMove(moves);
+        std::chrono::duration<double> dur = end-search_start;
+        if (searchParameters.silent){
+            continue;
+        }
+
+        out << "bestmove " << bestMove.move.toString();
+        if (bestMove.ponderMove.has_value()){
+            out << " ponder " << bestMove.ponderMove.value().toString();
+        }
+        out << "\n";
+        out.flush();
+        std::cout.flush();
+        logfile << "Search took " << dur.count() << "s.\n";
+    }
+}
+
 int main(){
     std::string line;
     std::stringstream lineStream;
     std::string buffer;
 
-    Thera::Board board;
-    Thera::MoveGenerator generator;
+    std::thread searchThread(searchThreadFunction);
 
     logfile.open("/tmp/TheraUCI.log");
     if (!logfile.is_open()){
@@ -151,7 +198,16 @@ int main(){
             out << "readyok\n";
         }
         else if (buffer == "quit"){
+            searchParameters.silent = true;
+            searchShouldStop = true;            
+            searchThreadShouldExit = true;
+            searchStartCond.notify_one();
+            searchThread.join();
             return 0;
+        }
+        else if (buffer == "stop"){
+            searchShouldStop = true;            
+            searchStartCond.notify_one();
         }
         else if (buffer == "go"){
             std::chrono::milliseconds wtime = std::chrono::milliseconds::zero();
@@ -159,7 +215,7 @@ int main(){
             std::chrono::milliseconds winc = std::chrono::milliseconds::zero();
             std::chrono::milliseconds binc = std::chrono::milliseconds::zero();
             std::optional<std::chrono::milliseconds> movetime;
-            int depth = 9999;
+            searchParameters.depth = infiniteDepth;
             while (lineStream.rdbuf()->in_avail()){
                 lineStream >> buffer;
                 if (buffer == "wtime"){
@@ -183,35 +239,28 @@ int main(){
                     movetime = std::chrono::milliseconds(std::stoi(buffer));
                 }
                 else if (buffer == "depth"){
-                    lineStream >> depth;
+                    lineStream >> searchParameters.depth;
                 }
             }
-            std::optional<std::chrono::milliseconds> maxSearchTime;
             
-            if (movetime.has_value()) maxSearchTime = movetime.value();
+            if (movetime.has_value()) searchParameters.maxSearchTime = movetime.value();
             else if ((wtime + btime + winc + binc).count() != 0){
                 auto inc = board.getColorToMove() == Thera::PieceColor::White ? winc : binc;
                 auto time = (board.getColorToMove() == Thera::PieceColor::White ? wtime : btime) - std::chrono::seconds(2);
 
                 // assume a game lasts max. 60 moves.
-                int movesLeft = 60*2-numMoves;
+                int movesLeft = 80*2-numMoves;
                 auto maxTimePerMoveLeft = std::max(time / movesLeft, std::chrono::milliseconds(10));
-                maxSearchTime = inc + maxTimePerMoveLeft;
-                logfile << "Searching for " << maxSearchTime.value().count() << "ms.\n"; 
+                searchParameters.maxSearchTime = inc + maxTimePerMoveLeft;
+                logfile << "Searching for " << searchParameters.maxSearchTime.value().count() << "ms.\n"; 
             }
-            if (depth < 9999){
-                logfile << "Searching to depth " << depth << ".\n"; 
+            if (searchParameters.depth < infiniteDepth){
+                logfile << "Searching to depth " << searchParameters.depth << ".\n"; 
             }
+            searchParameters.silent = false;
 
-            // currently ignores all parameters
-            search_start = std::chrono::high_resolution_clock::now();
-            auto moves = Thera::search(board, generator, depth, maxSearchTime, iterationEndCallback);
-            const auto end = std::chrono::high_resolution_clock::now();
-
-            auto bestMove = getRandomBestMove(moves);
-            std::chrono::duration<double> dur = end-search_start;
-            out << "bestmove " << bestMove.move.toString() << "\n";
-            logfile << "Search took " << dur.count() << "s.\n";
+            searchShouldStop = false;
+            searchStartCond.notify_one();
         }
 
         if (lineStream.rdbuf()->in_avail()){

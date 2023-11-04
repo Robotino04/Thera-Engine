@@ -243,8 +243,8 @@ int getSearchExtensionDepth(Move const& lastMove, Board const& board, MoveGenera
     return searchExtensions;
 }
 
-int capturesOnlyNegamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::optional<std::chrono::steady_clock::time_point> searchStop, SearchResult& searchResult){
-    if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
+int capturesOnlyNegamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::optional<std::chrono::steady_clock::time_point> searchStop, std::atomic<bool> const& searchWasTerminated, SearchResult& searchResult){
+    if (searchWasTerminated || searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
 
     if (board.is3FoldRepetition()){
         return 0;
@@ -262,7 +262,7 @@ int capturesOnlyNegamax(Board& board, MoveGenerator& generator, NegamaxState nst
     for (auto move : moves){
         board.applyMove(move);
         Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-        int eval = -capturesOnlyNegamax(board, generator, nstate.nextDepth(), searchStop, searchResult);
+        int eval = -capturesOnlyNegamax(board, generator, nstate.nextDepth(), searchStop, searchWasTerminated, searchResult);
         if (nstate.negamaxStep(eval, bestEvaluation))
             break;
     }
@@ -270,8 +270,8 @@ int capturesOnlyNegamax(Board& board, MoveGenerator& generator, NegamaxState nst
     return bestEvaluation;
 }
 
-int negamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::optional<std::chrono::steady_clock::time_point> searchStop, TranspositionTable& transpositionTable, SearchResult& searchResult){
-    if (searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
+int negamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::optional<std::chrono::steady_clock::time_point> searchStop, std::atomic<bool> const& searchWasTerminated, TranspositionTable& transpositionTable, SearchResult& searchResult, std::optional<Move>& ponderMove){
+    if (searchWasTerminated || searchStop.has_value() && std::chrono::steady_clock::now() >= searchStop.value()) throw SearchStopException();
 
     if (board.is3FoldRepetition()){
         return 0;
@@ -279,7 +279,7 @@ int negamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::op
 
     if (nstate.depth == 0){
         searchResult.nodesSearched++;
-        return capturesOnlyNegamax(board, generator, nstate, searchStop, searchResult);
+        return capturesOnlyNegamax(board, generator, nstate, searchStop, searchWasTerminated, searchResult);
     }
 
     if (board.is3FoldRepetition()){
@@ -306,13 +306,19 @@ int negamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::op
         moves = preorderMoves(std::move(moves), board, generator);
         for (auto move : moves){
             board.applyMove(move);
+            Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
 
             int searchExtensions = getSearchExtensionDepth(move, board, generator);
 
-            Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-            int eval = -negamax(board, generator, nstate.nextDepth(searchExtensions), searchStop, transpositionTable, searchResult);
-            if (nstate.negamaxStep(eval, bestEvaluation))
+            std::optional<Move> emptyMove;
+
+            int eval = -negamax(board, generator, nstate.nextDepth(searchExtensions), searchStop, searchWasTerminated, transpositionTable, searchResult, emptyMove);
+            if (nstate.negamaxStep(eval, bestEvaluation)){
+                if (ponderMove.has_value()){
+                    ponderMove.value() = move;
+                }
                 break;
+            }
         }
     }
 
@@ -321,15 +327,23 @@ int negamax(Board& board, MoveGenerator& generator, NegamaxState nstate, std::op
     return bestEvaluation;
 }
 
-SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::function<void(SearchResult const&)> iterationEndCallback){
+SearchResult search(Board& board, MoveGenerator& generator, int depth, std::optional<std::chrono::milliseconds> maxSearchTime, std::atomic<bool> const& searchWasTerminated, std::function<void(SearchResult const&)> iterationEndCallback){
     if (depth == 0) throw std::invalid_argument("Depth may not be 0");
 
     auto moves = generator.generateAllMoves(board);
+
+
     // move preordering
     SearchResult result;
     result.depthReached = 0;
+
     for (auto move : moves){
         result.moves.emplace_back(move);
+    }
+    if (moves.size() == 1){
+        result.maxEval = result.moves.at(0).eval;
+        result.nodesSearched = 0;
+        return result;
     }
     SearchResult resultTmp = result;
 
@@ -341,6 +355,7 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
         searchStopTP = std::chrono::steady_clock::time_point::max();
     }
 
+    TranspositionTable transpositionTable;
 
     // iterative deepening
     for (int currentDepth=1; currentDepth <= depth; currentDepth++){
@@ -355,10 +370,9 @@ SearchResult search(Board& board, MoveGenerator& generator, int depth, std::opti
         std::sort(resultTmp.moves.rbegin(), resultTmp.moves.rend());
         try{
             for (auto& move : resultTmp.moves){
-                TranspositionTable transpositionTable;
                 board.applyMove(move.move);
                 Utils::ScopeGuard moveRewind_guard([&](){board.rewindMove();});
-                move.eval = -negamax(board, generator, nstate.nextDepth(), searchStopTP, transpositionTable, resultTmp);
+                move.eval = -negamax(board, generator, nstate.nextDepth(), searchStopTP, searchWasTerminated, transpositionTable, resultTmp, move.ponderMove);
 
                 if (nstate.negamaxStep(move.eval, result.maxEval))
                     break;
