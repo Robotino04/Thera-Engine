@@ -7,5 +7,8 @@ in
       pkgs.clippy
       pkgs.rustc
       pkgs.cargo-watch
+
+      pkgs.cmake
+      pkgs.python3
     ];
   }

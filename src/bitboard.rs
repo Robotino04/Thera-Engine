@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use crate::piece::Square;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct Bitboard(u64);
+pub struct Bitboard(pub u64);
 
 impl DerefMut for Bitboard {
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -32,5 +32,9 @@ impl Bitboard {
     pub const fn assign(&mut self, index: Square, value: bool) {
         self.clear(index);
         self.0 |= (value as u64) << (index as u8)
+    }
+
+    pub const fn from_square(square: Square) -> Bitboard {
+        Bitboard(1 << (square as u8))
     }
 }
