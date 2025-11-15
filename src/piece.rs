@@ -1,4 +1,8 @@
+use std::ops::Index;
+
 use itertools::Itertools;
+
+use crate::bitboard::{self, Bitboard};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -86,14 +90,14 @@ impl Square {
         let y = y.try_into().ok()?;
 
         if (0..8).contains(&x) && (0..8).contains(&y) {
-            Self::ALL.get((y * 8 + x) as usize).copied()
+            Self::ALL.get(((7 - y) * 8 + x) as usize).copied()
         } else {
             None
         }
     }
 
-    pub fn from_algebraic(enpassant_str: &str) -> Option<Self> {
-        let [x_str, y_str] = enpassant_str.chars().collect_array()?;
+    pub fn from_algebraic(s: &str) -> Option<Self> {
+        let [x_str, y_str] = s.chars().collect_array()?;
         let x = match x_str {
             'a' => 0,
             'b' => 1,
@@ -124,5 +128,36 @@ impl Square {
     }
     pub const fn column(&self) -> u8 {
         *self as u8 % 8
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Move {
+    pub from_square: Bitboard,
+    pub to_square: Bitboard,
+}
+
+impl Move {
+    pub fn from_algebraic(s: &str) -> Option<Move> {
+        Some(Move {
+            from_square: Bitboard::from_square(Square::from_algebraic(s.get(0..2)?)?),
+            to_square: Bitboard::from_square(Square::from_algebraic(s.get(2..4)?)?),
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::piece::Square;
+
+    #[test]
+    fn from_xy_directions() {
+        assert_eq!(Square::from_xy(0, 0), Some(Square::A1));
+        assert_eq!(Square::from_xy(0, 7), Some(Square::A8));
+        assert_eq!(Square::from_xy(7, 0), Some(Square::H1));
+        assert_eq!(Square::from_xy(7, 7), Some(Square::H8));
+
+        assert_eq!(Square::from_xy(4, 1), Some(Square::E2));
+        assert_eq!(Square::from_xy(1, 6), Some(Square::B7));
     }
 }

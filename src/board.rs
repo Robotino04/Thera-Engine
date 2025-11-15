@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::{
     ansi::Ansi,
     bitboard::Bitboard,
-    piece::{Color, Piece, Square},
+    piece::{Color, Move, Piece, Square},
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -52,7 +52,7 @@ impl Board {
             .split('/')
             .collect_array()
             .ok_or(FenParseError::WrongRowCount)?;
-        for (y, row) in rows.iter().enumerate() {
+        for (y, row) in rows.iter().rev().enumerate() {
             let mut x = 0;
             for ch in row.chars() {
                 let board = match ch {
@@ -143,7 +143,7 @@ impl Board {
     pub fn dump(&self, white_background: bool) -> String {
         let mut out = String::new();
         out.push_str("   a b c d e f g h\n");
-        for y in 0..8 {
+        for y in (0..8).rev() {
             let mut inside_line = String::new();
             for x in 0..8 {
                 let square = Square::from_xy(x, y).unwrap();
@@ -178,7 +178,7 @@ impl Board {
 
                 inside_line.push_str(&format!("{piece} "));
             }
-            out.push_str(&format!(" {ly} {inside_line}{ly}\n", ly = 8 - y));
+            out.push_str(&format!(" {ly} {inside_line}{ly}\n", ly = y + 1));
         }
         out.push_str("   a b c d e f g h\n");
 
@@ -187,7 +187,7 @@ impl Board {
     pub fn dump_ansi(&self) -> String {
         let mut out = String::new();
         out.push_str("   a b c d e f g h\n");
-        for y in 0..8 {
+        for y in (0..8).rev() {
             let mut inside_line = String::new();
             for x in 0..8 {
                 let square = Square::from_xy(x, y).unwrap();
@@ -238,7 +238,7 @@ impl Board {
                     ));
                 }
             }
-            out.push_str(&format!(" {ly}{inside_line}{ly}\n", ly = 8 - y));
+            out.push_str(&format!(" {ly}{inside_line}{ly}\n", ly = y + 1));
         }
         out.push_str("   a b c d e f g h\n");
 
@@ -254,5 +254,22 @@ impl Board {
         Color::ALL
             .into_iter()
             .find(|&color| self.colors[color as usize].at(index))
+    }
+
+    pub fn make_move(&mut self, m: Move) {
+        for bb in &mut self.colors {
+            *bb &= !m.to_square;
+            if !(*bb & m.from_square).is_empty() {
+                *bb |= m.to_square;
+            }
+            *bb &= !m.from_square;
+        }
+        for bb in &mut self.pieces {
+            *bb &= !m.to_square;
+            if !(*bb & m.from_square).is_empty() {
+                *bb |= m.to_square;
+            }
+            *bb &= !m.from_square;
+        }
     }
 }

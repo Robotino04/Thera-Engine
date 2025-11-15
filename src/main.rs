@@ -1,12 +1,17 @@
-use thera::{self, board::Board};
+use thera::{
+    self,
+    bitboard::Bitboard,
+    board::Board,
+    piece::{Move, Square},
+};
 
 fn main() {
-    let board =
-        Board::from_fen("rnbqkbnr/pp1ppppp/8/2p5/4P3/5N2/PPPP1PPP/RNBQKB1R b KQkq - 1 2 ").unwrap();
-
-    println!("Hello, world!");
-
+    let mut board = Board::starting_position();
     println!("{}", board.dump_ansi());
-    println!("---------------------");
-    println!("{}", board.dump(false));
+
+    board.make_move(Move::from_algebraic("e2f7").unwrap());
+    println!("{}", board.dump_ansi());
+
+    board.make_move(Move::from_algebraic("f7e4").unwrap());
+    println!("{}", board.dump_ansi());
 }
