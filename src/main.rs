@@ -1,16 +1,19 @@
-use thera::{self, board::Board, move_generator::MoveGenerator};
+use thera::{self, board::Board, move_generator::MoveGenerator, piece::Move};
 
 fn main() {
-    let mut board = Board::from_fen("1n5k/2P2q2/6P1/8/1B2K3/5P1R/3Q2PP/1B2P3 w - - 0 1").unwrap();
+    let mut board = Board::from_fen("1n5k/2P2q2/6P1/8/1B2K3/5P1R/3Q2PP/1B2P3 b - - 0 1").unwrap();
     println!("{}", board.dump_ansi(None));
 
-    let movegen = MoveGenerator::new();
+    let movegen = MoveGenerator::<false>::new();
     let mut moves = Vec::new();
-    movegen.generate_pawn_moves(&board, &mut moves);
+    movegen.generate_queen_moves(&board, &mut moves);
 
     let targets = moves
         .iter()
-        .map(|m| m.to_square)
+        .map(|m| match m {
+            Move::Normal { to_square, .. } => *to_square,
+            Move::Promotion { to_square, .. } => *to_square,
+        })
         .reduce(|a, b| a | b)
         .unwrap_or_default();
     println!("{}", board.dump_ansi(Some(targets)));

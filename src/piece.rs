@@ -173,26 +173,42 @@ impl Square {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Move {
-    pub from_square: Bitboard,
-    pub to_square: Bitboard,
-    pub promotion_piece: Option<Piece>,
+pub enum Move {
+    Normal {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        is_capture: bool,
+    },
+    Promotion {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        promotion_piece: Piece,
+        is_capture: bool,
+    },
 }
 
 impl Move {
     pub fn from_algebraic(s: &str) -> Option<Move> {
-        Some(Move {
-            from_square: Bitboard::from_square(Square::from_algebraic(s.get(0..2)?)?),
-            to_square: Bitboard::from_square(Square::from_algebraic(s.get(2..4)?)?),
-            promotion_piece: if let Some(c) = s.chars().nth(5) {
-                Some(match Piece::from_algebraic(c)? {
+        let from_square = Bitboard::from_square(Square::from_algebraic(s.get(0..2)?)?);
+        let to_square = Bitboard::from_square(Square::from_algebraic(s.get(2..4)?)?);
+
+        if let Some(c) = s.chars().nth(5) {
+            Some(Move::Promotion {
+                from_square,
+                to_square,
+                promotion_piece: match Piece::from_algebraic(c)? {
                     Piece::Pawn | Piece::King => return None,
                     p @ (Piece::Bishop | Piece::Knight | Piece::Rook | Piece::Queen) => p,
-                })
-            } else {
-                None
-            },
-        })
+                },
+                is_capture: false,
+            })
+        } else {
+            Some(Move::Normal {
+                from_square,
+                to_square,
+                is_capture: false,
+            })
+        }
     }
 }
 

@@ -299,27 +299,48 @@ impl Board {
     }
 
     pub fn make_move(&mut self, m: &Move) {
-        for bb in &mut self.colors {
-            *bb &= !m.to_square;
-            if !(*bb & m.from_square).is_empty() {
-                *bb |= m.to_square;
-            }
-            *bb &= !m.from_square;
-        }
-        if let Some(promotion_piece) = m.promotion_piece {
-            for bb in &mut self.pieces {
-                *bb &= !m.to_square;
-            }
-
-            self.pieces[Piece::Pawn as usize] &= !m.from_square;
-            self.pieces[promotion_piece as usize] |= m.to_square;
-        } else {
-            for bb in &mut self.pieces {
-                *bb &= !m.to_square;
-                if !(*bb & m.from_square).is_empty() {
-                    *bb |= m.to_square;
+        match *m {
+            Move::Normal {
+                from_square,
+                to_square,
+                is_capture: _,
+            } => {
+                for bb in &mut self.colors {
+                    *bb &= !to_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
                 }
-                *bb &= !m.from_square;
+
+                for bb in &mut self.pieces {
+                    *bb &= !to_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+            }
+            Move::Promotion {
+                from_square,
+                to_square,
+                promotion_piece,
+                is_capture: _,
+            } => {
+                for bb in &mut self.colors {
+                    *bb &= !to_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+
+                for bb in &mut self.pieces {
+                    *bb &= !to_square;
+                }
+
+                self.pieces[Piece::Pawn as usize] &= !from_square;
+                self.pieces[promotion_piece as usize] |= to_square;
             }
         }
     }
