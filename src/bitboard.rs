@@ -1,18 +1,34 @@
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, DerefMut, Not};
 
-use crate::piece::Square;
+use crate::piece::{Direction, Square};
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Bitboard(pub u64);
+
+#[macro_export]
+macro_rules! bitboard {
+    ($line0:tt $line1:tt $line2:tt $line3:tt $line4:tt $line5:tt $line6:tt $line7:tt) => {
+        $crate::bitboard::Bitboard(
+            ($line0 << 56)
+                | ($line1 << 48)
+                | ($line2 << 40)
+                | ($line3 << 32)
+                | ($line4 << 24)
+                | ($line5 << 16)
+                | ($line6 << 8)
+                | ($line7 << 0),
+        )
+    };
+}
+pub use bitboard;
 
 impl std::fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "Bitboard({:#016x}){{", self.0)?;
-        for rank in 0..8 {
+        for y in (0..8).rev() {
             write!(f, "    ")?;
-            for file in 0..8 {
-                let sq = rank * 8 + file;
-                let bit = (self.0 >> sq) & 0b1;
+            for x in 0..8 {
+                let bit = self.at(Square::from_xy(x, y).unwrap()) as u8;
                 write!(f, "{} ", bit)?;
             }
             writeln!(f)?;
@@ -71,6 +87,10 @@ impl BitOrAssign for Bitboard {
 }
 
 impl Bitboard {
+    pub const fn from_rows(rows: [u8; 8]) -> Self {
+        Bitboard(u64::from_be_bytes(rows))
+    }
+
     pub const fn at(&self, index: Square) -> bool {
         (self.0 >> index as u8) & 0b1 == 1
     }
@@ -91,5 +111,198 @@ impl Bitboard {
 
     pub const fn is_empty(&self) -> bool {
         self.0 == 0
+    }
+
+    pub fn shift(&self, dir: Direction) -> Self {
+        self.prevent_wrapping(dir).wrapping_shift(dir)
+    }
+    pub fn rotate(&self, dir: Direction, count: i32) -> Self {
+        let amount = dir as i32 * count;
+        if amount >= 0 {
+            Bitboard(self.0.rotate_left(amount as u32))
+        } else {
+            Bitboard(self.0.rotate_right((-amount) as u32))
+        }
+    }
+
+    pub const fn wrapping_shift(&self, dir: Direction) -> Self {
+        let amount = dir as i8;
+        if amount >= 0 {
+            Self(self.0 << amount)
+        } else {
+            Self(self.0 >> -amount)
+        }
+    }
+
+    pub const fn bitscan(&mut self) -> Option<Bitboard> {
+        if self.0 == 0 {
+            None
+        } else {
+            let mask = self.0 & self.0.wrapping_neg();
+            self.0 &= self.0 - 1;
+            Some(Bitboard(mask))
+        }
+    }
+
+    pub fn prevent_wrapping(&self, dir: Direction) -> Bitboard {
+        match dir {
+            Direction::North => {
+                *self
+                    & bitboard!(
+                        0b_00000000
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                    )
+            }
+
+            Direction::South => {
+                *self
+                    & bitboard!(
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_00000000
+                    )
+            }
+            Direction::East => {
+                *self
+                    & bitboard!(
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                    )
+            }
+            Direction::West => {
+                *self
+                    & bitboard!(
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                    )
+            }
+            Direction::NorthEast => self
+                .prevent_wrapping(Direction::North)
+                .prevent_wrapping(Direction::East),
+            Direction::NorthWest => self
+                .prevent_wrapping(Direction::North)
+                .prevent_wrapping(Direction::West),
+            Direction::SouthEast => self
+                .prevent_wrapping(Direction::South)
+                .prevent_wrapping(Direction::East),
+            Direction::SouthWest => self
+                .prevent_wrapping(Direction::South)
+                .prevent_wrapping(Direction::West),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        bitboard::Bitboard,
+        piece::{Direction, Square},
+    };
+
+    #[test]
+    fn shift_directions() {
+        assert_eq!(
+            Bitboard::from_square(Square::E3).shift(Direction::North),
+            Bitboard::from_square(Square::E4)
+        );
+
+        assert_eq!(
+            Bitboard::from_square(Square::E3).rotate(Direction::North, 1),
+            Bitboard::from_square(Square::E4)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::E3).rotate(Direction::North, 3),
+            Bitboard::from_square(Square::E6)
+        );
+    }
+
+    #[test]
+    fn shift_edge() {
+        assert_eq!(
+            Bitboard::from_square(Square::B1).shift(Direction::South),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::A1).shift(Direction::SouthWest),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::A6).shift(Direction::West),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::A8).shift(Direction::NorthWest),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::D8).shift(Direction::North),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::H8).shift(Direction::NorthEast),
+            Bitboard(0)
+        );
+        assert_eq!(
+            Bitboard::from_square(Square::H2).shift(Direction::East),
+            Bitboard(0)
+        );
+    }
+
+    #[test]
+    fn from_square() {
+        assert_eq!(
+            Bitboard::from_square(Square::B1),
+            Bitboard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01000000)
+        );
+        assert_eq!(
+            Bitboard(0b00000000_00000000_00000000_00000000_00000000_00000000_00000000_01000000),
+            bitboard!(
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b01000000
+            )
+        );
+
+        assert_eq!(
+            Bitboard::from_square(Square::E4),
+            bitboard!(
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00001000
+                0b00000000
+                0b00000000
+                0b00000000
+            )
+        );
     }
 }

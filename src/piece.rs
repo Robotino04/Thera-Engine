@@ -1,8 +1,6 @@
-use std::ops::Index;
-
 use itertools::Itertools;
 
-use crate::bitboard::{self, Bitboard};
+use crate::bitboard::Bitboard;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -24,6 +22,47 @@ impl Piece {
         Self::Queen,
         Self::King,
     ];
+
+    pub fn from_algebraic(c: char) -> Option<Self> {
+        Some(match c.to_ascii_lowercase() {
+            'p' => Piece::Pawn,
+            'b' => Piece::Bishop,
+            'n' => Piece::Knight,
+            'r' => Piece::Rook,
+            'q' => Piece::Queen,
+            'k' => Piece::King,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[repr(i8)]
+pub enum Direction {
+    North = 8,
+    South = -8,
+    East = -1,
+    West = 1,
+
+    NorthEast = Self::North as i8 + Self::East as i8,
+    NorthWest = Self::North as i8 + Self::West as i8,
+    SouthEast = Self::South as i8 + Self::East as i8,
+    SouthWest = Self::South as i8 + Self::West as i8,
+}
+
+impl Direction {
+    pub fn opposite(self) -> Self {
+        match self {
+            Direction::North => Direction::South,
+            Direction::South => Direction::North,
+            Direction::East => Direction::West,
+            Direction::West => Direction::East,
+            Direction::NorthEast => Direction::SouthWest,
+            Direction::NorthWest => Direction::SouthEast,
+            Direction::SouthEast => Direction::NorthWest,
+            Direction::SouthWest => Direction::NorthEast,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -53,28 +92,29 @@ pub struct Rank {
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Square {
-    A8, B8, C8, D8, E8, F8, G8, H8,
-    A7, B7, C7, D7, E7, F7, G7, H7,
-    A6, B6, C6, D6, E6, F6, G6, H6,
-    A5, B5, C5, D5, E5, F5, G5, H5,
-    A4, B4, C4, D4, E4, F4, G4, H4,
-    A3, B3, C3, D3, E3, F3, G3, H3,
-    A2, B2, C2, D2, E2, F2, G2, H2,
-    A1, B1, C1, D1, E1, F1, G1, H1,
+    H1, G1, F1, E1, D1, C1, B1, A1,
+    H2, G2, F2, E2, D2, C2, B2, A2,
+    H3, G3, F3, E3, D3, C3, B3, A3,
+    H4, G4, F4, E4, D4, C4, B4, A4,
+    H5, G5, F5, E5, D5, C5, B5, A5,
+    H6, G6, F6, E6, D6, C6, B6, A6,
+    H7, G7, F7, E7, D7, C7, B7, A7,
+    H8, G8, F8, E8, D8, C8, B8, A8,
 }
+
 impl Square {
     #[rustfmt::skip]
     pub const ALL: [Square; 64] = {
         use Square::*;
         [
-            A8, B8, C8, D8, E8, F8, G8, H8,
-            A7, B7, C7, D7, E7, F7, G7, H7,
-            A6, B6, C6, D6, E6, F6, G6, H6,
-            A5, B5, C5, D5, E5, F5, G5, H5,
-            A4, B4, C4, D4, E4, F4, G4, H4,
-            A3, B3, C3, D3, E3, F3, G3, H3,
-            A2, B2, C2, D2, E2, F2, G2, H2,
-            A1, B1, C1, D1, E1, F1, G1, H1,
+            H1, G1, F1, E1, D1, C1, B1, A1,
+            H2, G2, F2, E2, D2, C2, B2, A2,
+            H3, G3, F3, E3, D3, C3, B3, A3,
+            H4, G4, F4, E4, D4, C4, B4, A4,
+            H5, G5, F5, E5, D5, C5, B5, A5,
+            H6, G6, F6, E6, D6, C6, B6, A6,
+            H7, G7, F7, E7, D7, C7, B7, A7,
+            H8, G8, F8, E8, D8, C8, B8, A8,
         ]
     };
 
@@ -82,6 +122,7 @@ impl Square {
         Self::ALL.get(index as usize).copied()
     }
 
+    /// 0, 0 is the bottom left
     pub fn from_xy<T>(x: T, y: T) -> Option<Self>
     where
         T: TryInto<u8>,
@@ -90,7 +131,7 @@ impl Square {
         let y = y.try_into().ok()?;
 
         if (0..8).contains(&x) && (0..8).contains(&y) {
-            Self::ALL.get(((7 - y) * 8 + x) as usize).copied()
+            Self::ALL.get((y * 8 + (7 - x)) as usize).copied()
         } else {
             None
         }
@@ -135,6 +176,7 @@ impl Square {
 pub struct Move {
     pub from_square: Bitboard,
     pub to_square: Bitboard,
+    pub promotion_piece: Option<Piece>,
 }
 
 impl Move {
@@ -142,6 +184,14 @@ impl Move {
         Some(Move {
             from_square: Bitboard::from_square(Square::from_algebraic(s.get(0..2)?)?),
             to_square: Bitboard::from_square(Square::from_algebraic(s.get(2..4)?)?),
+            promotion_piece: if let Some(c) = s.chars().nth(5) {
+                Some(match Piece::from_algebraic(c)? {
+                    Piece::Pawn | Piece::King => return None,
+                    p @ (Piece::Bishop | Piece::Knight | Piece::Rook | Piece::Queen) => p,
+                })
+            } else {
+                None
+            },
         })
     }
 }

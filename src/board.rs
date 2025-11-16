@@ -10,7 +10,7 @@ use crate::{
 pub struct Board {
     pieces: [Bitboard; 6],
     colors: [Bitboard; 2],
-    color_to_play: Color,
+    color_to_move: Color,
     can_castle_kingside: [bool; 2],
     can_castle_queenside: [bool; 2],
     enpassant_square: Bitboard,
@@ -126,7 +126,7 @@ impl Board {
         Ok(Board {
             pieces,
             colors,
-            color_to_play,
+            color_to_move: color_to_play,
             can_castle_queenside,
             can_castle_kingside,
             enpassant_square,
@@ -184,7 +184,24 @@ impl Board {
 
         out
     }
-    pub fn dump_ansi(&self) -> String {
+    pub fn dump_ansi(&self, highlights: Option<Bitboard>) -> String {
+        let dark_color = (184, 135, 98);
+        let light_color = (233, 207, 174);
+        let highligh_color = (0, 255, 255);
+        let highlight_alpha = 0.4;
+
+        fn overlay_color(
+            bg: (i32, i32, i32),
+            overlay: (i32, i32, i32),
+            alpha: f32,
+        ) -> (i32, i32, i32) {
+            (
+                (bg.0 as f32 * (1.0 - alpha) + overlay.0 as f32 * alpha) as i32,
+                (bg.1 as f32 * (1.0 - alpha) + overlay.1 as f32 * alpha) as i32,
+                (bg.2 as f32 * (1.0 - alpha) + overlay.2 as f32 * alpha) as i32,
+            )
+        }
+
         let mut out = String::new();
         out.push_str("   a b c d e f g h\n");
         for y in (0..8).rev() {
@@ -197,20 +214,45 @@ impl Board {
                     Some(Color::White) => &Ansi::fg_color24(255, 255, 255),
                     Some(Color::Black) => &Ansi::fg_color24(0, 0, 0),
                 };
-                let (this_square_color_fg, this_square_color_bg, next_square_color_fg) =
-                    if (x + y) % 2 == 0 {
-                        (
-                            Ansi::fg_color24(233, 207, 174),
-                            Ansi::bg_color24(233, 207, 174),
-                            Ansi::fg_color24(184, 135, 98),
-                        )
-                    } else {
-                        (
-                            Ansi::fg_color24(184, 135, 98),
-                            Ansi::bg_color24(184, 135, 98),
-                            Ansi::fg_color24(233, 207, 174),
-                        )
-                    };
+                let (this_square_color, next_square_color) = if (x + y) % 2 == 1 {
+                    (dark_color, light_color)
+                } else {
+                    (light_color, dark_color)
+                };
+
+                let this_square_color = if let Some(highlights) = highlights
+                    && highlights.at(square)
+                {
+                    overlay_color(this_square_color, highligh_color, highlight_alpha)
+                } else {
+                    this_square_color
+                };
+                let next_square_color = if let Some(highlights) = highlights
+                    && let Some(next_square) = Square::new((square as u8).saturating_sub(1))
+                    && highlights.at(next_square)
+                {
+                    overlay_color(next_square_color, highligh_color, highlight_alpha)
+                } else {
+                    next_square_color
+                };
+
+                let (this_square_color_fg, this_square_color_bg, next_square_color_fg) = (
+                    Ansi::fg_color24(
+                        this_square_color.0 as u8,
+                        this_square_color.1 as u8,
+                        this_square_color.2 as u8,
+                    ),
+                    Ansi::bg_color24(
+                        this_square_color.0 as u8,
+                        this_square_color.1 as u8,
+                        this_square_color.2 as u8,
+                    ),
+                    Ansi::fg_color24(
+                        next_square_color.0 as u8,
+                        next_square_color.1 as u8,
+                        next_square_color.2 as u8,
+                    ),
+                );
 
                 let piece = match self.get_piece_at_index(square) {
                     None => ' ',
@@ -256,7 +298,7 @@ impl Board {
             .find(|&color| self.colors[color as usize].at(index))
     }
 
-    pub fn make_move(&mut self, m: Move) {
+    pub fn make_move(&mut self, m: &Move) {
         for bb in &mut self.colors {
             *bb &= !m.to_square;
             if !(*bb & m.from_square).is_empty() {
@@ -264,12 +306,35 @@ impl Board {
             }
             *bb &= !m.from_square;
         }
-        for bb in &mut self.pieces {
-            *bb &= !m.to_square;
-            if !(*bb & m.from_square).is_empty() {
-                *bb |= m.to_square;
+        if let Some(promotion_piece) = m.promotion_piece {
+            for bb in &mut self.pieces {
+                *bb &= !m.to_square;
             }
-            *bb &= !m.from_square;
+
+            self.pieces[Piece::Pawn as usize] &= !m.from_square;
+            self.pieces[promotion_piece as usize] |= m.to_square;
+        } else {
+            for bb in &mut self.pieces {
+                *bb &= !m.to_square;
+                if !(*bb & m.from_square).is_empty() {
+                    *bb |= m.to_square;
+                }
+                *bb &= !m.from_square;
+            }
         }
+    }
+
+    pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {
+        self.pieces[piece as usize] & self.colors[color as usize]
+    }
+    pub fn all_piece_bitboard(&self) -> Bitboard {
+        self.get_color_bitboard(Color::White) | self.get_color_bitboard(Color::Black)
+    }
+    pub fn get_color_bitboard(&self, color: Color) -> Bitboard {
+        self.colors[color as usize]
+    }
+
+    pub fn color_to_move(&self) -> Color {
+        self.color_to_move
     }
 }
