@@ -1,20 +1,55 @@
-use std::io::BufWriter;
-
 use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
-    piece::{Color, Direction, Move, Piece},
+    piece::{Color, Direction, Move, Piece, Square},
 };
 
 #[derive(Debug)]
 pub struct MoveGenerator<const ALL_MOVES: bool> {
     attacks_from_square: [Bitboard; 64],
+    attacks_to_square: [Bitboard; 64],
+    /// NOTE: this does not consider the king as a blocker for sliding pieces.
+    /// That's a good thing for king move generation, but maybe not expected for other uses
     attacked_squares: Bitboard,
+    allowed_targets: Bitboard,
+    is_double_check: bool,
+    is_check: bool,
 }
 
 const MAX_MOVES_IN_POSITION: usize = 218;
 
 impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
+    /// https://www.chessprogramming.org/Square_Attacked_By#Pure_Calculation
+    pub const SQUARES_IN_BETWEEN: [[Bitboard; 64]; 64] = const {
+        let mut tmp = [[Bitboard(0); 64]; 64];
+        let mut sq1 = 0;
+        while sq1 < 64 {
+            let mut sq2 = 0;
+            while sq2 < 64 {
+                let m1: u64 = 0xFFFFFFFFFFFFFFFF;
+                let a2a7: u64 = 0x0001010101010100;
+                let b2g7: u64 = 0x0040201008040200;
+                let h1b7: u64 = 0x0002040810204080;
+
+                let btwn: u64 = (m1 << sq1 as u64) ^ (m1 << sq2 as u64);
+                let file: u64 = (sq2 as u64 & 7).wrapping_sub(sq1 as u64 & 7);
+                let rank: u64 = ((sq2 as u64 | 7).wrapping_sub(sq1 as u64)) >> 3;
+                let mut line: u64 = ((file & 7).wrapping_sub(1)) & a2a7; /* a2a7 if same file */
+                line += 2 * (((rank & 7).wrapping_sub(1)) >> 58); /* b1g1 if same rank */
+                line += (((rank.wrapping_sub(file)) & 15).wrapping_sub(1)) & b2g7; /* b2g7 if same diagonal */
+                line += (((rank.wrapping_add(file)) & 15).wrapping_sub(1)) & h1b7; /* h1b7 if same antidiag */
+                line = line.wrapping_mul(btwn & btwn.wrapping_neg()); /* mul acts like shift by smaller square */
+
+                tmp[sq1 as usize][sq2 as usize] = Bitboard(line & btwn); /* return the bits on that line in-between */
+
+                sq2 += 1;
+            }
+            sq1 += 1;
+        }
+
+        tmp
+    };
+
     pub fn with_attacks(board: &mut Board) -> Self {
         board.make_null_move();
 
@@ -29,12 +64,49 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         board.undo_null_move();
 
+        let mut attacks_to_square = [Bitboard(0); 64];
+        for (i, mut bb) in attacks_from_square.into_iter().enumerate() {
+            while let Some(target_index) = bb.bitscan_index() {
+                attacks_to_square[target_index as usize] |=
+                    Bitboard::from_square(Square::new(i as u8).unwrap());
+            }
+        }
+
+        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+        let king_attackers = attacks_to_square[king.first_piece_index().unwrap() as usize];
+
+        let (is_double_check, is_check, allowed_targets) = if king_attackers.is_empty() {
+            (false, false, Bitboard(!0))
+        } else if king_attackers.count_ones() >= 2 {
+            // double check; no legal other than moving the king
+            (true, true, Bitboard(0))
+        } else if let attacking_knights =
+            king_attackers & board.get_piece_bitboard_colorless(Piece::Knight)
+            && !attacking_knights.is_empty()
+        {
+            // a knight is giving check. Can only capture it
+            (false, true, attacking_knights)
+        } else {
+            // check from a single sliding piece. can only move in between.
+            (
+                false,
+                true,
+                Self::SQUARES_IN_BETWEEN[king.first_piece_index().unwrap() as usize]
+                    [king_attackers.first_piece_index().unwrap() as usize]
+                    | king_attackers,
+            )
+        };
+
         Self {
             attacks_from_square,
             attacked_squares: attacks_from_square
                 .into_iter()
                 .reduce(|a, b| a | b)
                 .unwrap_or_default(),
+            attacks_to_square,
+            allowed_targets,
+            is_double_check,
+            is_check,
         }
     }
 
@@ -99,38 +171,40 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         Self::targets_to_moves(king, targets, board, moves);
 
-        if board.can_castle_kingside(board.color_to_move()) {
-            let king_move_mask =
-                king | king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
-            let clear_mask = king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
+        if ALL_MOVES {
+            if board.can_castle_kingside(board.color_to_move()) {
+                let king_move_mask =
+                    king | king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
+                let clear_mask = king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
 
-            if (king_move_mask & self.attacked_squares).is_empty()
-                && (clear_mask & board.all_piece_bitboard()).is_empty()
-            {
-                moves.push(Move::Castle {
-                    from_square: king,
-                    to_square: king.rotate(Direction::East, 2),
-                    rook_from_square: king.rotate(Direction::East, 3),
-                    rook_to_square: king.rotate(Direction::East, 1),
-                });
+                if (king_move_mask & self.attacked_squares).is_empty()
+                    && (clear_mask & board.all_piece_bitboard()).is_empty()
+                {
+                    moves.push(Move::Castle {
+                        from_square: king,
+                        to_square: king.rotate(Direction::East, 2),
+                        rook_from_square: king.rotate(Direction::East, 3),
+                        rook_to_square: king.rotate(Direction::East, 1),
+                    });
+                }
             }
-        }
-        if board.can_castle_queenside(board.color_to_move()) {
-            let king_move_mask =
-                king | king.rotate(Direction::West, 1) | king.rotate(Direction::West, 2);
-            let clear_mask = king.rotate(Direction::West, 1)
-                | king.rotate(Direction::West, 2)
-                | king.rotate(Direction::West, 3);
+            if board.can_castle_queenside(board.color_to_move()) {
+                let king_move_mask =
+                    king | king.rotate(Direction::West, 1) | king.rotate(Direction::West, 2);
+                let clear_mask = king.rotate(Direction::West, 1)
+                    | king.rotate(Direction::West, 2)
+                    | king.rotate(Direction::West, 3);
 
-            if (king_move_mask & self.attacked_squares).is_empty()
-                && (clear_mask & board.all_piece_bitboard()).is_empty()
-            {
-                moves.push(Move::Castle {
-                    from_square: king,
-                    to_square: king.rotate(Direction::West, 2),
-                    rook_from_square: king.rotate(Direction::West, 4),
-                    rook_to_square: king.rotate(Direction::West, 1),
-                });
+                if (king_move_mask & self.attacked_squares).is_empty()
+                    && (clear_mask & board.all_piece_bitboard()).is_empty()
+                {
+                    moves.push(Move::Castle {
+                        from_square: king,
+                        to_square: king.rotate(Direction::West, 2),
+                        rook_from_square: king.rotate(Direction::West, 4),
+                        rook_to_square: king.rotate(Direction::West, 1),
+                    });
+                }
             }
         }
     }
@@ -139,23 +213,27 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         board: &Board,
         piece: Bitboard,
         directions: [Direction; N],
+        blockers: Bitboard,
     ) -> Bitboard {
         let mut targets = Bitboard::default();
         for dir in directions {
-            let non_attacks = Self::occluded_fill(piece, board.all_piece_bitboard(), dir);
+            let non_attacks = Self::occluded_fill(piece, blockers, dir);
             targets |= non_attacks.shift(dir);
         }
         targets & !board.get_color_bitboard(board.color_to_move())
     }
 
     fn all_sliding_moves<const N: usize>(
+        &self,
         board: &Board,
         moves: &mut Vec<Move>,
         mut pieces: Bitboard,
         directions: [Direction; N],
     ) {
         while let Some(single_piece) = pieces.bitscan() {
-            let targets = Self::sliding_moves(board, single_piece, directions);
+            let targets =
+                Self::sliding_moves(board, single_piece, directions, board.all_piece_bitboard())
+                    & self.allowed_targets;
             Self::targets_to_moves(single_piece, targets, board, moves);
         }
     }
@@ -166,7 +244,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         attacks_from_square: &mut [Bitboard; 64],
     ) {
         while let Some(single_piece) = pieces.bitscan() {
-            let targets = Self::sliding_moves(board, single_piece, directions);
+            let targets = Self::sliding_moves(
+                board,
+                single_piece,
+                directions,
+                board.all_piece_bitboard()
+                    & !board.get_piece_bitboard(Piece::King, board.color_to_move().opposite()),
+            );
             attacks_from_square[single_piece.first_piece_index().unwrap() as usize] |= targets;
         }
     }
@@ -174,7 +258,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_rook_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        Self::all_sliding_moves(
+        self.all_sliding_moves(
             board,
             moves,
             board.get_piece_bitboard(Piece::Rook, board.color_to_move()),
@@ -202,7 +286,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_bishop_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        Self::all_sliding_moves(
+        self.all_sliding_moves(
             board,
             moves,
             board.get_piece_bitboard(Piece::Bishop, board.color_to_move()),
@@ -231,7 +315,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_queen_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        Self::all_sliding_moves(
+        self.all_sliding_moves(
             board,
             moves,
             board.get_piece_bitboard(Piece::Queen, board.color_to_move()),
@@ -284,7 +368,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         let mut knights = board.get_piece_bitboard(Piece::Knight, board.color_to_move());
         while let Some(knight) = knights.bitscan() {
-            let targets = Self::generate_knight_targets(knight);
+            let targets = Self::generate_knight_targets(knight) & self.allowed_targets;
 
             Self::targets_to_moves(knight, targets, board, moves);
         }
@@ -366,10 +450,11 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             targets |= (targets & shifted_baseline).shift(forwards) & !board.all_piece_bitboard();
 
             // lock
-            let targets = targets;
+            let targets = targets & self.allowed_targets;
 
             let attacks = (pawn.shift(forwards_west) | pawn.shift(forwards_east))
-                & board.get_color_bitboard(board.color_to_move().opposite());
+                & board.get_color_bitboard(board.color_to_move().opposite())
+                & self.allowed_targets;
 
             let mut promotion_targets = targets & promotion_line;
             let mut normal_targets = targets & !promotion_line;

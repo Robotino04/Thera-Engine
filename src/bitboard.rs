@@ -1,4 +1,6 @@
-use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, DerefMut, Not};
+use std::ops::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, DerefMut, Not,
+};
 
 use crate::piece::{Direction, Square};
 
@@ -83,6 +85,20 @@ impl BitOr for Bitboard {
 impl BitOrAssign for Bitboard {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
+    }
+}
+
+impl BitXor for Bitboard {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Bitboard(self.0 ^ rhs.0)
+    }
+}
+
+impl BitXorAssign for Bitboard {
+    fn bitxor_assign(&mut self, rhs: Self) {
+        self.0 ^= rhs.0
     }
 }
 

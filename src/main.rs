@@ -1,13 +1,18 @@
-use thera::{self, board::Board, move_generator::MoveGenerator, piece::Move};
+use thera::{
+    self,
+    board::Board,
+    move_generator::MoveGenerator,
+    piece::{Move, Square},
+};
 
 fn main() {
     let mut board =
-        Board::from_fen("r3k2r/pppp2pp/1nbQ1bn1/1p3p2/8/8/PPPPPPPP/RNB1KBNR b KQkq - 0 1").unwrap();
+        Board::from_fen("1k6/5B2/8/3q4/8/1K6/8/8 w - - 0 1").unwrap();
     println!("{}", board.dump_ansi(None));
 
     let movegen = MoveGenerator::<true>::with_attacks(&mut board);
     let mut moves = Vec::new();
-    movegen.generate_king_moves(&board, &mut moves);
+    movegen.generate_bishop_moves(&board, &mut moves);
 
     let targets = moves
         .iter()

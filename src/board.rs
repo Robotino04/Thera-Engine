@@ -384,6 +384,9 @@ impl Board {
     pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {
         self.pieces[piece as usize] & self.colors[color as usize]
     }
+    pub fn get_piece_bitboard_colorless(&self, piece: Piece) -> Bitboard {
+        self.pieces[piece as usize]
+    }
     pub fn all_piece_bitboard(&self) -> Bitboard {
         self.get_color_bitboard(Color::White) | self.get_color_bitboard(Color::Black)
     }
