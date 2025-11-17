@@ -179,6 +179,14 @@ pub enum Move {
         to_square: Bitboard,
         is_capture: bool,
     },
+    DoublePawn {
+        from_square: Bitboard,
+        to_square: Bitboard,
+    },
+    EnPassant {
+        from_square: Bitboard,
+        to_square: Bitboard,
+    },
     Castle {
         from_square: Bitboard,
         to_square: Bitboard,

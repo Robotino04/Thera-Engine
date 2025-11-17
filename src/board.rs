@@ -320,6 +320,58 @@ impl Board {
                     }
                     *bb &= !from_square;
                 }
+                self.enpassant_square = Bitboard(0);
+            }
+            Move::DoublePawn {
+                from_square,
+                to_square,
+            } => {
+                for bb in &mut self.colors {
+                    *bb &= !to_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+
+                for bb in &mut self.pieces {
+                    *bb &= !to_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+                self.enpassant_square = Bitboard::from_square(
+                    Square::new(
+                        (from_square.first_piece_index().unwrap() as u8
+                            + to_square.first_piece_index().unwrap() as u8)
+                            / 2,
+                    )
+                    .unwrap(),
+                );
+            }
+            Move::EnPassant {
+                from_square,
+                to_square,
+            } => {
+                for bb in &mut self.colors {
+                    *bb &= !to_square;
+                    *bb &= !self.enpassant_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+
+                for bb in &mut self.pieces {
+                    *bb &= !to_square;
+                    *bb &= !self.enpassant_square;
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    *bb &= !from_square;
+                }
+                self.enpassant_square = Bitboard(0);
             }
             Move::Promotion {
                 from_square,
@@ -341,6 +393,7 @@ impl Board {
 
                 self.pieces[Piece::Pawn as usize] &= !from_square;
                 self.pieces[promotion_piece as usize] |= to_square;
+                self.enpassant_square = Bitboard(0);
             }
             Move::Castle {
                 from_square,
@@ -376,6 +429,7 @@ impl Board {
                     *bb &= !from_square;
                     *bb &= !rook_from_square;
                 }
+                self.enpassant_square = Bitboard(0);
             }
         }
         self.color_to_move = self.color_to_move.opposite();
@@ -410,5 +464,8 @@ impl Board {
     }
     pub fn can_castle_queenside(&self, color: Color) -> bool {
         self.can_castle_queenside[color as usize]
+    }
+    pub fn enpassant_square(&self) -> Bitboard {
+        self.enpassant_square
     }
 }

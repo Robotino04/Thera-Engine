@@ -110,6 +110,15 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
 
+    pub fn generate_all_moves(&self, board: &Board, moves: &mut Vec<Move>) {
+        self.generate_pawn_moves(board, moves);
+        self.generate_bishop_moves(board, moves);
+        self.generate_knight_moves(board, moves);
+        self.generate_rook_moves(board, moves);
+        self.generate_queen_moves(board, moves);
+        self.generate_king_moves(board, moves);
+    }
+
     fn targets_to_moves(origin: Bitboard, targets: Bitboard, board: &Board, moves: &mut Vec<Move>) {
         if ALL_MOVES {
             let mut non_captures = targets & !board.all_piece_bitboard();
@@ -445,9 +454,9 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         let mut pawns = board.get_piece_bitboard(Piece::Pawn, board.color_to_move());
         while let Some(pawn) = pawns.bitscan() {
-            let mut targets = Bitboard(0);
-            targets |= pawn.shift(forwards) & !board.all_piece_bitboard();
-            targets |= (targets & shifted_baseline).shift(forwards) & !board.all_piece_bitboard();
+            let targets = pawn.shift(forwards) & !board.all_piece_bitboard();
+            let mut double_targets =
+                (targets & shifted_baseline).shift(forwards) & !board.all_piece_bitboard();
 
             // lock
             let targets = targets & self.allowed_targets;
@@ -470,6 +479,12 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                         is_capture: false,
                     })
                 }
+                while let Some(target) = double_targets.bitscan() {
+                    moves.push(Move::DoublePawn {
+                        from_square: pawn,
+                        to_square: target,
+                    })
+                }
 
                 while let Some(target) = promotion_targets.bitscan() {
                     for promotion_piece in [Piece::Bishop, Piece::Knight, Piece::Rook, Piece::Queen]
@@ -482,6 +497,14 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                         });
                     }
                 }
+            }
+
+            // en passant
+            if let Some(target) = (normal_attacks & board.enpassant_square()).bitscan() {
+                moves.push(Move::EnPassant {
+                    from_square: pawn,
+                    to_square: target,
+                })
             }
 
             while let Some(target) = normal_attacks.bitscan() {
