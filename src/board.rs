@@ -342,7 +342,43 @@ impl Board {
                 self.pieces[Piece::Pawn as usize] &= !from_square;
                 self.pieces[promotion_piece as usize] |= to_square;
             }
+            Move::Castle {
+                from_square,
+                to_square,
+                rook_from_square,
+                rook_to_square,
+            } => {
+                for bb in &mut self.colors {
+                    *bb &= !to_square;
+                    *bb &= !rook_to_square;
+
+                    // castling is always the same color
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                        *bb |= rook_to_square;
+                    }
+
+                    *bb &= !from_square;
+                    *bb &= !rook_from_square;
+                }
+
+                for bb in &mut self.pieces {
+                    *bb &= !to_square;
+                    *bb &= !rook_to_square;
+
+                    if !(*bb & from_square).is_empty() {
+                        *bb |= to_square;
+                    }
+                    if !(*bb & rook_from_square).is_empty() {
+                        *bb |= rook_to_square;
+                    }
+
+                    *bb &= !from_square;
+                    *bb &= !rook_from_square;
+                }
+            }
         }
+        self.color_to_move = self.color_to_move.opposite();
     }
 
     pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {
@@ -357,5 +393,19 @@ impl Board {
 
     pub fn color_to_move(&self) -> Color {
         self.color_to_move
+    }
+
+    pub fn make_null_move(&mut self) {
+        self.color_to_move = self.color_to_move.opposite();
+    }
+    pub fn undo_null_move(&mut self) {
+        self.color_to_move = self.color_to_move.opposite();
+    }
+
+    pub fn can_castle_kingside(&self, color: Color) -> bool {
+        self.can_castle_kingside[color as usize]
+    }
+    pub fn can_castle_queenside(&self, color: Color) -> bool {
+        self.can_castle_queenside[color as usize]
     }
 }

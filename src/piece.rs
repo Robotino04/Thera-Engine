@@ -179,6 +179,12 @@ pub enum Move {
         to_square: Bitboard,
         is_capture: bool,
     },
+    Castle {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        rook_from_square: Bitboard,
+        rook_to_square: Bitboard,
+    },
     Promotion {
         from_square: Bitboard,
         to_square: Bitboard,

@@ -144,6 +144,23 @@ impl Bitboard {
         }
     }
 
+    pub const fn bitscan_index(&mut self) -> Option<u32> {
+        if self.0 == 0 {
+            None
+        } else {
+            let index = self.0.trailing_zeros();
+            self.0 &= self.0 - 1;
+            Some(index)
+        }
+    }
+    pub const fn first_piece_index(&self) -> Option<u32> {
+        if self.0 == 0 {
+            None
+        } else {
+            Some(self.0.trailing_zeros())
+        }
+    }
+
     pub fn prevent_wrapping(&self, dir: Direction) -> Bitboard {
         match dir {
             Direction::North => {
