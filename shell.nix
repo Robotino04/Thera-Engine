@@ -10,5 +10,7 @@ in
 
       pkgs.cmake
       pkgs.python3
+
+      pkgs.stockfish
     ];
   }

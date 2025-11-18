@@ -177,6 +177,11 @@ impl Bitboard {
         }
     }
 
+    pub fn first_piece_square(&self) -> Option<Square> {
+        self.first_piece_index()
+            .map(|x| Square::new(x as u8).unwrap())
+    }
+
     pub fn prevent_wrapping(&self, dir: Direction) -> Bitboard {
         match dir {
             Direction::North => {

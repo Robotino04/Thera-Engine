@@ -34,6 +34,17 @@ impl Piece {
             _ => return None,
         })
     }
+
+    fn to_algebraic(self) -> &'static str {
+        match self {
+            Piece::Pawn => "p",
+            Piece::Bishop => "b",
+            Piece::Knight => "n",
+            Piece::Rook => "r",
+            Piece::Queen => "q",
+            Piece::King => "k",
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -163,6 +174,20 @@ impl Square {
         };
         Self::from_xy(x, y)
     }
+    pub fn to_algebraic(&self) -> &'static str {
+        #[rustfmt::skip]
+        let strs = [
+            "h1", "g1", "f1", "e1", "d1", "c1", "b1", "a1",
+            "h2", "g2", "f2", "e2", "d2", "c2", "b2", "a2",
+            "h3", "g3", "f3", "e3", "d3", "c3", "b3", "a3",
+            "h4", "g4", "f4", "e4", "d4", "c4", "b4", "a4",
+            "h5", "g5", "f5", "e5", "d5", "c5", "b5", "a5",
+            "h6", "g6", "f6", "e6", "d6", "c6", "b6", "a6",
+            "h7", "g7", "f7", "e7", "d7", "c7", "b7", "a7",
+            "h8", "g8", "f8", "e8", "d8", "c8", "b8", "a8",
+        ];
+        strs[*self as usize]
+    }
 
     pub const fn row(&self) -> u8 {
         *self as u8 / 8
@@ -222,6 +247,51 @@ impl Move {
                 to_square,
                 is_capture: false,
             })
+        }
+    }
+
+    pub fn to_algebraic(&self) -> String {
+        match self {
+            Move::Normal {
+                from_square,
+                to_square,
+                is_capture: _,
+            }
+            | Move::DoublePawn {
+                from_square,
+                to_square,
+            }
+            | Move::EnPassant {
+                from_square,
+                to_square,
+            }
+            | Move::Castle {
+                from_square,
+                to_square,
+                rook_from_square: _,
+                rook_to_square: _,
+            } => {
+                from_square
+                    .first_piece_square()
+                    .unwrap()
+                    .to_algebraic()
+                    .to_string()
+                    + to_square.first_piece_square().unwrap().to_algebraic()
+            }
+            Move::Promotion {
+                from_square,
+                to_square,
+                promotion_piece,
+                is_capture: _,
+            } => {
+                from_square
+                    .first_piece_square()
+                    .unwrap()
+                    .to_algebraic()
+                    .to_string()
+                    + to_square.first_piece_square().unwrap().to_algebraic()
+                    + promotion_piece.to_algebraic()
+            }
         }
     }
 }
