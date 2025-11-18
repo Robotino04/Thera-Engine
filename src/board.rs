@@ -2,8 +2,8 @@ use itertools::Itertools;
 
 use crate::{
     ansi::Ansi,
-    bitboard::Bitboard,
-    piece::{Color, Move, Piece, Square},
+    bitboard::{Bitboard, bitboard},
+    piece::{Color, Direction, Move, Piece, Square},
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -11,8 +11,7 @@ pub struct Board {
     pieces: [Bitboard; 6],
     colors: [Bitboard; 2],
     color_to_move: Color,
-    can_castle_kingside: [bool; 2],
-    can_castle_queenside: [bool; 2],
+    can_castle: Bitboard,
     enpassant_square: Bitboard,
     halfmove_clock: u32,
     fullmove_counter: u32,
@@ -90,18 +89,59 @@ impl Board {
             _ => return Err(FenParseError::InvalidTurnColor),
         };
 
-        let mut can_castle_kingside = [false, false];
-        let mut can_castle_queenside = [false, false];
-
+        let mut can_castle = Bitboard(0);
         if castling_str == "-" {
         } else {
             for ch in castling_str.chars() {
                 match ch {
-                    'q' => can_castle_queenside[Color::Black as usize] = true,
-                    'Q' => can_castle_queenside[Color::White as usize] = true,
-                    'k' => can_castle_kingside[Color::Black as usize] = true,
-                    'K' => can_castle_kingside[Color::White as usize] = true,
-
+                    'q' => {
+                        can_castle |= bitboard!(
+                            0b10001000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                        )
+                    }
+                    'Q' => {
+                        can_castle |= bitboard!(
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b10001000
+                        )
+                    }
+                    'k' => {
+                        can_castle |= bitboard!(
+                            0b00001001
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                        )
+                    }
+                    'K' => {
+                        can_castle |= bitboard!(
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00000000
+                            0b00001001
+                        )
+                    }
                     _ => return Err(FenParseError::InvalidCastlingRight(ch)),
                 }
             }
@@ -127,8 +167,7 @@ impl Board {
             pieces,
             colors,
             color_to_move: color_to_play,
-            can_castle_queenside,
-            can_castle_kingside,
+            can_castle,
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
@@ -320,6 +359,7 @@ impl Board {
                     }
                     *bb &= !from_square;
                 }
+                self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
             Move::DoublePawn {
@@ -354,9 +394,14 @@ impl Board {
                 from_square,
                 to_square,
             } => {
+                let captured_pawn = match self.color_to_move() {
+                    Color::White => to_square.wrapping_shift(Direction::South),
+                    Color::Black => to_square.wrapping_shift(Direction::North),
+                };
+
                 for bb in &mut self.colors {
                     *bb &= !to_square;
-                    *bb &= !self.enpassant_square;
+                    *bb &= !captured_pawn;
                     if !(*bb & from_square).is_empty() {
                         *bb |= to_square;
                     }
@@ -365,7 +410,7 @@ impl Board {
 
                 for bb in &mut self.pieces {
                     *bb &= !to_square;
-                    *bb &= !self.enpassant_square;
+                    *bb &= !captured_pawn;
                     if !(*bb & from_square).is_empty() {
                         *bb |= to_square;
                     }
@@ -393,6 +438,7 @@ impl Board {
 
                 self.pieces[Piece::Pawn as usize] &= !from_square;
                 self.pieces[promotion_piece as usize] |= to_square;
+                self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
             Move::Castle {
@@ -429,6 +475,7 @@ impl Board {
                     *bb &= !from_square;
                     *bb &= !rook_from_square;
                 }
+                self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
         }
@@ -460,12 +507,140 @@ impl Board {
     }
 
     pub fn can_castle_kingside(&self, color: Color) -> bool {
-        self.can_castle_kingside[color as usize]
+        let bb = match color {
+            Color::Black => bitboard!(
+                0b00001001
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+            ),
+            Color::White => bitboard!(
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00001001
+            ),
+        };
+
+        self.can_castle & bb == bb
     }
     pub fn can_castle_queenside(&self, color: Color) -> bool {
-        self.can_castle_queenside[color as usize]
+        let bb = match color {
+            Color::Black => bitboard!(
+                0b10001000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+            ),
+            Color::White => bitboard!(
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b00000000
+                0b10001000
+            ),
+        };
+
+        self.can_castle & bb == bb
     }
     pub fn enpassant_square(&self) -> Bitboard {
         self.enpassant_square
+    }
+
+    pub fn to_fen(&self) -> String {
+        let mut out = String::new();
+        let mut empty_count = 0;
+        for y in (0..8).rev() {
+            for x in 0..8 {
+                let square = Square::from_xy(x, y).unwrap();
+                let piece_char = match self.get_piece_at_index(square) {
+                    Some(Piece::Pawn) => "p",
+                    Some(Piece::Bishop) => "b",
+                    Some(Piece::Knight) => "n",
+                    Some(Piece::Rook) => "r",
+                    Some(Piece::Queen) => "q",
+                    Some(Piece::King) => "k",
+                    None => {
+                        empty_count += 1;
+                        continue;
+                    }
+                };
+                if empty_count > 0 {
+                    out.push_str(&empty_count.to_string());
+                    empty_count = 0;
+                }
+
+                out.push_str(&match self.get_color_at_index(square).unwrap() {
+                    Color::White => piece_char.to_uppercase(),
+                    Color::Black => piece_char.to_string(),
+                });
+            }
+            if empty_count > 0 {
+                out.push_str(&empty_count.to_string());
+                empty_count = 0;
+            }
+
+            if y != 0 {
+                out.push('/');
+            }
+        }
+
+        out.push(' ');
+        match self.color_to_move() {
+            Color::White => out.push('w'),
+            Color::Black => out.push('b'),
+        }
+
+        out.push(' ');
+        let mut can_castle_at_all = false;
+        if self.can_castle_kingside(Color::White) {
+            out.push('K');
+            can_castle_at_all = true;
+        }
+        if self.can_castle_queenside(Color::White) {
+            out.push('Q');
+            can_castle_at_all = true;
+        }
+        if self.can_castle_kingside(Color::Black) {
+            out.push('k');
+            can_castle_at_all = true;
+        }
+        if self.can_castle_queenside(Color::Black) {
+            out.push('q');
+            can_castle_at_all = true;
+        }
+
+        if !can_castle_at_all {
+            out.push('-');
+        }
+
+        out.push(' ');
+        if let Some(enpassant_square) = self.enpassant_square.first_piece_square() {
+            out.push_str(enpassant_square.to_algebraic());
+        } else {
+            out.push('-');
+        }
+
+        out.push(' ');
+        out.push_str(&self.halfmove_clock.to_string());
+        out.push(' ');
+        out.push_str(&self.fullmove_counter.to_string());
+
+        out
     }
 }

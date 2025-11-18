@@ -62,6 +62,30 @@ pub enum Direction {
 }
 
 impl Direction {
+    pub const ALL: [Direction; 8] = [
+        Self::North,
+        Self::South,
+        Self::East,
+        Self::West,
+        Self::NorthEast,
+        Self::NorthWest,
+        Self::SouthEast,
+        Self::SouthWest,
+    ];
+
+    pub fn index(self) -> usize {
+        match self{
+            Direction::North => 0,
+            Direction::South => 1,
+            Direction::East => 2,
+            Direction::West => 3,
+            Direction::NorthEast => 4,
+            Direction::NorthWest => 5,
+            Direction::SouthEast => 6,
+            Direction::SouthWest => 7,
+        }
+    }
+
     pub fn opposite(self) -> Self {
         match self {
             Direction::North => Direction::South,

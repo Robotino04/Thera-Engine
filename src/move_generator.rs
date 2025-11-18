@@ -1,3 +1,7 @@
+use std::process::exit;
+
+use itertools::Itertools;
+
 use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
@@ -12,6 +16,9 @@ pub struct MoveGenerator<const ALL_MOVES: bool> {
     /// That's a good thing for king move generation, but maybe not expected for other uses
     attacked_squares: Bitboard,
     allowed_targets: Bitboard,
+    pub pinned: [Bitboard; 8],
+    pub unpinned: Bitboard,
+    pub free_to_move: [Bitboard; 8],
     is_double_check: bool,
     is_check: bool,
 }
@@ -97,14 +104,57 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             )
         };
 
+        let blockers = board.all_piece_bitboard();
+        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+
+        let mut pinned = Direction::ALL
+            .iter()
+            .map(|dir| Self::pinned_pieces(board, blockers, king, *dir))
+            .collect_array()
+            .unwrap();
+
+        // pins are symmetric
+        for dir in Direction::ALL {
+            pinned[dir.index()] |= pinned[dir.opposite().index()];
+        }
+
+        let mut free_to_move = [Bitboard(0); 8];
+        for dir in Direction::ALL {
+            for dir2 in Direction::ALL {
+                if dir == dir2 || dir == dir2.opposite() {
+                    continue;
+                }
+                // If  a square is pinned in dir2, then it can't move in dir.
+                // So free_to_move is first the map of non-free_to_move pieces
+
+                free_to_move[dir.index()] |= pinned[dir2.index()];
+            }
+            free_to_move[dir.index()] = !free_to_move[dir.index()];
+        }
+
+        let unpinned = free_to_move.iter().cloned().reduce(|a, b| a & b).unwrap();
+
+        if false {
+            println!(
+                "{}",
+                board.dump_ansi(Some(free_to_move[Direction::West.index()]))
+            );
+            exit(0);
+        }
+
+        let attacked_squares = attacks_from_square
+            .into_iter()
+            .reduce(|a, b| a | b)
+            .unwrap_or_default();
+
         Self {
             attacks_from_square,
-            attacked_squares: attacks_from_square
-                .into_iter()
-                .reduce(|a, b| a | b)
-                .unwrap_or_default(),
+            attacked_squares,
             attacks_to_square,
             allowed_targets,
+            pinned,
+            unpinned,
+            free_to_move,
             is_double_check,
             is_check,
         }
@@ -117,6 +167,45 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         self.generate_rook_moves(board, moves);
         self.generate_queen_moves(board, moves);
         self.generate_king_moves(board, moves);
+    }
+
+    fn pinned_pieces(
+        board: &Board,
+        mut blockers: Bitboard,
+        piece: Bitboard,
+        dir: Direction,
+    ) -> Bitboard {
+        let targets = Self::sliding_moves(piece, &[Bitboard(!0); 8], [dir], blockers);
+
+        let attacks = targets & blockers;
+        blockers ^= attacks; // remove one line of blockers
+
+        let xrayed_squares = Self::sliding_moves(piece, &[Bitboard(!0); 8], [dir], blockers);
+
+        let endpoints = xrayed_squares & blockers;
+
+        let sliders_in_dir = match dir {
+            Direction::North | Direction::East | Direction::South | Direction::West => {
+                board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite())
+                    | board.get_piece_bitboard(Piece::Rook, board.color_to_move().opposite())
+            }
+            Direction::NorthEast
+            | Direction::NorthWest
+            | Direction::SouthEast
+            | Direction::SouthWest => {
+                board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite())
+                    | board.get_piece_bitboard(Piece::Bishop, board.color_to_move().opposite())
+            }
+        };
+
+        // there should only ever be one endpoint in a single direction
+        if (endpoints & sliders_in_dir).is_empty() {
+            // no one to pin, so nothing is pinned
+            Bitboard(0)
+        } else {
+            // there's someone there
+            xrayed_squares
+        }
     }
 
     fn targets_to_moves(origin: Bitboard, targets: Bitboard, board: &Board, moves: &mut Vec<Move>) {
@@ -219,17 +308,20 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     }
 
     fn sliding_moves<const N: usize>(
-        board: &Board,
         piece: Bitboard,
+        free_to_move: &[Bitboard; 8],
         directions: [Direction; N],
         blockers: Bitboard,
     ) -> Bitboard {
         let mut targets = Bitboard::default();
         for dir in directions {
+            if (free_to_move[dir.index()] & piece).is_empty() {
+                continue;
+            }
             let non_attacks = Self::occluded_fill(piece, blockers, dir);
             targets |= non_attacks.shift(dir);
         }
-        targets & !board.get_color_bitboard(board.color_to_move())
+        targets
     }
 
     fn all_sliding_moves<const N: usize>(
@@ -240,9 +332,14 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         directions: [Direction; N],
     ) {
         while let Some(single_piece) = pieces.bitscan() {
-            let targets =
-                Self::sliding_moves(board, single_piece, directions, board.all_piece_bitboard())
-                    & self.allowed_targets;
+            let targets = Self::sliding_moves(
+                single_piece,
+                &self.free_to_move,
+                directions,
+                board.all_piece_bitboard(),
+            ) & self.allowed_targets
+                & !board.get_color_bitboard(board.color_to_move());
+
             Self::targets_to_moves(single_piece, targets, board, moves);
         }
     }
@@ -254,12 +351,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     ) {
         while let Some(single_piece) = pieces.bitscan() {
             let targets = Self::sliding_moves(
-                board,
                 single_piece,
+                &[Bitboard(!0); 8],
                 directions,
                 board.all_piece_bitboard()
                     & !board.get_piece_bitboard(Piece::King, board.color_to_move().opposite()),
             );
+
             attacks_from_square[single_piece.first_piece_index().unwrap() as usize] |= targets;
         }
     }
@@ -375,7 +473,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_knight_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        let mut knights = board.get_piece_bitboard(Piece::Knight, board.color_to_move());
+        let mut knights =
+            board.get_piece_bitboard(Piece::Knight, board.color_to_move()) & self.unpinned;
         while let Some(knight) = knights.bitscan() {
             let targets = Self::generate_knight_targets(knight) & self.allowed_targets;
 
@@ -454,16 +553,22 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         let mut pawns = board.get_piece_bitboard(Piece::Pawn, board.color_to_move());
         while let Some(pawn) = pawns.bitscan() {
-            let targets = pawn.shift(forwards) & !board.all_piece_bitboard();
-            let mut double_targets =
-                (targets & shifted_baseline).shift(forwards) & !board.all_piece_bitboard();
+            let targets = (pawn & self.free_to_move[forwards.index()]).shift(forwards)
+                & !board.all_piece_bitboard();
+            let mut double_targets = (targets & shifted_baseline).shift(forwards)
+                & !board.all_piece_bitboard()
+                & self.allowed_targets;
 
             // lock
             let targets = targets & self.allowed_targets;
 
-            let attacks = (pawn.shift(forwards_west) | pawn.shift(forwards_east))
-                & board.get_color_bitboard(board.color_to_move().opposite())
+            let attack_targets = ((pawn & self.free_to_move[forwards_west.index()])
+                .shift(forwards_west)
+                | (pawn & self.free_to_move[forwards_east.index()]).shift(forwards_east))
                 & self.allowed_targets;
+
+            let attacks =
+                attack_targets & board.get_color_bitboard(board.color_to_move().opposite());
 
             let mut promotion_targets = targets & promotion_line;
             let mut normal_targets = targets & !promotion_line;
@@ -500,7 +605,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             }
 
             // en passant
-            if let Some(target) = (normal_attacks & board.enpassant_square()).bitscan() {
+            if let Some(target) = (attack_targets & board.enpassant_square()).bitscan() {
                 moves.push(Move::EnPassant {
                     from_square: pawn,
                     to_square: target,
@@ -539,8 +644,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         let mut pawns = board.get_piece_bitboard(Piece::Pawn, board.color_to_move());
         while let Some(pawn) = pawns.bitscan() {
-            let attacks = (pawn.shift(forwards_west) | pawn.shift(forwards_east))
-                & board.get_color_bitboard(board.color_to_move().opposite());
+            let attacks = pawn.shift(forwards_west) | pawn.shift(forwards_east);
 
             attacks_from_square[pawn.first_piece_index().unwrap() as usize] |= attacks;
         }
