@@ -1,5 +1,3 @@
-use std::process::exit;
-
 use itertools::Itertools;
 
 use crate::{
@@ -133,14 +131,6 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
 
         let unpinned = free_to_move.iter().cloned().reduce(|a, b| a & b).unwrap();
-
-        if false {
-            println!(
-                "{}",
-                board.dump_ansi(Some(free_to_move[Direction::West.index()]))
-            );
-            exit(0);
-        }
 
         let attacked_squares = attacks_from_square
             .into_iter()
@@ -559,19 +549,16 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 & !board.all_piece_bitboard()
                 & self.allowed_targets;
 
-            // lock
-            let targets = targets & self.allowed_targets;
-
-            let attack_targets = ((pawn & self.free_to_move[forwards_west.index()])
+            let attack_targets = (pawn & self.free_to_move[forwards_west.index()])
                 .shift(forwards_west)
-                | (pawn & self.free_to_move[forwards_east.index()]).shift(forwards_east))
+                | (pawn & self.free_to_move[forwards_east.index()]).shift(forwards_east);
+
+            let attacks = attack_targets
+                & board.get_color_bitboard(board.color_to_move().opposite())
                 & self.allowed_targets;
 
-            let attacks =
-                attack_targets & board.get_color_bitboard(board.color_to_move().opposite());
-
-            let mut promotion_targets = targets & promotion_line;
-            let mut normal_targets = targets & !promotion_line;
+            let mut promotion_targets = targets & promotion_line & self.allowed_targets;
+            let mut normal_targets = targets & !promotion_line & self.allowed_targets;
 
             let mut promotion_attacks = attacks & promotion_line;
             let mut normal_attacks = attacks & !promotion_line;
@@ -605,11 +592,46 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             }
 
             // en passant
-            if let Some(target) = (attack_targets & board.enpassant_square()).bitscan() {
-                moves.push(Move::EnPassant {
-                    from_square: pawn,
-                    to_square: target,
-                })
+            if let Some(target) = (attack_targets & board.enpassant_square()).bitscan()
+                && !(board.enpassant_square().shift(forwards.opposite()) & self.allowed_targets)
+                    .is_empty()
+            {
+                let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+
+                let king_square = king.first_piece_square().unwrap();
+                let pawn_square = pawn.first_piece_square().unwrap();
+
+                if king_square.row() == pawn_square.row() {
+                    // maybe we have both pawns pinned to the king
+
+                    let captured_pawn = target.shift(forwards.opposite());
+                    let both_pawns = captured_pawn | pawn;
+
+                    let sliders = board
+                        .get_piece_bitboard(Piece::Rook, board.color_to_move().opposite())
+                        | board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite());
+
+                    let blockers = board.all_piece_bitboard() ^ both_pawns;
+
+                    let pin_line = if king_square.column() < pawn_square.column() {
+                        Self::occluded_fill(king, blockers, Direction::West).shift(Direction::West)
+                    } else {
+                        Self::occluded_fill(king, blockers, Direction::East).shift(Direction::East)
+                    };
+
+                    if (pin_line & sliders).is_empty() {
+                        // we haven't hit a rook or queen after the double-xray
+                        moves.push(Move::EnPassant {
+                            from_square: pawn,
+                            to_square: target,
+                        })
+                    }
+                } else {
+                    moves.push(Move::EnPassant {
+                        from_square: pawn,
+                        to_square: target,
+                    })
+                }
             }
 
             while let Some(target) = normal_attacks.bitscan() {
