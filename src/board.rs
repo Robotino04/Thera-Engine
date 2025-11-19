@@ -23,7 +23,7 @@ pub enum FenParseError {
     WrongRowCount,
     InvalidPiece(char),
     TooManyPiecesInRow,
-    InvalidTurnColor,
+    InvalidTurnColor(char),
     InvalidCastlingRight(char),
     InvalidEnpassantSquare,
     InvalidHalfMoveClock,
@@ -86,7 +86,7 @@ impl Board {
         let color_to_play = match turn_color_str {
             "w" => Color::White,
             "b" => Color::Black,
-            _ => return Err(FenParseError::InvalidTurnColor),
+            c => return Err(FenParseError::InvalidTurnColor(c.chars().next().unwrap())),
         };
 
         let mut can_castle = Bitboard(0);
