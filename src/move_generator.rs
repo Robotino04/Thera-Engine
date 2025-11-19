@@ -14,9 +14,9 @@ pub struct MoveGenerator<const ALL_MOVES: bool> {
     /// That's a good thing for king move generation, but maybe not expected for other uses
     attacked_squares: Bitboard,
     allowed_targets: Bitboard,
-    pub pinned: [Bitboard; 8],
-    pub unpinned: Bitboard,
-    pub free_to_move: [Bitboard; 8],
+    pinned: [Bitboard; 8],
+    unpinned: Bitboard,
+    free_to_move: [Bitboard; 8],
     is_double_check: bool,
     is_check: bool,
 }
@@ -157,6 +157,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         self.generate_rook_moves(board, moves);
         self.generate_queen_moves(board, moves);
         self.generate_king_moves(board, moves);
+    }
+
+    pub fn is_check(&self) -> bool {
+        self.is_check
+    }
+    pub fn is_double_check(&self) -> bool {
+        self.is_double_check
     }
 
     fn pinned_pieces(
