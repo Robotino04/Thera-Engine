@@ -19,7 +19,15 @@ pub struct PerftStatistics {
     pub checkmates: usize,
 }
 
-pub fn perft(board: &mut Board, depth: u32) -> PerftStatistics {
+pub fn perft(
+    board: &mut Board,
+    depth: u32,
+    should_exit: &impl Fn() -> bool,
+) -> Option<PerftStatistics> {
+    if should_exit() {
+        return None;
+    }
+
     let mut moves = Vec::new();
     let movegen = MoveGenerator::<true>::with_attacks(board);
     movegen.generate_all_moves(board, &mut moves);
@@ -27,7 +35,7 @@ pub fn perft(board: &mut Board, depth: u32) -> PerftStatistics {
     let is_checkmate = moves.is_empty() && movegen.is_check();
 
     if depth == 0 {
-        return PerftStatistics {
+        return Some(PerftStatistics {
             divide: Vec::new(),
             node_count: 1,
             checks: if movegen.is_check() { 1 } else { 0 },
@@ -37,79 +45,83 @@ pub fn perft(board: &mut Board, depth: u32) -> PerftStatistics {
             captures: 0,
             castles: 0,
             checkmates: if is_checkmate { 1 } else { 0 },
-        };
+        });
     }
 
-    moves
-        .into_iter()
-        .map(|m| {
-            let mut board = *board;
-            board.make_move(&m);
-            let mut res = perft(&mut board, depth - 1);
-            res.divide = vec![PerftMove {
-                algebraic_move: m.to_algebraic(),
-                nodes: res.node_count,
-            }];
-            if depth == 1 {
-                match m {
-                    Move::Normal {
-                        from_square: _,
-                        to_square: _,
-                        is_capture,
-                    } => {
-                        if is_capture {
+    Some(
+        moves
+            .into_iter()
+            .map(|m| {
+                let mut board = *board;
+                board.make_move(&m);
+                let mut res = perft(&mut board, depth - 1, should_exit)?;
+                res.divide = vec![PerftMove {
+                    algebraic_move: m.to_algebraic(),
+                    nodes: res.node_count,
+                }];
+                if depth == 1 {
+                    match m {
+                        Move::Normal {
+                            from_square: _,
+                            to_square: _,
+                            is_capture,
+                        } => {
+                            if is_capture {
+                                res.captures = 1;
+                            }
+                        }
+                        Move::DoublePawn {
+                            from_square: _,
+                            to_square: _,
+                        } => {}
+                        Move::EnPassant {
+                            from_square: _,
+                            to_square: _,
+                        } => {
+                            res.en_passants = 1;
                             res.captures = 1;
                         }
-                    }
-                    Move::DoublePawn {
-                        from_square: _,
-                        to_square: _,
-                    } => {}
-                    Move::EnPassant {
-                        from_square: _,
-                        to_square: _,
-                    } => {
-                        res.en_passants = 1;
-                        res.captures = 1;
-                    }
-                    Move::Castle {
-                        from_square: _,
-                        to_square: _,
-                        rook_from_square: _,
-                        rook_to_square: _,
-                    } => {
-                        res.castles += 1;
-                    }
-                    Move::Promotion {
-                        from_square: _,
-                        to_square: _,
-                        promotion_piece: _,
-                        is_capture,
-                    } => {
-                        if is_capture {
-                            res.captures = 1;
+                        Move::Castle {
+                            from_square: _,
+                            to_square: _,
+                            rook_from_square: _,
+                            rook_to_square: _,
+                        } => {
+                            res.castles += 1;
                         }
-                        res.promotions = 1;
+                        Move::Promotion {
+                            from_square: _,
+                            to_square: _,
+                            promotion_piece: _,
+                            is_capture,
+                        } => {
+                            if is_capture {
+                                res.captures = 1;
+                            }
+                            res.promotions = 1;
+                        }
                     }
                 }
-            }
-            res
-        })
-        .reduce(|mut a, b| {
-            a.divide.extend(b.divide);
-            PerftStatistics {
-                divide: a.divide,
-                node_count: a.node_count + b.node_count,
-                checks: a.checks + b.checks,
-                double_checks: a.double_checks + b.double_checks,
-                promotions: a.promotions + b.promotions,
-                en_passants: a.en_passants + b.en_passants,
-                captures: a.captures + b.captures,
-                castles: a.castles + b.castles,
-                checkmates: a.checkmates + b.checkmates,
-            }
-        })
-        .unwrap_or_default()
+                Some(res)
+            })
+            .collect::<Option<Vec<_>>>()?
+            .into_iter()
+            .reduce(|mut a, b| {
+                a.divide.extend(b.divide);
+                PerftStatistics {
+                    divide: a.divide,
+                    node_count: a.node_count + b.node_count,
+                    checks: a.checks + b.checks,
+                    double_checks: a.double_checks + b.double_checks,
+                    promotions: a.promotions + b.promotions,
+                    en_passants: a.en_passants + b.en_passants,
+                    captures: a.captures + b.captures,
+                    castles: a.castles + b.castles,
+                    checkmates: a.checkmates + b.checkmates,
+                }
+            })
+            .unwrap_or_default(),
+    )
 }
 
 #[cfg(test)]
@@ -191,35 +203,35 @@ mod test {
     #[test]
     fn startpos_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::starting_position(), depth);
+        let mut perft_results = perft(&mut Board::starting_position(), depth, &|| false).unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, STARTPOS_RESULTS[depth as usize])
     }
     #[test]
     fn startpos_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::starting_position(), depth);
+        let mut perft_results = perft(&mut Board::starting_position(), depth, &|| false).unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, STARTPOS_RESULTS[depth as usize])
     }
     #[test]
     fn startpos_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::starting_position(), depth);
+        let mut perft_results = perft(&mut Board::starting_position(), depth, &|| false).unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, STARTPOS_RESULTS[depth as usize])
     }
     #[test]
     fn startpos_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::starting_position(), depth);
+        let mut perft_results = perft(&mut Board::starting_position(), depth, &|| false).unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, STARTPOS_RESULTS[depth as usize])
     }
     #[test]
     fn startpos_depth_5() {
         let depth = 5;
-        let mut perft_results = perft(&mut Board::starting_position(), depth);
+        let mut perft_results = perft(&mut Board::starting_position(), depth, &|| false).unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, STARTPOS_RESULTS[depth as usize])
     }
@@ -287,7 +299,10 @@ mod test {
     #[test]
     fn kiwipete_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth);
+        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth, &|| {
+            false
+        })
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, KIWIPETE_RESULTS[depth as usize])
     }
@@ -295,7 +310,10 @@ mod test {
     #[test]
     fn kiwipete_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth);
+        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth, &|| {
+            false
+        })
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, KIWIPETE_RESULTS[depth as usize])
     }
@@ -303,7 +321,10 @@ mod test {
     #[test]
     fn kiwipete_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth);
+        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth, &|| {
+            false
+        })
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, KIWIPETE_RESULTS[depth as usize])
     }
@@ -311,7 +332,10 @@ mod test {
     #[test]
     fn kiwipete_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth);
+        let mut perft_results = perft(&mut Board::from_fen(KIWIPETE_FEN).unwrap(), depth, &|| {
+            false
+        })
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, KIWIPETE_RESULTS[depth as usize])
     }
@@ -400,7 +424,12 @@ mod test {
     #[test]
     fn position_3_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -408,7 +437,12 @@ mod test {
     #[test]
     fn position_3_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -416,7 +450,12 @@ mod test {
     #[test]
     fn position_3_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -424,7 +463,12 @@ mod test {
     #[test]
     fn position_3_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -432,7 +476,12 @@ mod test {
     #[test]
     fn position_3_depth_5() {
         let depth = 5;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -440,7 +489,12 @@ mod test {
     #[test]
     fn position_3_depth_6() {
         let depth = 6;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_3_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_3_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         assert_eq!(perft_results, POSITION_3_RESULTS[depth as usize])
     }
@@ -518,7 +572,12 @@ mod test {
     #[test]
     fn position_4_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_4_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_4_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.double_checks = 0; // no reference values available
         assert_eq!(perft_results, POSITION_4_RESULTS[depth as usize])
@@ -527,7 +586,12 @@ mod test {
     #[test]
     fn position_4_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_4_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_4_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.double_checks = 0; // no reference values available
         assert_eq!(perft_results, POSITION_4_RESULTS[depth as usize])
@@ -536,7 +600,12 @@ mod test {
     #[test]
     fn position_4_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_4_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_4_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.double_checks = 0; // no reference values available
         assert_eq!(perft_results, POSITION_4_RESULTS[depth as usize])
@@ -545,7 +614,12 @@ mod test {
     #[test]
     fn position_4_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_4_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_4_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.double_checks = 0; // no reference values available
         assert_eq!(perft_results, POSITION_4_RESULTS[depth as usize])
@@ -554,7 +628,12 @@ mod test {
     #[test]
     fn position_4_depth_5() {
         let depth = 5;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_4_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_4_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.double_checks = 0; // no reference values available
         assert_eq!(perft_results, POSITION_4_RESULTS[depth as usize])
@@ -622,7 +701,12 @@ mod test {
     #[test]
     fn position_5_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_5_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_5_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -637,7 +721,12 @@ mod test {
     #[test]
     fn position_5_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_5_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_5_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -652,7 +741,12 @@ mod test {
     #[test]
     fn position_5_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_5_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_5_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -667,7 +761,12 @@ mod test {
     #[test]
     fn position_5_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_5_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_5_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -742,7 +841,12 @@ mod test {
     #[test]
     fn position_6_depth_1() {
         let depth = 1;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_6_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_6_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -757,7 +861,12 @@ mod test {
     #[test]
     fn position_6_depth_2() {
         let depth = 2;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_6_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_6_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -772,7 +881,12 @@ mod test {
     #[test]
     fn position_6_depth_3() {
         let depth = 3;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_6_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_6_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;
@@ -787,7 +901,12 @@ mod test {
     #[test]
     fn position_6_depth_4() {
         let depth = 4;
-        let mut perft_results = perft(&mut Board::from_fen(POSITION_6_FEN).unwrap(), depth);
+        let mut perft_results = perft(
+            &mut Board::from_fen(POSITION_6_FEN).unwrap(),
+            depth,
+            &|| false,
+        )
+        .unwrap();
         perft_results.divide = vec![];
         perft_results.checks = 0; // no reference values available
         perft_results.double_checks = 0;

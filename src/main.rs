@@ -1,15 +1,21 @@
-use std::io::{BufRead, BufReader, Write};
+use itertools::Itertools;
+use std::fmt::Write;
+use std::io::{BufRead, BufReader};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, RecvError, SyncSender};
+use std::sync::{Arc, mpsc};
 
 use clap::{ArgAction, Parser, Subcommand};
 
-use itertools::Itertools;
-use rustyline::DefaultEditor;
 use rustyline::error::ReadlineError;
+use rustyline::{DefaultEditor, ExternalPrinter};
+
 use thera::board::FenParseError;
-use thera::perft::{PerftMove, perft};
+use thera::perft::{PerftMove, PerftStatistics, perft};
 use thera::{self, board::Board, move_generator::MoveGenerator};
 
 fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<PerftMove> {
+    use std::io::Write;
     use std::process::{Command, Stdio};
 
     let mut cmd = Command::new("stockfish")
@@ -54,9 +60,40 @@ fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<Pe
 }
 
 #[derive(Debug)]
+enum BisectStep {
+    Identical,
+    CountDifference {
+        thera_count: usize,
+        stockfish_count: usize,
+        move_: String,
+        board: Board,
+    },
+    /// Move is missing from thera
+    MissingMove {
+        move_: String,
+        board: Board,
+    },
+    /// Stockfish didn't generate this move
+    InvalidMove {
+        move_: String,
+        board: Board,
+    },
+}
+
+enum TaskOutput {
+    Perft(PerftStatistics),
+    BisectStep(BisectStep),
+}
+
+type BackgroundTask =
+    Box<dyn FnOnce(&AtomicBool, &SyncSender<Option<TaskOutput>>) -> Option<TaskOutput> + Send>;
+
 struct ReplState {
     board: Board,
     always_print: bool,
+
+    cancel_flag: Arc<AtomicBool>,
+    work_queue: SyncSender<BackgroundTask>,
 }
 
 #[derive(Debug, Parser)]
@@ -93,12 +130,14 @@ enum ReplCommands {
         #[command(subcommand)]
         subcmd: Option<PrintSubcommand>,
     },
+    /// Stops the currently running task (if any)
+    Stop,
 }
 
 #[derive(Debug, Subcommand)]
 #[command(disable_help_flag = true)]
 enum PrintSubcommand {
-    /// Configure the engine to print the board after command.
+    /// Configure the engine to print the board after every command.
     Always {
         #[arg(action = ArgAction::Set)]
         /// Should printing be enabled or disabled.
@@ -150,6 +189,9 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         ReplCommands::Print { subcmd } => {
             repl_handle_print(state, subcmd);
         }
+        ReplCommands::Stop => {
+            repl_handle_stop(state);
+        }
     }
 
     if state.always_print {
@@ -176,32 +218,42 @@ fn apply_moves(board: &mut Board, moves: Vec<String>) {
 }
 
 fn repl_handle_perft(state: &mut ReplState, depth: u32) {
-    let perft_results = perft(&mut state.board, depth);
-    for PerftMove {
-        algebraic_move,
-        nodes,
-    } in perft_results.divide.iter().sorted()
-    {
-        println!("{algebraic_move}: {nodes}")
+    let mut board_copy = state.board;
+    let spawn_attempt = state.work_queue.try_send(Box::new(move |cancel_flag, _| {
+        perft(&mut board_copy, depth, &|| {
+            cancel_flag.load(Ordering::Relaxed)
+        })
+        .map(TaskOutput::Perft)
+    }));
+
+    match spawn_attempt {
+        Ok(()) => {
+            println!("Started perft.");
+        }
+        Err(mpsc::TrySendError::Full(_)) => {
+            println!("A task is already running. Not starting perft.");
+        }
+        Err(mpsc::TrySendError::Disconnected(_)) => {
+            println!("The task thread died.");
+        }
     }
-    println!();
-    println!("Nodes searched: {}", perft_results.node_count);
 }
-fn repl_handle_position(ReplState { board, .. }: &mut ReplState, cmd: PositionCommand) {
+
+fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
     match cmd {
         PositionCommand::Startpos { moves } => {
-            *board = Board::starting_position();
+            state.board = Board::starting_position();
             if let Some(MovesSubcommand::Moves { moves }) = moves {
-                apply_moves(board, moves);
+                apply_moves(&mut state.board, moves);
             }
         }
         PositionCommand::Fen { fen, moves } => {
             let fen = fen.join(" ");
             match Board::from_fen(&fen) {
                 Ok(new_board) => {
-                    *board = new_board;
+                    state.board = new_board;
                     if let Some(MovesSubcommand::Moves { moves }) = moves {
-                        apply_moves(board, moves);
+                        apply_moves(&mut state.board, moves);
                     }
                 }
                 Err(err) => match err {
@@ -289,79 +341,220 @@ fn repl_handle_print(state: &mut ReplState, cmd: Option<PrintSubcommand>) {
     }
 }
 
-fn repl_handle_bisect(ReplState { board, .. }: &mut ReplState, depth: u32) {
-    let fen = board.to_fen();
-    let mut move_stack = vec![];
+fn repl_handle_stop(state: &mut ReplState) {
+    state.cancel_flag.store(true, Ordering::SeqCst);
+}
 
-    'next_depth: for depth in (1..=depth).rev() {
-        let movegen = MoveGenerator::<true>::with_attacks(board);
-        let mut moves = Vec::new();
-        movegen.generate_all_moves(board, &mut moves);
+fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
+    let board_clone = state.board;
+    let spawn_attempt = state
+        .work_queue
+        .try_send(Box::new(move |cancel_flag, result_sender| {
+            let mut board = board_clone;
+            let fen = board.to_fen();
+            let mut move_stack = vec![];
 
-        let mut thera_out = perft(board, depth).divide;
-        let mut stockfish_out = perft_stockfish(&fen, depth, &move_stack);
-        thera_out.sort();
-        stockfish_out.sort();
+            'next_depth: for depth in (1..=depth).rev() {
+                let movegen = MoveGenerator::<true>::with_attacks(&mut board);
+                let mut moves = Vec::new();
+                movegen.generate_all_moves(&board, &mut moves);
 
-        for m in thera_out {
-            if let Some(equiv) = stockfish_out
-                .iter()
-                .find(|m2| m.algebraic_move == m2.algebraic_move)
-                .cloned()
-            {
-                stockfish_out.retain(|m2| m.algebraic_move != m2.algebraic_move);
-                if m.nodes != equiv.nodes {
-                    println!("{}", board.dump_ansi(None));
-                    println!("{}", board.to_fen());
-                    println!(
-                        "Move {} has {} nodes for Thera, but {} for stockfish. Recusing into it",
-                        m.algebraic_move, m.nodes, equiv.nodes
-                    );
-                    let m = moves
+                let mut thera_out =
+                    perft(&mut board, depth, &|| cancel_flag.load(Ordering::Relaxed))?.divide;
+                let mut stockfish_out = perft_stockfish(&fen, depth, &move_stack);
+                thera_out.sort();
+                stockfish_out.sort();
+
+                for m in thera_out {
+                    if let Some(equiv) = stockfish_out
                         .iter()
-                        .find(|actual_move| actual_move.to_algebraic() == m.algebraic_move)
-                        .expect("Thera produced a move it doesn't know about");
+                        .find(|m2| m.algebraic_move == m2.algebraic_move)
+                        .cloned()
+                    {
+                        stockfish_out.retain(|m2| m.algebraic_move != m2.algebraic_move);
+                        if m.nodes != equiv.nodes {
+                            result_sender
+                                .send(Some(TaskOutput::BisectStep(BisectStep::CountDifference {
+                                    thera_count: m.nodes,
+                                    stockfish_count: equiv.nodes,
+                                    move_: m.algebraic_move.clone(),
+                                    board,
+                                })))
+                                .unwrap();
 
-                    move_stack.push(m.to_algebraic());
-                    board.make_move(m);
-                    continue 'next_depth;
+                            let m = moves
+                                .iter()
+                                .find(|actual_move| actual_move.to_algebraic() == m.algebraic_move)
+                                .expect("Thera produced a move it doesn't know about");
+
+                            move_stack.push(m.to_algebraic());
+                            board.make_move(m);
+                            continue 'next_depth;
+                        }
+                    } else {
+                        return Some(TaskOutput::BisectStep(BisectStep::InvalidMove {
+                            move_: m.algebraic_move,
+                            board,
+                        }));
+                    }
                 }
-            } else {
-                println!("{}", board.dump_ansi(None));
-                println!("{}", board.to_fen());
-                println!("Move {} is missing from stockfish", m.algebraic_move);
-                return;
-            }
-        }
-        if let Some(m) = stockfish_out.first() {
-            println!("{}", board.dump_ansi(None));
-            println!("{}", board.to_fen());
-            println!("Move {} is missing from Thera", m.algebraic_move);
-            return;
-        }
+                if let Some(m) = stockfish_out.first() {
+                    return Some(TaskOutput::BisectStep(BisectStep::MissingMove {
+                        move_: m.algebraic_move.clone(),
+                        board,
+                    }));
+                }
 
-        println!("All moves are identical");
-        break;
+                break;
+            }
+
+            Some(TaskOutput::BisectStep(BisectStep::Identical))
+        }));
+
+    match spawn_attempt {
+        Ok(()) => {
+            println!("Started bisect.");
+        }
+        Err(mpsc::TrySendError::Full(_)) => {
+            println!("A task is already running. Not starting bisect.");
+        }
+        Err(mpsc::TrySendError::Disconnected(_)) => {
+            println!("The task thread died.");
+        }
+    }
+}
+
+struct ExternalPrinterWriter<P: ExternalPrinter + Send> {
+    printer: P,
+    buffer: String,
+}
+
+impl<P> ExternalPrinterWriter<P>
+where
+    P: ExternalPrinter + Send,
+{
+    pub fn new(printer: P) -> Self {
+        Self {
+            printer,
+            buffer: String::new(),
+        }
+    }
+}
+
+impl<P> Write for ExternalPrinterWriter<P>
+where
+    P: ExternalPrinter + Send,
+{
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        self.buffer.push_str(s);
+
+        while let Some((line, new_buffer)) = self.buffer.split_once("\n") {
+            let line = line.to_string();
+            self.buffer = new_buffer.to_string();
+
+            self.printer
+                .print(line + "\n")
+                .map_err(|_| std::fmt::Error)?
+        }
+        Ok(())
+    }
+}
+
+fn output_thread(results: Receiver<Option<TaskOutput>>, mut writer: impl Write) {
+    loop {
+        match results.recv() {
+            Ok(Some(TaskOutput::Perft(perft_results))) => {
+                for PerftMove {
+                    algebraic_move,
+                    nodes,
+                } in perft_results.divide.iter().sorted()
+                {
+                    writeln!(writer, "{algebraic_move}: {nodes}").unwrap();
+                }
+                writeln!(writer).unwrap();
+                writeln!(writer, "Nodes searched: {}", perft_results.node_count).unwrap();
+            }
+            Ok(Some(TaskOutput::BisectStep(perft_results))) => match perft_results {
+                BisectStep::Identical => {
+                    writeln!(writer, "All moves are identical").unwrap();
+                }
+                BisectStep::CountDifference {
+                    thera_count,
+                    stockfish_count,
+                    move_,
+                    board,
+                } => {
+                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
+                    writeln!(writer, "{}", board.to_fen()).unwrap();
+                    writeln!(
+                        writer,
+                        "Move {} has {} nodes for Thera, but {} for stockfish. \
+                            Recusing into it",
+                        move_, thera_count, stockfish_count
+                    )
+                    .unwrap();
+                }
+                BisectStep::InvalidMove { move_, board } => {
+                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
+                    writeln!(writer, "{}", board.to_fen()).unwrap();
+                    writeln!(writer, "Move {} is missing from stockfish", move_).unwrap();
+                }
+                BisectStep::MissingMove { move_, board } => {
+                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
+                    writeln!(writer, "{}", board.to_fen()).unwrap();
+                    writeln!(writer, "Move {} is missing from Thera", move_).unwrap();
+                }
+            },
+            Ok(None) => {
+                writeln!(writer, "Task was interrupted.").unwrap();
+            }
+            Err(RecvError) => break,
+        }
     }
 }
 
 fn main() {
     let mut line_editor = DefaultEditor::new().unwrap();
+    let printer = ExternalPrinterWriter::new(line_editor.create_external_printer().unwrap());
+
+    let (task_sender, task_receiver) = mpsc::sync_channel::<BackgroundTask>(0);
+    let (result_sender, result_receiver) = mpsc::sync_channel::<Option<TaskOutput>>(5);
+
+    let cancel_flag = Arc::new(AtomicBool::new(false));
+    let cancel_flag2 = cancel_flag.clone();
+
+    let task_thread = std::thread::Builder::new()
+        .name("tasks".to_string())
+        .spawn(move || {
+            while let Ok(task) = task_receiver.recv() {
+                cancel_flag2.store(false, Ordering::SeqCst);
+                let out = task(&cancel_flag2, &result_sender);
+                if result_sender.send(out).is_err() {
+                    break;
+                }
+            }
+        })
+        .unwrap();
+    let output_thread = std::thread::Builder::new()
+        .name("output".to_string())
+        .spawn(move || output_thread(result_receiver, printer))
+        .unwrap();
 
     let mut state = ReplState {
         board: Board::starting_position(),
         always_print: false,
+        cancel_flag,
+        work_queue: task_sender,
     };
 
     loop {
         match line_editor.readline("Thera〉") {
             Ok(line) => {
-                let line = line.trim();
-                if line.is_empty() {
+                if line.trim().is_empty() {
                     continue;
                 }
-                line_editor.add_history_entry(line).unwrap();
-                match repl_handle_line(&mut state, line) {
+                line_editor.add_history_entry(&line).unwrap();
+                match repl_handle_line(&mut state, &line) {
                     Ok(quit) => {
                         if quit {
                             break;
@@ -375,12 +568,28 @@ fn main() {
             Err(ReadlineError::Eof) => {
                 break;
             }
+            Err(ReadlineError::Interrupted) => {
+                repl_handle_stop(&mut state);
+            }
             Err(err) => {
                 println!("{err}");
             }
         }
     }
+
     // Explicit drop in case we ever place something below here.
     // This undoes any signal hooks so Ctrl-C works again.
     drop(line_editor);
+
+    let ReplState {
+        board: _,
+        always_print: _,
+        cancel_flag,
+        work_queue,
+    } = state;
+
+    cancel_flag.store(true, Ordering::Relaxed);
+    drop(work_queue); // make sure the task thread exits
+    task_thread.join().unwrap();
+    output_thread.join().unwrap();
 }
