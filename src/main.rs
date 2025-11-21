@@ -95,6 +95,7 @@ struct ReplState {
     undo_stack: Vec<MoveUndoState>,
 
     always_print: bool,
+    is_uci: Arc<AtomicBool>,
 
     cancel_flag: Arc<AtomicBool>,
     work_queue: SyncSender<BackgroundTask>,
@@ -147,6 +148,14 @@ enum ReplCommands {
         #[arg(name = "move")]
         move_: String,
     },
+    /// Enables UCI mode.
+    Uci,
+    /// Resets all internal state to play a new game.
+    #[command(name = "ucinewgame")]
+    UciNewGame,
+    /// Pings the engine which will respond with "readyok" once it is ready.
+    #[command(name = "isready")]
+    IsReady,
 }
 
 #[derive(Debug, Subcommand)]
@@ -212,6 +221,15 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         }
         ReplCommands::Play { move_ } => {
             repl_handle_play(state, move_);
+        }
+        ReplCommands::Uci => {
+            repl_handle_uci(state);
+        }
+        ReplCommands::UciNewGame => {
+            repl_handle_ucinewgame(state);
+        }
+        ReplCommands::IsReady => {
+            repl_handle_isready(state);
         }
         ReplCommands::Quit => return Ok(true),
     }
@@ -395,6 +413,21 @@ fn repl_handle_play(state: &mut ReplState, move_: String) {
         println!("The move {move_} isn't possible in the current position.");
     }
 }
+fn repl_handle_uci(state: &mut ReplState) {
+    state.always_print = false;
+    state.is_uci.store(true, Ordering::SeqCst);
+
+    println!("id name Thera v{}", env!("CARGO_PKG_VERSION"));
+    println!("id author Robotino");
+    println!("uciok");
+}
+fn repl_handle_ucinewgame(state: &mut ReplState) {
+    state.board = Board::starting_position();
+    state.undo_stack.clear();
+}
+fn repl_handle_isready(_state: &mut ReplState) {
+    println!("readyok");
+}
 
 fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
     // clone the board so we don't have to restore it
@@ -525,23 +558,51 @@ where
     }
 }
 
-fn output_thread_task(results: Receiver<Option<TaskOutput>>, mut writer: impl Write) {
+fn output_thread_task(
+    results: Receiver<Option<TaskOutput>>,
+    mut writer: impl Write,
+    is_uci: Arc<AtomicBool>,
+) {
     loop {
-        match results.recv() {
+        let task_output = results.recv();
+
+        let prefix = if is_uci.load(Ordering::SeqCst) {
+            "info string "
+        } else {
+            ""
+        };
+
+        fn print_board(writer: &mut impl Write, prefix: &'static str, board: &Board) {
+            writeln!(
+                writer,
+                "{prefix}{}",
+                board
+                    .dump_ansi(None)
+                    .replace("\n", &("\n".to_string() + prefix))
+            )
+            .unwrap();
+        }
+
+        match task_output {
             Ok(Some(TaskOutput::Perft(perft_results))) => {
                 for PerftMove {
                     algebraic_move,
                     nodes,
                 } in perft_results.divide.iter().sorted()
                 {
-                    writeln!(writer, "{algebraic_move}: {nodes}").unwrap();
+                    writeln!(writer, "{prefix}{algebraic_move}: {nodes}").unwrap();
                 }
                 writeln!(writer).unwrap();
-                writeln!(writer, "Nodes searched: {}", perft_results.node_count).unwrap();
+                writeln!(
+                    writer,
+                    "{prefix}Nodes searched: {}",
+                    perft_results.node_count
+                )
+                .unwrap();
             }
             Ok(Some(TaskOutput::BisectStep(perft_results))) => match perft_results {
                 BisectStep::Identical => {
-                    writeln!(writer, "All moves are identical").unwrap();
+                    writeln!(writer, "{prefix}All moves are identical").unwrap();
                 }
                 BisectStep::CountDifference {
                     thera_count,
@@ -549,29 +610,29 @@ fn output_thread_task(results: Receiver<Option<TaskOutput>>, mut writer: impl Wr
                     move_,
                     board,
                 } => {
-                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
-                    writeln!(writer, "{}", board.to_fen()).unwrap();
+                    print_board(&mut writer, prefix, &board);
+                    writeln!(writer, "{prefix}{}", board.to_fen()).unwrap();
                     writeln!(
                         writer,
-                        "Move {} has {} nodes for Thera, but {} for stockfish. \
+                        "{prefix}Move {} has {} nodes for Thera, but {} for stockfish. \
                             Recusing into it",
                         move_, thera_count, stockfish_count
                     )
                     .unwrap();
                 }
                 BisectStep::InvalidMove { move_, board } => {
-                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
-                    writeln!(writer, "{}", board.to_fen()).unwrap();
-                    writeln!(writer, "Move {} is missing from stockfish", move_).unwrap();
+                    print_board(&mut writer, prefix, &board);
+                    writeln!(writer, "{prefix}{}", board.to_fen()).unwrap();
+                    writeln!(writer, "{prefix}Move {} is missing from stockfish", move_).unwrap();
                 }
                 BisectStep::MissingMove { move_, board } => {
-                    writeln!(writer, "{}", board.dump_ansi(None)).unwrap();
-                    writeln!(writer, "{}", board.to_fen()).unwrap();
-                    writeln!(writer, "Move {} is missing from Thera", move_).unwrap();
+                    print_board(&mut writer, prefix, &board);
+                    writeln!(writer, "{prefix}{}", board.to_fen()).unwrap();
+                    writeln!(writer, "{prefix}Move {} is missing from Thera", move_).unwrap();
                 }
             },
             Ok(None) => {
-                writeln!(writer, "Task was interrupted.").unwrap();
+                writeln!(writer, "{prefix}Task was interrupted.").unwrap();
             }
             Err(RecvError) => break,
         }
@@ -602,9 +663,12 @@ fn main() {
         board: Board::starting_position(),
         undo_stack: Vec::new(),
         always_print: false,
+        is_uci: Arc::new(AtomicBool::new(false)),
         cancel_flag,
         work_queue: task_sender,
     };
+
+    let is_uci2 = state.is_uci.clone();
 
     let output_thread_builder = std::thread::Builder::new().name("output".to_string());
 
@@ -614,10 +678,15 @@ fn main() {
 
         let printer = ExternalPrinterWriter::new(line_editor.create_external_printer().unwrap());
         output_thread = output_thread_builder
-            .spawn(move || output_thread_task(result_receiver, printer))
+            .spawn(move || output_thread_task(result_receiver, printer, is_uci2))
             .unwrap();
         loop {
-            match line_editor.readline("Thera〉") {
+            let prompt = if state.is_uci.load(Ordering::SeqCst) {
+                ""
+            } else {
+                "Thera〉"
+            };
+            match line_editor.readline(prompt) {
                 Ok(line) => {
                     if line.trim().is_empty() {
                         continue;
@@ -648,7 +717,7 @@ fn main() {
         drop(line_editor);
     } else {
         output_thread = output_thread_builder
-            .spawn(move || output_thread_task(result_receiver, StdoutWriter))
+            .spawn(move || output_thread_task(result_receiver, StdoutWriter, is_uci2))
             .unwrap();
 
         for line in stdin().lock().lines() {
@@ -676,6 +745,7 @@ fn main() {
         board: _,
         undo_stack: _,
         always_print: _,
+        is_uci: _,
         cancel_flag,
         work_queue,
     } = state;
