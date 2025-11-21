@@ -1,9 +1,11 @@
-use itertools::Itertools;
 use std::fmt::Write;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, stdin, stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvError, SyncSender};
 use std::sync::{Arc, mpsc};
+
+use atty::Stream;
+use itertools::Itertools;
 
 use clap::{ArgAction, Parser, Subcommand};
 
@@ -429,6 +431,18 @@ struct ExternalPrinterWriter<P: ExternalPrinter + Send> {
     buffer: String,
 }
 
+struct StdoutWriter;
+impl Write for StdoutWriter {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        use std::io::Write;
+        stdout()
+            .lock()
+            .write(s.as_bytes())
+            .map_err(|_| std::fmt::Error)
+            .map(|_| ())
+    }
+}
+
 impl<P> ExternalPrinterWriter<P>
 where
     P: ExternalPrinter + Send,
@@ -460,7 +474,7 @@ where
     }
 }
 
-fn output_thread(results: Receiver<Option<TaskOutput>>, mut writer: impl Write) {
+fn output_thread_task(results: Receiver<Option<TaskOutput>>, mut writer: impl Write) {
     loop {
         match results.recv() {
             Ok(Some(TaskOutput::Perft(perft_results))) => {
@@ -514,9 +528,6 @@ fn output_thread(results: Receiver<Option<TaskOutput>>, mut writer: impl Write) 
 }
 
 fn main() {
-    let mut line_editor = DefaultEditor::new().unwrap();
-    let printer = ExternalPrinterWriter::new(line_editor.create_external_printer().unwrap());
-
     let (task_sender, task_receiver) = mpsc::sync_channel::<BackgroundTask>(0);
     let (result_sender, result_receiver) = mpsc::sync_channel::<Option<TaskOutput>>(5);
 
@@ -535,10 +546,6 @@ fn main() {
             }
         })
         .unwrap();
-    let output_thread = std::thread::Builder::new()
-        .name("output".to_string())
-        .spawn(move || output_thread(result_receiver, printer))
-        .unwrap();
 
     let mut state = ReplState {
         board: Board::starting_position(),
@@ -547,39 +554,71 @@ fn main() {
         work_queue: task_sender,
     };
 
-    loop {
-        match line_editor.readline("Thera〉") {
-            Ok(line) => {
-                if line.trim().is_empty() {
-                    continue;
-                }
-                line_editor.add_history_entry(&line).unwrap();
-                match repl_handle_line(&mut state, &line) {
-                    Ok(quit) => {
-                        if quit {
-                            break;
+    let output_thread_builder = std::thread::Builder::new().name("output".to_string());
+
+    let output_thread: std::thread::JoinHandle<_>;
+    if atty::is(Stream::Stdout) {
+        let mut line_editor = DefaultEditor::new().unwrap();
+
+        let printer = ExternalPrinterWriter::new(line_editor.create_external_printer().unwrap());
+        output_thread = output_thread_builder
+            .spawn(move || output_thread_task(result_receiver, printer))
+            .unwrap();
+        loop {
+            match line_editor.readline("Thera〉") {
+                Ok(line) => {
+                    if line.trim().is_empty() {
+                        continue;
+                    }
+                    line_editor.add_history_entry(&line).unwrap();
+                    match repl_handle_line(&mut state, &line) {
+                        Ok(quit) => {
+                            if quit {
+                                break;
+                            }
+                        }
+                        Err(err) => {
+                            println!("{err}");
                         }
                     }
-                    Err(err) => {
-                        println!("{err}");
-                    }
+                }
+                Err(ReadlineError::Eof) => {
+                    break;
+                }
+                Err(ReadlineError::Interrupted) => {
+                    repl_handle_stop(&mut state);
+                }
+                Err(err) => {
+                    println!("{err}");
                 }
             }
-            Err(ReadlineError::Eof) => {
-                break;
+        }
+        drop(line_editor);
+    } else {
+        output_thread = output_thread_builder
+            .spawn(move || output_thread_task(result_receiver, StdoutWriter))
+            .unwrap();
+
+        for line in stdin().lock().lines() {
+            let line = line.unwrap();
+            if line.trim().is_empty() {
+                continue;
             }
-            Err(ReadlineError::Interrupted) => {
-                repl_handle_stop(&mut state);
-            }
-            Err(err) => {
-                println!("{err}");
+            match repl_handle_line(&mut state, &line) {
+                Ok(quit) => {
+                    if quit {
+                        break;
+                    }
+                }
+                Err(err) => {
+                    println!("info string error: {err}");
+                }
             }
         }
-    }
+    };
 
     // Explicit drop in case we ever place something below here.
     // This undoes any signal hooks so Ctrl-C works again.
-    drop(line_editor);
 
     let ReplState {
         board: _,
