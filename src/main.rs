@@ -134,6 +134,9 @@ enum ReplCommands {
     },
     /// Stops the currently running task (if any)
     Stop,
+    /// Exits Thera
+    #[command(alias = "exit")]
+    Quit,
 }
 
 #[derive(Debug, Subcommand)]
@@ -194,6 +197,7 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         ReplCommands::Stop => {
             repl_handle_stop(state);
         }
+        ReplCommands::Quit => return Ok(true),
     }
 
     if state.always_print {
