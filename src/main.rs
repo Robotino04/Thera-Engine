@@ -12,7 +12,7 @@ use clap::{ArgAction, Parser, Subcommand};
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
-use thera::board::FenParseError;
+use thera::board::{FenParseError, MoveUndoState};
 use thera::perft::{PerftMove, PerftStatistics, perft};
 use thera::{self, board::Board, move_generator::MoveGenerator};
 
@@ -92,6 +92,8 @@ type BackgroundTask =
 
 struct ReplState {
     board: Board,
+    undo_stack: Vec<MoveUndoState>,
+
     always_print: bool,
 
     cancel_flag: Arc<AtomicBool>,
@@ -132,11 +134,19 @@ enum ReplCommands {
         #[command(subcommand)]
         subcmd: Option<PrintSubcommand>,
     },
-    /// Stops the currently running task (if any)
+    /// Stops the currently running task (if any).
     Stop,
     /// Exits Thera
     #[command(alias = "exit")]
     Quit,
+    /// Undoes the last move that was made.
+    Undo,
+    /// Plays the given move on the board.
+    Play {
+        /// The move to play given in long algebraic notation.
+        #[arg(name = "move")]
+        move_: String,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -197,6 +207,12 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         ReplCommands::Stop => {
             repl_handle_stop(state);
         }
+        ReplCommands::Undo => {
+            repl_handle_undo(state);
+        }
+        ReplCommands::Play { move_ } => {
+            repl_handle_play(state, move_);
+        }
         ReplCommands::Quit => return Ok(true),
     }
 
@@ -207,20 +223,14 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
     Ok(false)
 }
 
-fn apply_moves(board: &mut Board, moves: Vec<String>) {
-    for m in moves {
-        let mut possible_moves = vec![];
-        MoveGenerator::<true>::with_attacks(board).generate_all_moves(board, &mut possible_moves);
+fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<MoveUndoState> {
+    let mut possible_moves = vec![];
+    MoveGenerator::<true>::with_attacks(board).generate_all_moves(board, &mut possible_moves);
 
-        if let Some(found_move) = possible_moves.iter().find(|m2| m2.to_algebraic() == m) {
-            board.make_move(found_move);
-        } else {
-            println!(
-                "The move {m} isn't possible in the current position.\
-                All previous moves have been applied though."
-            );
-        }
-    }
+    possible_moves
+        .into_iter()
+        .find(|m2| m2.to_algebraic() == algebraic_move)
+        .map(|found_move| board.make_move(found_move))
 }
 
 fn repl_handle_perft(state: &mut ReplState, depth: u32) {
@@ -246,11 +256,20 @@ fn repl_handle_perft(state: &mut ReplState, depth: u32) {
 }
 
 fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
+    state.undo_stack.clear();
     match cmd {
         PositionCommand::Startpos { moves } => {
             state.board = Board::starting_position();
             if let Some(MovesSubcommand::Moves { moves }) = moves {
-                apply_moves(&mut state.board, moves);
+                for m in moves {
+                    if let Some(undo_state) = apply_move(&mut state.board, &m) {
+                        state.undo_stack.push(undo_state);
+                    } else {
+                        println!("The move {m} isn't possible in the current position.");
+                        println!("Previous moves are still applied and on the stack");
+                        break;
+                    }
+                }
             }
         }
         PositionCommand::Fen { fen, moves } => {
@@ -259,7 +278,15 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
                 Ok(new_board) => {
                     state.board = new_board;
                     if let Some(MovesSubcommand::Moves { moves }) = moves {
-                        apply_moves(&mut state.board, moves);
+                        for m in moves {
+                            if let Some(undo_state) = apply_move(&mut state.board, &m) {
+                                state.undo_stack.push(undo_state);
+                            } else {
+                                println!("The move {m} isn't possible in the current position.");
+                                println!("Previous moves are still applied and on the stack");
+                                break;
+                            }
+                        }
                     }
                 }
                 Err(err) => match err {
@@ -351,8 +378,28 @@ fn repl_handle_stop(state: &mut ReplState) {
     state.cancel_flag.store(true, Ordering::SeqCst);
 }
 
+fn repl_handle_undo(state: &mut ReplState) {
+    if let Some(undo_state) = state.undo_stack.pop() {
+        let m = undo_state.move_();
+        state.board.undo_move(undo_state);
+        println!("Undid move {}", m.to_algebraic())
+    } else {
+        println!("There are no moves on the stack.")
+    }
+}
+
+fn repl_handle_play(state: &mut ReplState, move_: String) {
+    if let Some(undo_state) = apply_move(&mut state.board, &move_) {
+        state.undo_stack.push(undo_state);
+    } else {
+        println!("The move {move_} isn't possible in the current position.");
+    }
+}
+
 fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
+    // clone the board so we don't have to restore it
     let board_clone = state.board;
+
     let spawn_attempt = state
         .work_queue
         .try_send(Box::new(move |cancel_flag, result_sender| {
@@ -389,12 +436,12 @@ fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
                                 .unwrap();
 
                             let m = moves
-                                .iter()
+                                .into_iter()
                                 .find(|actual_move| actual_move.to_algebraic() == m.algebraic_move)
                                 .expect("Thera produced a move it doesn't know about");
 
                             move_stack.push(m.to_algebraic());
-                            board.make_move(m);
+                            let _ = board.make_move(m);
                             continue 'next_depth;
                         }
                     } else {
@@ -553,6 +600,7 @@ fn main() {
 
     let mut state = ReplState {
         board: Board::starting_position(),
+        undo_stack: Vec::new(),
         always_print: false,
         cancel_flag,
         work_queue: task_sender,
@@ -626,6 +674,7 @@ fn main() {
 
     let ReplState {
         board: _,
+        undo_stack: _,
         always_print: _,
         cancel_flag,
         work_queue,

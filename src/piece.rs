@@ -74,7 +74,7 @@ impl Direction {
     ];
 
     pub fn index(self) -> usize {
-        match self{
+        match self {
             Direction::North => 0,
             Direction::South => 1,
             Direction::East => 2,
@@ -226,7 +226,8 @@ pub enum Move {
     Normal {
         from_square: Bitboard,
         to_square: Bitboard,
-        is_capture: bool,
+        captured_piece: Option<Piece>,
+        moved_piece: Piece,
     },
     DoublePawn {
         from_square: Bitboard,
@@ -246,40 +247,18 @@ pub enum Move {
         from_square: Bitboard,
         to_square: Bitboard,
         promotion_piece: Piece,
-        is_capture: bool,
+        captured_piece: Option<Piece>,
     },
 }
 
 impl Move {
-    pub fn from_algebraic(s: &str) -> Option<Move> {
-        let from_square = Bitboard::from_square(Square::from_algebraic(s.get(0..2)?)?);
-        let to_square = Bitboard::from_square(Square::from_algebraic(s.get(2..4)?)?);
-
-        if let Some(c) = s.chars().nth(5) {
-            Some(Move::Promotion {
-                from_square,
-                to_square,
-                promotion_piece: match Piece::from_algebraic(c)? {
-                    Piece::Pawn | Piece::King => return None,
-                    p @ (Piece::Bishop | Piece::Knight | Piece::Rook | Piece::Queen) => p,
-                },
-                is_capture: false,
-            })
-        } else {
-            Some(Move::Normal {
-                from_square,
-                to_square,
-                is_capture: false,
-            })
-        }
-    }
-
     pub fn to_algebraic(&self) -> String {
         match self {
             Move::Normal {
                 from_square,
                 to_square,
-                is_capture: _,
+                captured_piece: _,
+                moved_piece: _,
             }
             | Move::DoublePawn {
                 from_square,
@@ -306,7 +285,7 @@ impl Move {
                 from_square,
                 to_square,
                 promotion_piece,
-                is_capture: _,
+                captured_piece: _,
             } => {
                 from_square
                     .first_piece_square()

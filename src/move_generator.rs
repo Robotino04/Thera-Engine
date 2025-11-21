@@ -205,7 +205,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
 
-    fn targets_to_moves(origin: Bitboard, targets: Bitboard, board: &Board, moves: &mut Vec<Move>) {
+    fn targets_to_moves(
+        origin: Bitboard,
+        moved_piece: Piece,
+        targets: Bitboard,
+        board: &Board,
+        moves: &mut Vec<Move>,
+    ) {
         if ALL_MOVES {
             let mut non_captures = targets & !board.all_piece_bitboard();
 
@@ -213,7 +219,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 moves.push(Move::Normal {
                     from_square: origin,
                     to_square: target,
-                    is_capture: false,
+                    captured_piece: None,
+                    moved_piece,
                 });
             }
         }
@@ -224,7 +231,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             moves.push(Move::Normal {
                 from_square: origin,
                 to_square: target,
-                is_capture: true,
+                captured_piece: Some(board.get_piece_from_bitboard(target).unwrap()),
+                moved_piece,
             });
         }
     }
@@ -264,7 +272,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
         let targets = Self::generate_king_targets(king) & !self.attacked_squares;
 
-        Self::targets_to_moves(king, targets, board, moves);
+        Self::targets_to_moves(king, Piece::King, targets, board, moves);
 
         if ALL_MOVES {
             if board.can_castle_kingside(board.color_to_move()) {
@@ -323,6 +331,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
     fn all_sliding_moves<const N: usize>(
         &self,
+        moved_piece: Piece,
         board: &Board,
         moves: &mut Vec<Move>,
         mut pieces: Bitboard,
@@ -337,7 +346,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             ) & self.allowed_targets
                 & !board.get_color_bitboard(board.color_to_move());
 
-            Self::targets_to_moves(single_piece, targets, board, moves);
+            Self::targets_to_moves(single_piece, moved_piece, targets, board, moves);
         }
     }
     fn all_sliding_attacks<const N: usize>(
@@ -363,6 +372,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
         self.all_sliding_moves(
+            Piece::Rook,
             board,
             moves,
             board.get_piece_bitboard(Piece::Rook, board.color_to_move()),
@@ -391,6 +401,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
         self.all_sliding_moves(
+            Piece::Bishop,
             board,
             moves,
             board.get_piece_bitboard(Piece::Bishop, board.color_to_move()),
@@ -420,6 +431,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
         self.all_sliding_moves(
+            Piece::Queen,
             board,
             moves,
             board.get_piece_bitboard(Piece::Queen, board.color_to_move()),
@@ -475,7 +487,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         while let Some(knight) = knights.bitscan() {
             let targets = Self::generate_knight_targets(knight) & self.allowed_targets;
 
-            Self::targets_to_moves(knight, targets, board, moves);
+            Self::targets_to_moves(knight, Piece::Knight, targets, board, moves);
         }
     }
     pub fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
@@ -575,7 +587,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                     moves.push(Move::Normal {
                         from_square: pawn,
                         to_square: target,
-                        is_capture: false,
+                        captured_piece: None,
+                        moved_piece: Piece::Pawn,
                     })
                 }
                 while let Some(target) = double_targets.bitscan() {
@@ -592,7 +605,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                             from_square: pawn,
                             to_square: target,
                             promotion_piece,
-                            is_capture: false,
+                            captured_piece: None,
                         });
                     }
                 }
@@ -645,7 +658,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 moves.push(Move::Normal {
                     from_square: pawn,
                     to_square: target,
-                    is_capture: true,
+                    captured_piece: Some(board.get_piece_from_bitboard(target).unwrap()),
+                    moved_piece: Piece::Pawn,
                 })
             }
 
@@ -655,7 +669,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                         from_square: pawn,
                         to_square: target,
                         promotion_piece,
-                        is_capture: true,
+                        captured_piece: Some(board.get_piece_from_bitboard(target).unwrap()),
                     });
                 }
             }

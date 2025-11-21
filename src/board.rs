@@ -17,6 +17,21 @@ pub struct Board {
     fullmove_counter: u32,
 }
 
+#[derive(Debug)]
+pub struct MoveUndoState {
+    move_: Move,
+    can_castle: Bitboard,
+    enpassant_square: Bitboard,
+    halfmove_clock: u32,
+    fullmove_counter: u32,
+}
+
+impl MoveUndoState{
+    pub fn move_(&self) -> Move {
+        self.move_
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FenParseError {
     WrongPartCount,
@@ -326,6 +341,17 @@ impl Board {
         out
     }
 
+    pub fn get_piece_from_bitboard(&self, bb: Bitboard) -> Option<Piece> {
+        Piece::ALL
+            .into_iter()
+            .find(|&piece| !(self.pieces[piece as usize] & bb).is_empty())
+    }
+    pub fn get_color_from_bitboard(&self, bb: Bitboard) -> Option<Color> {
+        Color::ALL
+            .into_iter()
+            .find(|&color| !(self.colors[color as usize] & bb).is_empty())
+    }
+
     pub fn get_piece_at_index(&self, index: Square) -> Option<Piece> {
         Piece::ALL
             .into_iter()
@@ -337,28 +363,32 @@ impl Board {
             .find(|&color| self.colors[color as usize].at(index))
     }
 
-    pub fn make_move(&mut self, m: &Move) {
-        match *m {
+    #[must_use]
+    pub fn make_move(&mut self, m: Move) -> MoveUndoState {
+        let undo_state = MoveUndoState {
+            move_: m,
+            can_castle: self.can_castle,
+            enpassant_square: self.enpassant_square,
+            halfmove_clock: self.halfmove_clock,
+            fullmove_counter: self.fullmove_counter,
+        };
+
+        match m {
             Move::Normal {
                 from_square,
                 to_square,
-                is_capture: _,
+                captured_piece,
+                moved_piece,
             } => {
-                for bb in &mut self.colors {
-                    *bb &= !to_square;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
+                if let Some(captured_piece) = captured_piece {
+                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
+                    self.pieces[captured_piece as usize] ^= to_square;
                 }
 
-                for bb in &mut self.pieces {
-                    *bb &= !to_square;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
-                }
+                // toggle piece into place
+                self.colors[self.color_to_move() as usize] ^= to_square | from_square;
+                self.pieces[moved_piece as usize] ^= to_square | from_square;
+
                 self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
@@ -366,21 +396,9 @@ impl Board {
                 from_square,
                 to_square,
             } => {
-                for bb in &mut self.colors {
-                    *bb &= !to_square;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
-                }
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
 
-                for bb in &mut self.pieces {
-                    *bb &= !to_square;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
-                }
                 self.enpassant_square = Bitboard::from_square(
                     Square::new(
                         (from_square.first_piece_index().unwrap() as u8
@@ -399,45 +417,33 @@ impl Board {
                     Color::Black => to_square.wrapping_shift(Direction::North),
                 };
 
-                for bb in &mut self.colors {
-                    *bb &= !to_square;
-                    *bb &= !captured_pawn;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
-                }
+                // toggle pawn to new place
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
 
-                for bb in &mut self.pieces {
-                    *bb &= !to_square;
-                    *bb &= !captured_pawn;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
-                }
+                // remove the opponent pawn
+                self.colors[self.color_to_move().opposite() as usize] ^= captured_pawn;
+                self.pieces[Piece::Pawn as usize] ^= captured_pawn;
+
                 self.enpassant_square = Bitboard(0);
             }
             Move::Promotion {
                 from_square,
                 to_square,
                 promotion_piece,
-                is_capture: _,
+                captured_piece,
             } => {
-                for bb in &mut self.colors {
-                    *bb &= !to_square;
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    *bb &= !from_square;
+                if let Some(captured_piece) = captured_piece {
+                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
+                    self.pieces[captured_piece as usize] ^= to_square;
                 }
 
-                for bb in &mut self.pieces {
-                    *bb &= !to_square;
-                }
+                self.pieces[Piece::Pawn as usize] ^= from_square;
+                self.colors[self.color_to_move() as usize] ^= from_square;
 
-                self.pieces[Piece::Pawn as usize] &= !from_square;
-                self.pieces[promotion_piece as usize] |= to_square;
+                self.pieces[promotion_piece as usize] ^= to_square;
+                self.colors[self.color_to_move() as usize] ^= to_square;
+
                 self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
@@ -447,39 +453,113 @@ impl Board {
                 rook_from_square,
                 rook_to_square,
             } => {
-                for bb in &mut self.colors {
-                    *bb &= !to_square;
-                    *bb &= !rook_to_square;
+                // toggle king into place
+                self.pieces[Piece::King as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
 
-                    // castling is always the same color
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                        *bb |= rook_to_square;
-                    }
+                // toggle rook into place
+                self.pieces[Piece::Rook as usize] ^= rook_from_square | rook_to_square;
+                self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
 
-                    *bb &= !from_square;
-                    *bb &= !rook_from_square;
-                }
-
-                for bb in &mut self.pieces {
-                    *bb &= !to_square;
-                    *bb &= !rook_to_square;
-
-                    if !(*bb & from_square).is_empty() {
-                        *bb |= to_square;
-                    }
-                    if !(*bb & rook_from_square).is_empty() {
-                        *bb |= rook_to_square;
-                    }
-
-                    *bb &= !from_square;
-                    *bb &= !rook_from_square;
-                }
                 self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
             }
         }
         self.color_to_move = self.color_to_move.opposite();
+
+        undo_state
+    }
+
+    pub fn undo_move(&mut self, undo_data: MoveUndoState) {
+        self.color_to_move = self.color_to_move.opposite();
+
+        let MoveUndoState {
+            move_,
+            can_castle,
+            enpassant_square,
+            halfmove_clock,
+            fullmove_counter,
+        } = undo_data;
+
+        self.can_castle = can_castle;
+        self.enpassant_square = enpassant_square;
+        self.halfmove_clock = halfmove_clock;
+        self.fullmove_counter = fullmove_counter;
+
+        // NOTE: xor doesn't care about the order of toggling bits. So this code is mostly kept
+        // identical to make_move
+        match move_ {
+            Move::Normal {
+                from_square,
+                to_square,
+                captured_piece,
+                moved_piece,
+            } => {
+                if let Some(captured_piece) = captured_piece {
+                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
+                    self.pieces[captured_piece as usize] ^= to_square;
+                }
+
+                // toggle piece into place
+                self.colors[self.color_to_move() as usize] ^= to_square | from_square;
+                self.pieces[moved_piece as usize] ^= to_square | from_square;
+            }
+            Move::DoublePawn {
+                from_square,
+                to_square,
+            } => {
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+            }
+            Move::EnPassant {
+                from_square,
+                to_square,
+            } => {
+                let captured_pawn = match self.color_to_move() {
+                    Color::White => to_square.wrapping_shift(Direction::South),
+                    Color::Black => to_square.wrapping_shift(Direction::North),
+                };
+
+                // toggle pawn to new place
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+
+                // remove the opponent pawn
+                self.colors[self.color_to_move().opposite() as usize] ^= captured_pawn;
+                self.pieces[Piece::Pawn as usize] ^= captured_pawn;
+            }
+            Move::Promotion {
+                from_square,
+                to_square,
+                promotion_piece,
+                captured_piece,
+            } => {
+                if let Some(captured_piece) = captured_piece {
+                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
+                    self.pieces[captured_piece as usize] ^= to_square;
+                }
+
+                self.pieces[Piece::Pawn as usize] ^= from_square;
+                self.colors[self.color_to_move() as usize] ^= from_square;
+
+                self.pieces[promotion_piece as usize] ^= to_square;
+                self.colors[self.color_to_move() as usize] ^= to_square;
+            }
+            Move::Castle {
+                from_square,
+                to_square,
+                rook_from_square,
+                rook_to_square,
+            } => {
+                // toggle king into place
+                self.pieces[Piece::King as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+
+                // toggle rook into place
+                self.pieces[Piece::Rook as usize] ^= rook_from_square | rook_to_square;
+                self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
+            }
+        }
     }
 
     pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {

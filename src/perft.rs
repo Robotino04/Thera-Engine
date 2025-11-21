@@ -52,9 +52,10 @@ pub fn perft(
         moves
             .into_iter()
             .map(|m| {
-                let mut board = *board;
-                board.make_move(&m);
-                let mut res = perft(&mut board, depth - 1, should_exit)?;
+                let undo = board.make_move(m);
+                let mut res = perft(board, depth - 1, should_exit)?;
+                board.undo_move(undo);
+
                 res.divide = vec![PerftMove {
                     algebraic_move: m.to_algebraic(),
                     nodes: res.node_count,
@@ -64,9 +65,10 @@ pub fn perft(
                         Move::Normal {
                             from_square: _,
                             to_square: _,
-                            is_capture,
+                            captured_piece,
+                            moved_piece: _,
                         } => {
-                            if is_capture {
+                            if captured_piece.is_some() {
                                 res.captures = 1;
                             }
                         }
@@ -93,9 +95,9 @@ pub fn perft(
                             from_square: _,
                             to_square: _,
                             promotion_piece: _,
-                            is_capture,
+                            captured_piece,
                         } => {
-                            if is_capture {
+                            if captured_piece.is_some() {
                                 res.captures = 1;
                             }
                             res.promotions = 1;
