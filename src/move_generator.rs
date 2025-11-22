@@ -77,7 +77,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             }
         }
 
-        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+        let king = board.king(board.color_to_move());
         let king_attackers = attacks_to_square[king.first_piece_index().unwrap() as usize];
 
         let (is_double_check, is_check, allowed_targets) = if king_attackers.is_empty() {
@@ -103,7 +103,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         };
 
         let blockers = board.all_piece_bitboard();
-        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+        let king = board.king(board.color_to_move());
 
         let mut pinned = Direction::ALL
             .iter()
@@ -183,15 +183,15 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         let sliders_in_dir = match dir {
             Direction::North | Direction::East | Direction::South | Direction::West => {
-                board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite())
-                    | board.get_piece_bitboard(Piece::Rook, board.color_to_move().opposite())
+                board.queens(board.color_to_move().opposite())
+                    | board.rooks(board.color_to_move().opposite())
             }
             Direction::NorthEast
             | Direction::NorthWest
             | Direction::SouthEast
             | Direction::SouthWest => {
-                board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite())
-                    | board.get_piece_bitboard(Piece::Bishop, board.color_to_move().opposite())
+                board.queens(board.color_to_move().opposite())
+                    | board.bishops(board.color_to_move().opposite())
             }
         };
 
@@ -261,7 +261,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     }
 
     fn generate_king_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
-        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+        let king = board.king(board.color_to_move());
         let targets = Self::generate_king_targets(king);
         attacks_from_square[king.first_piece_index().unwrap() as usize] |= targets;
     }
@@ -269,7 +269,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_king_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+        let king = board.king(board.color_to_move());
         let targets = Self::generate_king_targets(king) & !self.attacked_squares;
 
         Self::targets_to_moves(king, Piece::King, targets, board, moves);
@@ -360,8 +360,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 single_piece,
                 &[Bitboard(!0); 8],
                 directions,
-                board.all_piece_bitboard()
-                    & !board.get_piece_bitboard(Piece::King, board.color_to_move().opposite()),
+                board.all_piece_bitboard() & !board.king(board.color_to_move().opposite()),
             );
 
             attacks_from_square[single_piece.first_piece_index().unwrap() as usize] |= targets;
@@ -375,7 +374,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             Piece::Rook,
             board,
             moves,
-            board.get_piece_bitboard(Piece::Rook, board.color_to_move()),
+            board.rooks(board.color_to_move()),
             [
                 Direction::North,
                 Direction::East,
@@ -387,7 +386,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     fn generate_rook_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         Self::all_sliding_attacks(
             board,
-            board.get_piece_bitboard(Piece::Rook, board.color_to_move()),
+            board.rooks(board.color_to_move()),
             [
                 Direction::North,
                 Direction::East,
@@ -404,7 +403,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             Piece::Bishop,
             board,
             moves,
-            board.get_piece_bitboard(Piece::Bishop, board.color_to_move()),
+            board.bishops(board.color_to_move()),
             [
                 Direction::NorthEast,
                 Direction::NorthWest,
@@ -416,7 +415,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         Self::all_sliding_attacks(
             board,
-            board.get_piece_bitboard(Piece::Bishop, board.color_to_move()),
+            board.bishops(board.color_to_move()),
             [
                 Direction::NorthEast,
                 Direction::NorthWest,
@@ -434,7 +433,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             Piece::Queen,
             board,
             moves,
-            board.get_piece_bitboard(Piece::Queen, board.color_to_move()),
+            board.queens(board.color_to_move()),
             [
                 Direction::North,
                 Direction::East,
@@ -450,7 +449,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     fn generate_queen_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         Self::all_sliding_attacks(
             board,
-            board.get_piece_bitboard(Piece::Queen, board.color_to_move()),
+            board.queens(board.color_to_move()),
             [
                 Direction::North,
                 Direction::East,
@@ -482,8 +481,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     pub fn generate_knight_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
 
-        let mut knights =
-            board.get_piece_bitboard(Piece::Knight, board.color_to_move()) & self.unpinned;
+        let mut knights = board.knights(board.color_to_move()) & self.unpinned;
         while let Some(knight) = knights.bitscan() {
             let targets = Self::generate_knight_targets(knight) & self.allowed_targets;
 
@@ -491,7 +489,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
     pub fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
-        let mut knights = board.get_piece_bitboard(Piece::Knight, board.color_to_move());
+        let mut knights = board.knights(board.color_to_move());
         while let Some(knight) = knights.bitscan() {
             attacks_from_square[knight.first_piece_index().unwrap() as usize] |=
                 Self::generate_knight_targets(knight);
@@ -560,7 +558,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             ),
         };
 
-        let mut pawns = board.get_piece_bitboard(Piece::Pawn, board.color_to_move());
+        let mut pawns = board.pawns(board.color_to_move());
         while let Some(pawn) = pawns.bitscan() {
             let targets = (pawn & self.free_to_move[forwards.index()]).shift(forwards)
                 & !board.all_piece_bitboard();
@@ -616,7 +614,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 && !(board.enpassant_square().shift(forwards.opposite()) & self.allowed_targets)
                     .is_empty()
             {
-                let king = board.get_piece_bitboard(Piece::King, board.color_to_move());
+                let king = board.king(board.color_to_move());
 
                 let king_square = king.first_piece_square().unwrap();
                 let pawn_square = pawn.first_piece_square().unwrap();
@@ -624,12 +622,11 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 if king_square.row() == pawn_square.row() {
                     // maybe we have both pawns pinned to the king
 
-                    let captured_pawn = target.shift(forwards.opposite());
+                    let captured_pawn = target.wrapping_shift(forwards.opposite(), 1);
                     let both_pawns = captured_pawn | pawn;
 
-                    let sliders = board
-                        .get_piece_bitboard(Piece::Rook, board.color_to_move().opposite())
-                        | board.get_piece_bitboard(Piece::Queen, board.color_to_move().opposite());
+                    let sliders = board.rooks(board.color_to_move().opposite())
+                        | board.queens(board.color_to_move().opposite());
 
                     let blockers = board.all_piece_bitboard() ^ both_pawns;
 
@@ -685,7 +682,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             Color::Black => Direction::SouthEast,
         };
 
-        let mut pawns = board.get_piece_bitboard(Piece::Pawn, board.color_to_move());
+        let mut pawns = board.pawns(board.color_to_move());
         while let Some(pawn) = pawns.bitscan() {
             let attacks = pawn.shift(forwards_west) | pawn.shift(forwards_east);
 
