@@ -19,6 +19,36 @@ pub struct PerftStatistics {
     pub checkmates: usize,
 }
 
+pub fn perft_nostats(
+    board: &mut Board,
+    depth: u32,
+    should_exit: &impl Fn() -> bool,
+) -> Option<u64> {
+    if should_exit() {
+        return None;
+    }
+
+    let mut moves = Vec::new();
+    let movegen = MoveGenerator::<true>::with_attacks(board);
+    movegen.generate_all_moves(board, &mut moves);
+
+    if depth == 0 {
+        return Some(1);
+    }
+    if depth == 1 {
+        return Some(moves.len() as u64);
+    }
+
+    let mut sum = 0;
+    for m in moves {
+        let undo = board.make_move(m);
+        sum += perft_nostats(board, depth - 1, should_exit)?;
+        board.undo_move(undo);
+    }
+
+    Some(sum)
+}
+
 pub fn perft(
     board: &mut Board,
     depth: u32,

@@ -3,6 +3,7 @@ use std::io::{BufRead, BufReader, stdin, stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvError, SyncSender};
 use std::sync::{Arc, mpsc};
+use std::time::{Duration, Instant};
 
 use atty::Stream;
 use itertools::Itertools;
@@ -13,7 +14,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
 use thera::board::{FenParseError, MoveUndoState};
-use thera::perft::{PerftMove, PerftStatistics, perft};
+use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
 use thera::{self, board::Board, move_generator::MoveGenerator};
 
 fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<PerftMove> {
@@ -83,7 +84,8 @@ enum BisectStep {
 }
 
 enum TaskOutput {
-    Perft(PerftStatistics),
+    Perft(PerftStatistics, Duration),
+    PerftNostat(u64, Duration),
     BisectStep(BisectStep),
 }
 
@@ -116,6 +118,8 @@ enum ReplCommands {
     Perft {
         /// The number of plies to play before counting leaf nodes
         depth: u32,
+        #[command(subcommand)]
+        subcmd: Option<NostatCommand>,
     },
     /// Runs a perft test on the current position. Also feeds the position into stockfish. In case
     /// any moves aren't matching, one of the incorrect ones is played and another bisect is done
@@ -171,6 +175,13 @@ enum PrintSubcommand {
 
 #[derive(Debug, Subcommand)]
 #[command(disable_help_flag = true)]
+enum NostatCommand {
+    /// Don't collect stats for this perft invocation
+    Nostat,
+}
+
+#[derive(Debug, Subcommand)]
+#[command(disable_help_flag = true)]
 enum PositionCommand {
     /// Loads the starting position for vanilla chess.
     Startpos {
@@ -201,8 +212,8 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
     let args = line.split_whitespace().collect_vec();
     let repl = Repl::try_parse_from(args).map_err(|e| e.to_string())?;
     match repl.command {
-        ReplCommands::Perft { depth } => {
-            repl_handle_perft(state, depth);
+        ReplCommands::Perft { depth, subcmd } => {
+            repl_handle_perft(state, depth, subcmd);
         }
         ReplCommands::Bisect { depth } => {
             repl_handle_bisect(state, depth);
@@ -251,14 +262,25 @@ fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<MoveUndoState> 
         .map(|found_move| board.make_move(found_move))
 }
 
-fn repl_handle_perft(state: &mut ReplState, depth: u32) {
+fn repl_handle_perft(state: &mut ReplState, depth: u32, subcmd: Option<NostatCommand>) {
     let mut board_copy = state.board;
-    let spawn_attempt = state.work_queue.try_send(Box::new(move |cancel_flag, _| {
-        perft(&mut board_copy, depth, &|| {
-            cancel_flag.load(Ordering::Relaxed)
-        })
-        .map(TaskOutput::Perft)
-    }));
+    let spawn_attempt = if subcmd.is_none() {
+        state.work_queue.try_send(Box::new(move |cancel_flag, _| {
+            let start = Instant::now();
+            perft(&mut board_copy, depth, &|| {
+                cancel_flag.load(Ordering::Relaxed)
+            })
+            .map(|stats| TaskOutput::Perft(stats, Instant::now() - start))
+        }))
+    } else {
+        state.work_queue.try_send(Box::new(move |cancel_flag, _| {
+            let start = Instant::now();
+            perft_nostats(&mut board_copy, depth, &|| {
+                cancel_flag.load(Ordering::Relaxed)
+            })
+            .map(|node_count| TaskOutput::PerftNostat(node_count, Instant::now() - start))
+        }))
+    };
 
     match spawn_attempt {
         Ok(()) => {
@@ -584,7 +606,7 @@ fn output_thread_task(
         }
 
         match task_output {
-            Ok(Some(TaskOutput::Perft(perft_results))) => {
+            Ok(Some(TaskOutput::Perft(perft_results, duration))) => {
                 for PerftMove {
                     algebraic_move,
                     nodes,
@@ -597,6 +619,23 @@ fn output_thread_task(
                     writer,
                     "{prefix}Nodes searched: {}",
                     perft_results.node_count
+                )
+                .unwrap();
+                writeln!(
+                    writer,
+                    "{prefix}Time spent: {}s ({} MN/s)",
+                    duration.as_secs_f32(),
+                    perft_results.node_count as f32 / duration.as_secs_f32() / 1e6
+                )
+                .unwrap();
+            }
+            Ok(Some(TaskOutput::PerftNostat(node_count, duration))) => {
+                writeln!(writer, "{prefix}Nodes searched: {}", node_count).unwrap();
+                writeln!(
+                    writer,
+                    "{prefix}Time spent: {}s ({} MN/s)",
+                    duration.as_secs_f32(),
+                    node_count as f32 / duration.as_secs_f32() / 1e6
                 )
                 .unwrap();
             }
