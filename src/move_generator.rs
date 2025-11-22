@@ -276,36 +276,39 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         if ALL_MOVES {
             if board.can_castle_kingside(board.color_to_move()) {
-                let king_move_mask =
-                    king | king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
-                let clear_mask = king.rotate(Direction::East, 1) | king.rotate(Direction::East, 2);
+                let king_move_mask = king
+                    | king.wrapping_shift(Direction::East, 1)
+                    | king.wrapping_shift(Direction::East, 2);
+                let clear_mask = king.wrapping_shift(Direction::East, 1)
+                    | king.wrapping_shift(Direction::East, 2);
 
                 if (king_move_mask & self.attacked_squares).is_empty()
                     && (clear_mask & board.all_piece_bitboard()).is_empty()
                 {
                     moves.push(Move::Castle {
                         from_square: king,
-                        to_square: king.rotate(Direction::East, 2),
-                        rook_from_square: king.rotate(Direction::East, 3),
-                        rook_to_square: king.rotate(Direction::East, 1),
+                        to_square: king.wrapping_shift(Direction::East, 2),
+                        rook_from_square: king.wrapping_shift(Direction::East, 3),
+                        rook_to_square: king.wrapping_shift(Direction::East, 1),
                     });
                 }
             }
             if board.can_castle_queenside(board.color_to_move()) {
-                let king_move_mask =
-                    king | king.rotate(Direction::West, 1) | king.rotate(Direction::West, 2);
-                let clear_mask = king.rotate(Direction::West, 1)
-                    | king.rotate(Direction::West, 2)
-                    | king.rotate(Direction::West, 3);
+                let king_move_mask = king
+                    | king.wrapping_shift(Direction::West, 1)
+                    | king.wrapping_shift(Direction::West, 2);
+                let clear_mask = king.wrapping_shift(Direction::West, 1)
+                    | king.wrapping_shift(Direction::West, 2)
+                    | king.wrapping_shift(Direction::West, 3);
 
                 if (king_move_mask & self.attacked_squares).is_empty()
                     && (clear_mask & board.all_piece_bitboard()).is_empty()
                 {
                     moves.push(Move::Castle {
                         from_square: king,
-                        to_square: king.rotate(Direction::West, 2),
-                        rook_from_square: king.rotate(Direction::West, 4),
-                        rook_to_square: king.rotate(Direction::West, 1),
+                        to_square: king.wrapping_shift(Direction::West, 2),
+                        rook_from_square: king.wrapping_shift(Direction::West, 4),
+                        rook_to_square: king.wrapping_shift(Direction::West, 1),
                     });
                 }
             }
@@ -611,7 +614,10 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
             // en passant
             if let Some(target) = (attack_targets & board.enpassant_square()).bitscan()
-                && !(board.enpassant_square().shift(forwards.opposite()) & self.allowed_targets)
+                && !(board
+                    .enpassant_square()
+                    .wrapping_shift(forwards.opposite(), 1)
+                    & self.allowed_targets)
                     .is_empty()
             {
                 let king = board.king(board.color_to_move());

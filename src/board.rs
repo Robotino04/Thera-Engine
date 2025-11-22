@@ -26,7 +26,7 @@ pub struct MoveUndoState {
     fullmove_counter: u32,
 }
 
-impl MoveUndoState{
+impl MoveUndoState {
     pub fn move_(&self) -> Move {
         self.move_
     }
@@ -413,8 +413,8 @@ impl Board {
                 to_square,
             } => {
                 let captured_pawn = match self.color_to_move() {
-                    Color::White => to_square.wrapping_shift(Direction::South),
-                    Color::Black => to_square.wrapping_shift(Direction::North),
+                    Color::White => to_square.wrapping_shift(Direction::South, 1),
+                    Color::Black => to_square.wrapping_shift(Direction::North, 1),
                 };
 
                 // toggle pawn to new place
@@ -516,8 +516,8 @@ impl Board {
                 to_square,
             } => {
                 let captured_pawn = match self.color_to_move() {
-                    Color::White => to_square.wrapping_shift(Direction::South),
-                    Color::Black => to_square.wrapping_shift(Direction::North),
+                    Color::White => to_square.wrapping_shift(Direction::South, 1),
+                    Color::Black => to_square.wrapping_shift(Direction::North, 1),
                 };
 
                 // toggle pawn to new place

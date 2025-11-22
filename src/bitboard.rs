@@ -129,25 +129,21 @@ impl Bitboard {
         self.0 == 0
     }
 
-    pub fn shift(&self, dir: Direction) -> Self {
-        self.prevent_wrapping(dir).wrapping_shift(dir)
+    pub const fn shift(&self, dir: Direction) -> Self {
+        self.prevent_wrapping(dir).wrapping_shift(dir, 1)
     }
-    pub fn rotate(&self, dir: Direction, count: i32) -> Self {
-        let amount = dir as i32 * count;
-        if amount >= 0 {
-            Bitboard(self.0.rotate_left(amount as u32))
-        } else {
-            Bitboard(self.0.rotate_right((-amount) as u32))
-        }
+    pub const fn rotate(&self, dir: Direction, n: i32) -> Self {
+        let amount = dir as i32 * n;
+        Bitboard(self.0.rotate_left(amount as u32))
     }
 
-    pub const fn wrapping_shift(&self, dir: Direction) -> Self {
-        let amount = dir as i8;
-        if amount >= 0 {
-            Self(self.0 << amount)
-        } else {
-            Self(self.0 >> -amount)
-        }
+    /// NOTE: this is actually just another name for rotate_left.
+    /// It should only be used if you called `prevent_wrapping()` on this
+    /// value beforehand or if you know that your value won't hit any edge
+    /// of the board.
+    pub const fn wrapping_shift(&self, dir: Direction, n: i32) -> Self {
+        let amount = dir as i32 * n;
+        Self(self.0.rotate_left(amount as u32))
     }
 
     pub const fn bitscan(&mut self) -> Option<Bitboard> {
