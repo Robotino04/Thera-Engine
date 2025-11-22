@@ -468,17 +468,41 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     }
 
     pub fn generate_knight_targets(knight: Bitboard) -> Bitboard {
-        let mut targets = Bitboard(0);
-        let top_bottom_initial = knight.shift(Direction::East) | knight.shift(Direction::West);
-        let left_right_initial = knight.shift(Direction::East).shift(Direction::East)
-            | knight.shift(Direction::West).shift(Direction::West);
+        const LUT: [Bitboard; 64] = {
+            let mut lut = [Bitboard(0); 64];
 
-        targets |= (top_bottom_initial.shift(Direction::North) | left_right_initial)
-            .shift(Direction::North)
-            | (top_bottom_initial.shift(Direction::South) | left_right_initial)
-                .shift(Direction::South);
+            let mut square = 0;
+            while square < 64 {
+                let knight = Bitboard(1 << square);
 
-        targets
+                let top_bottom_initial = knight
+                    .shift(Direction::East)
+                    .const_or(knight.shift(Direction::West));
+                let left_right_initial = knight
+                    .shift(Direction::East)
+                    .shift(Direction::East)
+                    .const_or(knight.shift(Direction::West).shift(Direction::West));
+
+                let targets = (top_bottom_initial
+                    .shift(Direction::North)
+                    .const_or(left_right_initial))
+                .shift(Direction::North)
+                .const_or(
+                    (top_bottom_initial
+                        .shift(Direction::South)
+                        .const_or(left_right_initial))
+                    .shift(Direction::South),
+                );
+
+                lut[square as usize] = targets;
+
+                square += 1;
+            }
+
+            lut
+        };
+
+        LUT[knight.first_piece_index().unwrap() as usize]
     }
 
     pub fn generate_knight_moves(&self, board: &Board, moves: &mut Vec<Move>) {

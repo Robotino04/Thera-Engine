@@ -178,24 +178,38 @@ impl Bitboard {
             .map(|x| Square::new(x as u8).unwrap())
     }
 
-    pub fn prevent_wrapping(&self, dir: Direction) -> Bitboard {
-        match dir {
-            Direction::North => {
-                *self
-                    & bitboard!(
-                        0b_00000000
-                        0b_11111111
-                        0b_11111111
-                        0b_11111111
-                        0b_11111111
-                        0b_11111111
-                        0b_11111111
-                        0b_11111111
-                    )
-            }
+    pub const fn const_or(&self, rhs: Bitboard) -> Self {
+        Self(self.0 | rhs.0)
+    }
+    pub const fn const_and(&self, rhs: Bitboard) -> Self {
+        Self(self.0 & rhs.0)
+    }
+    pub const fn const_not(&self) -> Self {
+        Self(!self.0)
+    }
+    pub const fn const_xor(&self, rhs: Bitboard) -> Self {
+        Self(self.0 ^ rhs.0)
+    }
 
-            Direction::South => {
-                *self
+    pub const fn prevent_wrapping(&self, dir: Direction) -> Bitboard {
+        match dir {
+            Direction::North => Self(
+                self.0
+                    & bitboard!(
+                        0b_00000000
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                        0b_11111111
+                    )
+                    .0,
+            ),
+
+            Direction::South => Self(
+                self.0
                     & bitboard!(
                         0b_11111111
                         0b_11111111
@@ -206,9 +220,10 @@ impl Bitboard {
                         0b_11111111
                         0b_00000000
                     )
-            }
-            Direction::East => {
-                *self
+                    .0,
+            ),
+            Direction::East => Self(
+                self.0
                     & bitboard!(
                         0b_11111110
                         0b_11111110
@@ -219,9 +234,10 @@ impl Bitboard {
                         0b_11111110
                         0b_11111110
                     )
-            }
-            Direction::West => {
-                *self
+                    .0,
+            ),
+            Direction::West => Self(
+                self.0
                     & bitboard!(
                         0b_01111111
                         0b_01111111
@@ -232,19 +248,64 @@ impl Bitboard {
                         0b_01111111
                         0b_01111111
                     )
-            }
-            Direction::NorthEast => self
-                .prevent_wrapping(Direction::North)
-                .prevent_wrapping(Direction::East),
-            Direction::NorthWest => self
-                .prevent_wrapping(Direction::North)
-                .prevent_wrapping(Direction::West),
-            Direction::SouthEast => self
-                .prevent_wrapping(Direction::South)
-                .prevent_wrapping(Direction::East),
-            Direction::SouthWest => self
-                .prevent_wrapping(Direction::South)
-                .prevent_wrapping(Direction::West),
+                    .0,
+            ),
+            Direction::NorthEast => Self(
+                self.0
+                    & bitboard!(
+                        0b_00000000
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                    )
+                    .0,
+            ),
+            Direction::NorthWest => Self(
+                self.0
+                    & bitboard!(
+                        0b_00000000
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                    )
+                    .0,
+            ),
+            Direction::SouthEast => Self(
+                self.0
+                    & bitboard!(
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_11111110
+                        0b_00000000
+                    )
+                    .0,
+            ),
+            Direction::SouthWest => Self(
+                self.0
+                    & bitboard!(
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_01111111
+                        0b_00000000
+                    )
+                    .0,
+            ),
         }
     }
 }
