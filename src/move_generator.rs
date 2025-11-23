@@ -70,14 +70,17 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         board.undo_null_move();
 
         let mut attacks_to_square = [Bitboard(0); 64];
+        let mut attacked_squares = Bitboard(0);
         for (i, mut bb) in attacks_from_square.iter().cloned().enumerate() {
+            attacked_squares |= bb;
             while let Some(target_index) = bb.bitscan_index() {
                 attacks_to_square[target_index as usize] |= Bitboard(1 << i);
             }
         }
 
         let king = board.king(board.color_to_move());
-        let king_attackers = attacks_to_square[king.first_piece_index().unwrap() as usize];
+        let king_square = king.first_piece_index().unwrap();
+        let king_attackers = attacks_to_square[king_square as usize];
 
         let (is_double_check, is_check, allowed_targets) = if king_attackers.is_empty() {
             (false, false, Bitboard(!0))
@@ -95,14 +98,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             (
                 false,
                 true,
-                Self::SQUARES_IN_BETWEEN[king.first_piece_index().unwrap() as usize]
+                Self::SQUARES_IN_BETWEEN[king_square as usize]
                     [king_attackers.first_piece_index().unwrap() as usize]
                     | king_attackers,
             )
         };
 
         let blockers = board.all_piece_bitboard();
-        let king = board.king(board.color_to_move());
 
         let mut pinned = Direction::ALL
             .iter()
@@ -130,12 +132,6 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
 
         let unpinned = free_to_move.iter().cloned().reduce(|a, b| a & b).unwrap();
-
-        let attacked_squares = attacks_from_square
-            .iter()
-            .cloned()
-            .reduce(|a, b| a | b)
-            .unwrap_or_default();
 
         Self {
             attacks_from_square,
