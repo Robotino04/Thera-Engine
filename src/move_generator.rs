@@ -3,7 +3,7 @@ use itertools::Itertools;
 use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
-    piece::{Color, Direction, Move, Piece, Square},
+    piece::{Color, Direction, Move, Piece},
 };
 
 #[derive(Debug)]
@@ -70,10 +70,9 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         board.undo_null_move();
 
         let mut attacks_to_square = [Bitboard(0); 64];
-        for (i, mut bb) in attacks_from_square.into_iter().enumerate() {
+        for (i, mut bb) in attacks_from_square.iter().cloned().enumerate() {
             while let Some(target_index) = bb.bitscan_index() {
-                attacks_to_square[target_index as usize] |=
-                    Bitboard::from_square(Square::new(i as u8).unwrap());
+                attacks_to_square[target_index as usize] |= Bitboard(1 << i);
             }
         }
 
@@ -83,7 +82,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         let (is_double_check, is_check, allowed_targets) = if king_attackers.is_empty() {
             (false, false, Bitboard(!0))
         } else if king_attackers.count_ones() >= 2 {
-            // double check; no legal other than moving the king
+            // double check; no legal moves other than moving the king
             (true, true, Bitboard(0))
         } else if let attacking_knights =
             king_attackers & board.get_piece_bitboard_colorless(Piece::Knight)
@@ -133,7 +132,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         let unpinned = free_to_move.iter().cloned().reduce(|a, b| a & b).unwrap();
 
         let attacked_squares = attacks_from_square
-            .into_iter()
+            .iter()
+            .cloned()
             .reduce(|a, b| a | b)
             .unwrap_or_default();
 
@@ -151,11 +151,14 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     }
 
     pub fn generate_all_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        self.generate_pawn_moves(board, moves);
-        self.generate_bishop_moves(board, moves);
-        self.generate_knight_moves(board, moves);
-        self.generate_rook_moves(board, moves);
-        self.generate_queen_moves(board, moves);
+        if !self.is_double_check {
+            self.generate_pawn_moves(board, moves);
+            self.generate_bishop_moves(board, moves);
+            self.generate_knight_moves(board, moves);
+            self.generate_rook_moves(board, moves);
+            self.generate_queen_moves(board, moves);
+        }
+
         self.generate_king_moves(board, moves);
     }
 
@@ -257,7 +260,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         let targets =
             middle_row.shift(Direction::North) | middle_row | middle_row.shift(Direction::South);
 
-        targets & !king
+        targets ^ king
     }
 
     fn generate_king_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
