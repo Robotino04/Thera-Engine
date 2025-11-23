@@ -28,9 +28,8 @@ pub fn perft_nostats(
         return None;
     }
 
-    let mut moves = Vec::new();
     let movegen = MoveGenerator::<true>::with_attacks(board);
-    movegen.generate_all_moves(board, &mut moves);
+    let moves = movegen.generate_all_moves(board);
 
     if depth == 0 {
         return Some(1);
@@ -58,9 +57,8 @@ pub fn perft(
         return None;
     }
 
-    let mut moves = Vec::new();
     let movegen = MoveGenerator::<true>::with_attacks(board);
-    movegen.generate_all_moves(board, &mut moves);
+    let moves = movegen.generate_all_moves(board);
 
     let is_checkmate = moves.is_empty() && movegen.is_check();
 

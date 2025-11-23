@@ -150,16 +150,25 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
 
-    pub fn generate_all_moves(&self, board: &Board, moves: &mut Vec<Move>) {
+    pub fn generate_all_moves(&self, board: &Board) -> Vec<Move> {
         if !self.is_double_check {
-            self.generate_pawn_moves(board, moves);
-            self.generate_bishop_moves(board, moves);
-            self.generate_knight_moves(board, moves);
-            self.generate_rook_moves(board, moves);
-            self.generate_queen_moves(board, moves);
-        }
+            let mut moves = Vec::with_capacity(MAX_MOVES_IN_POSITION);
 
-        self.generate_king_moves(board, moves);
+            self.generate_pawn_moves(board, &mut moves);
+            self.generate_bishop_moves(board, &mut moves);
+            self.generate_knight_moves(board, &mut moves);
+            self.generate_rook_moves(board, &mut moves);
+            self.generate_queen_moves(board, &mut moves);
+            self.generate_king_moves(board, &mut moves);
+
+            moves
+        } else {
+            let mut moves = Vec::with_capacity(8);
+
+            self.generate_king_moves(board, &mut moves);
+
+            moves
+        }
     }
 
     pub fn is_check(&self) -> bool {
@@ -269,9 +278,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         attacks_from_square[king.first_piece_index().unwrap() as usize] |= targets;
     }
 
-    pub fn generate_king_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_king_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         let king = board.king(board.color_to_move());
         let targets = Self::generate_king_targets(king) & !self.attacked_squares;
 
@@ -373,9 +380,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
 
-    pub fn generate_rook_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_rook_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         self.all_sliding_moves(
             Piece::Rook,
             board,
@@ -402,9 +407,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             attacks_from_square,
         );
     }
-    pub fn generate_bishop_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_bishop_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         self.all_sliding_moves(
             Piece::Bishop,
             board,
@@ -418,7 +421,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             ],
         );
     }
-    pub fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         Self::all_sliding_attacks(
             board,
             board.bishops(board.color_to_move()),
@@ -432,9 +435,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         );
     }
 
-    pub fn generate_queen_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_queen_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         self.all_sliding_moves(
             Piece::Queen,
             board,
@@ -470,7 +471,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         );
     }
 
-    pub fn generate_knight_targets(knight: Bitboard) -> Bitboard {
+    fn generate_knight_targets(knight: Bitboard) -> Bitboard {
         const LUT: [Bitboard; 64] = {
             let mut lut = [Bitboard(0); 64];
 
@@ -508,9 +509,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         LUT[knight.first_piece_index().unwrap() as usize]
     }
 
-    pub fn generate_knight_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_knight_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         let mut knights = board.knights(board.color_to_move()) & self.unpinned;
         while let Some(knight) = knights.bitscan() {
             let targets = Self::generate_knight_targets(knight) & self.allowed_targets;
@@ -518,16 +517,14 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             Self::targets_to_moves(knight, Piece::Knight, targets, board, moves);
         }
     }
-    pub fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         let mut knights = board.knights(board.color_to_move());
         while let Some(knight) = knights.bitscan() {
             attacks_from_square[knight.first_piece_index().unwrap() as usize] |=
                 Self::generate_knight_targets(knight);
         }
     }
-    pub fn generate_pawn_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        moves.reserve_exact(MAX_MOVES_IN_POSITION - moves.len());
-
+    fn generate_pawn_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         let forwards = match board.color_to_move() {
             Color::White => Direction::North,
             Color::Black => Direction::South,
