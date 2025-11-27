@@ -238,6 +238,7 @@ impl Board {
 
         out
     }
+    #[must_use = "This function only generates the string representation. It must still be printed."]
     pub fn dump_ansi(&self, highlights: Option<Bitboard>) -> String {
         let dark_color = (184, 135, 98);
         let light_color = (233, 207, 174);

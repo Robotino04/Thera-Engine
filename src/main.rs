@@ -10,11 +10,15 @@ use itertools::Itertools;
 
 use clap::{ArgAction, Parser, Subcommand};
 
+use rand::Rng;
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
+use thera::bitboard::Bitboard;
 use thera::board::{FenParseError, MoveUndoState};
+use thera::move_generator::{BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES};
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
+use thera::piece::{Piece, Square};
 use thera::{self, board::Board, move_generator::MoveGenerator};
 
 fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<PerftMove> {
@@ -83,10 +87,21 @@ enum BisectStep {
     },
 }
 
+struct MagicImprovement {
+    values: [u64; 64],
+    packed_size: usize,
+    padded_size: usize,
+    magic_type: MagicSubcommand,
+    max_bits: u32,
+    min_bits: u32,
+}
+
+#[allow(clippy::large_enum_variant)]
 enum TaskOutput {
     Perft(PerftStatistics, Duration),
     PerftNostat(u64, Duration),
     BisectStep(BisectStep),
+    MagicImprovement(MagicImprovement),
 }
 
 type BackgroundTask =
@@ -160,6 +175,11 @@ enum ReplCommands {
     /// Pings the engine which will respond with "readyok" once it is ready.
     #[command(name = "isready")]
     IsReady,
+    /// Generates magic bitboards forever
+    Magic {
+        #[command(subcommand)]
+        subcmd: MagicSubcommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -171,6 +191,15 @@ enum PrintSubcommand {
         /// Should printing be enabled or disabled.
         enable: bool,
     },
+}
+
+#[derive(Debug, Subcommand, PartialEq, Eq, Clone, Copy)]
+#[command(disable_help_flag = true)]
+enum MagicSubcommand {
+    /// Generate rook magic values
+    Rook,
+    /// Generate bishop magic values
+    Bishop,
 }
 
 #[derive(Debug, Subcommand)]
@@ -241,6 +270,9 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         }
         ReplCommands::IsReady => {
             repl_handle_isready(state);
+        }
+        ReplCommands::Magic { subcmd } => {
+            repl_handle_magic(state, subcmd);
         }
         ReplCommands::Quit => return Ok(true),
     }
@@ -448,6 +480,135 @@ fn repl_handle_ucinewgame(state: &mut ReplState) {
 }
 fn repl_handle_isready(_state: &mut ReplState) {
     println!("readyok");
+}
+fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
+    let piece = match subcmd {
+        MagicSubcommand::Rook => Piece::Rook,
+        MagicSubcommand::Bishop => Piece::Bishop,
+    };
+
+    let starting_values = match subcmd {
+        MagicSubcommand::Rook => &ROOK_MAGIC_VALUES,
+        MagicSubcommand::Bishop => &BISHOP_MAGIC_VALUES,
+    };
+
+    let spawn_attempt = state
+        .work_queue
+        .try_send(Box::new(move |cancel_flag, result_sender| {
+            let mut rng = rand::rng();
+
+            let mut best_magic: [Option<(MagicTableEntry, u64)>; 64] = starting_values
+                .iter()
+                .cloned()
+                .enumerate()
+                .map(|(square, magic)| {
+                    MoveGenerator::<true>::generate_magic_entry(Bitboard(1 << square), magic, piece)
+                        .unwrap_or((
+                            MagicTableEntry {
+                                magic: 0,
+                                mask: Bitboard(0),
+                                bits_used: 64,
+                            },
+                            1 << 32,
+                        ))
+                })
+                .map(Option::Some)
+                .collect_array()
+                .unwrap();
+
+            /*
+            let mut best_magic = [Some((
+                MagicTableEntry {
+                    magic: 0,
+                    mask: Bitboard(0),
+                    bits_used: 64,
+                },
+                1 << 32,
+            )); 64];
+            */
+
+            while !cancel_flag.load(Ordering::Relaxed) {
+                let mut has_improvement = false;
+                for square in Square::ALL {
+                    // magic numbers shouldn't have too many set bits
+                    let magic = rng.random::<u64>() & rng.random::<u64>() & rng.random::<u64>();
+                    let Some((new_magic, new_entry_size)) =
+                        MoveGenerator::<true>::generate_magic_entry(
+                            Bitboard::from_square(square),
+                            magic,
+                            piece,
+                        )
+                    else {
+                        continue;
+                    };
+
+                    if new_entry_size
+                        < best_magic[square as usize]
+                            .map(|(_magic, entry)| entry)
+                            .unwrap_or(u64::MAX)
+                    {
+                        best_magic[square as usize] = Some((new_magic, new_entry_size));
+                        has_improvement = true;
+                    }
+                }
+
+                if has_improvement {
+                    let packed_table_size = best_magic
+                        .iter()
+                        .flatten()
+                        .map(|(_magic, max_entry)| *max_entry + 1)
+                        .sum::<u64>() as usize
+                        * size_of::<Bitboard>();
+                    let padded_table_size = best_magic
+                        .iter()
+                        .flatten()
+                        .map(|(_magic, max_entry)| *max_entry + 1)
+                        .max()
+                        .unwrap_or_default() as usize
+                        * size_of::<Bitboard>()
+                        * 64;
+
+                    result_sender
+                        .send(Some(TaskOutput::MagicImprovement(MagicImprovement {
+                            packed_size: packed_table_size,
+                            padded_size: padded_table_size,
+                            min_bits: best_magic
+                                .iter()
+                                .flatten()
+                                .map(|(magic, _max_entries)| magic.bits_used)
+                                .min()
+                                .unwrap_or_default(),
+                            max_bits: best_magic
+                                .iter()
+                                .flatten()
+                                .map(|(magic, _max_entries)| magic.bits_used)
+                                .max()
+                                .unwrap_or_default(),
+                            magic_type: subcmd,
+                            values: best_magic
+                                .iter()
+                                .map(|x| x.map(|x| x.0.magic).unwrap_or_default())
+                                .collect_array::<64>()
+                                .unwrap(),
+                        })))
+                        .unwrap();
+                }
+            }
+
+            None
+        }));
+
+    match spawn_attempt {
+        Ok(()) => {
+            println!("Started magic generation.");
+        }
+        Err(mpsc::TrySendError::Full(_)) => {
+            println!("A task is already running. Not starting magic generation.");
+        }
+        Err(mpsc::TrySendError::Disconnected(_)) => {
+            println!("The task thread died.");
+        }
+    }
 }
 
 fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
@@ -668,6 +829,24 @@ fn output_thread_task(
                     writeln!(writer, "{prefix}Move {} is missing from Thera", move_).unwrap();
                 }
             },
+            Ok(Some(TaskOutput::MagicImprovement(MagicImprovement {
+                packed_size,
+                padded_size,
+                magic_type,
+                min_bits,
+                max_bits,
+                values,
+            }))) => {
+                let magic_name = match magic_type {
+                    MagicSubcommand::Rook => "rook",
+                    MagicSubcommand::Bishop => "bishop",
+                };
+                writeln!(writer, "Magic {magic_name} values improved!").unwrap();
+                writeln!(writer, "packed: {}kB", packed_size / 1024).unwrap();
+                writeln!(writer, "padded: {}kB", padded_size / 1024).unwrap();
+                writeln!(writer, "min_bits: {min_bits}, max_bits: {max_bits}").unwrap();
+                writeln!(writer, "{values:?}").unwrap();
+            }
             Ok(None) => {
                 writeln!(writer, "{prefix}Task was interrupted.").unwrap();
             }

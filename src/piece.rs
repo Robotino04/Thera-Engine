@@ -73,7 +73,7 @@ impl Direction {
         Self::SouthWest,
     ];
 
-    pub fn index(self) -> usize {
+    pub const fn index(self) -> usize {
         match self {
             Direction::North => 0,
             Direction::South => 1,
@@ -86,7 +86,7 @@ impl Direction {
         }
     }
 
-    pub fn opposite(self) -> Self {
+    pub const fn opposite(self) -> Self {
         match self {
             Direction::North => Direction::South,
             Direction::South => Direction::North,
