@@ -1,4 +1,4 @@
-use std::{process::exit, sync::LazyLock};
+use std::sync::LazyLock;
 
 use itertools::Itertools;
 
@@ -180,12 +180,12 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         piece: Bitboard,
         dir: Direction,
     ) -> Bitboard {
-        let targets = Self::sliding_moves(piece, [dir], blockers);
+        let targets = Self::occluded_fill(piece, blockers, dir).shift(dir);
 
         let attacks = targets & blockers;
         blockers ^= attacks; // remove one line of blockers
 
-        let xrayed_squares = Self::sliding_moves(piece, [dir], blockers);
+        let xrayed_squares = Self::occluded_fill(piece, blockers, dir).shift(dir);
 
         let endpoints = xrayed_squares & blockers;
 
@@ -334,77 +334,59 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         targets
     }
 
-    fn all_sliding_moves<const N: usize>(
-        &self,
-        moved_piece: Piece,
-        board: &Board,
-        moves: &mut Vec<Move>,
-        mut pieces: Bitboard,
-        directions: [Direction; N],
-    ) {
-        while let Some(single_piece) = pieces.bitscan() {
-            let targets = Self::sliding_moves(single_piece, directions, board.all_piece_bitboard())
-                & self.allowed_targets[single_piece.first_piece_index().unwrap() as usize]
-                & !board.get_color_bitboard(board.color_to_move());
-
-            Self::targets_to_moves(single_piece, moved_piece, targets, board, moves);
-        }
+    fn rook_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
+        ROOK_MAGIC_TABLE[from_index as usize]
+            [ROOK_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
     }
-    fn all_sliding_attacks<const N: usize>(
-        board: &Board,
-        mut pieces: Bitboard,
-        directions: [Direction; N],
-        attacks_from_square: &mut [Bitboard; 64],
-    ) {
-        while let Some(single_piece) = pieces.bitscan() {
-            let targets = Self::sliding_moves(
-                single_piece,
-                directions,
-                board.all_piece_bitboard() & !board.king(board.color_to_move().opposite()),
-            );
-
-            attacks_from_square[single_piece.first_piece_index().unwrap() as usize] |= targets;
-        }
+    fn bishop_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
+        BISHOP_MAGIC_TABLE[from_index as usize]
+            [BISHOP_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
     }
 
     fn generate_rook_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        self.all_sliding_moves(
-            Piece::Rook,
-            board,
-            moves,
-            board.rooks(board.color_to_move()),
-            [
-                Direction::North,
-                Direction::East,
-                Direction::South,
-                Direction::West,
-            ],
-        );
+        let mut pieces = board.rooks(board.color_to_move());
+
+        while let Some(single_piece) = pieces.bitscan_index() {
+            let occupancy = board.all_piece_bitboard();
+
+            let targets = Self::rook_magic_bitboard(single_piece, occupancy)
+                & self.allowed_targets[single_piece as usize]
+                & !board.get_color_bitboard(board.color_to_move());
+
+            Self::targets_to_moves(
+                Bitboard(1 << single_piece),
+                Piece::Rook,
+                targets,
+                board,
+                moves,
+            );
+        }
     }
     fn generate_rook_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         let mut rooks = board.rooks(board.color_to_move());
         while let Some(rook) = rooks.bitscan_index() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
-            let entry = ROOK_MAGIC_TABLE[rook as usize]
-                [ROOK_MAGIC_ENTRIES[rook as usize].apply(occupancy) as usize];
-
-            attacks_from_square[rook as usize] |= entry;
+            attacks_from_square[rook as usize] |= Self::rook_magic_bitboard(rook, occupancy);
         }
     }
     fn generate_bishop_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        self.all_sliding_moves(
-            Piece::Bishop,
-            board,
-            moves,
-            board.bishops(board.color_to_move()),
-            [
-                Direction::NorthEast,
-                Direction::NorthWest,
-                Direction::SouthEast,
-                Direction::SouthWest,
-            ],
-        );
+        let mut pieces = board.bishops(board.color_to_move());
+
+        while let Some(single_piece) = pieces.bitscan_index() {
+            let occupancy = board.all_piece_bitboard();
+            let targets = Self::bishop_magic_bitboard(single_piece, occupancy)
+                & self.allowed_targets[single_piece as usize]
+                & !board.get_color_bitboard(board.color_to_move());
+
+            Self::targets_to_moves(
+                Bitboard(1 << single_piece),
+                Piece::Bishop,
+                targets,
+                board,
+                moves,
+            );
+        }
     }
     fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         let mut bishops = board.bishops(board.color_to_move());
@@ -419,22 +401,23 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     }
 
     fn generate_queen_moves(&self, board: &Board, moves: &mut Vec<Move>) {
-        self.all_sliding_moves(
-            Piece::Queen,
-            board,
-            moves,
-            board.queens(board.color_to_move()),
-            [
-                Direction::North,
-                Direction::East,
-                Direction::South,
-                Direction::West,
-                Direction::NorthEast,
-                Direction::NorthWest,
-                Direction::SouthEast,
-                Direction::SouthWest,
-            ],
-        );
+        let mut pieces = board.queens(board.color_to_move());
+
+        while let Some(single_piece) = pieces.bitscan_index() {
+            let occupancy = board.all_piece_bitboard();
+            let targets = (Self::bishop_magic_bitboard(single_piece, occupancy)
+                | Self::rook_magic_bitboard(single_piece, occupancy))
+                & self.allowed_targets[single_piece as usize]
+                & !board.get_color_bitboard(board.color_to_move());
+
+            Self::targets_to_moves(
+                Bitboard(1 << single_piece),
+                Piece::Queen,
+                targets,
+                board,
+                moves,
+            );
+        }
     }
     fn generate_queen_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
         let mut queens = board.queens(board.color_to_move());
@@ -577,7 +560,6 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             let targets = targets & self.allowed_targets[pawn_index];
 
             let attack_targets = pawn.shift(forwards_west) | pawn.shift(forwards_east);
-            let attack_targets = attack_targets;
 
             let attacks = attack_targets
                 & board.get_color_bitboard(board.color_to_move().opposite())
@@ -619,9 +601,6 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             }
 
             // en passant
-
-            // & ( self.allowed_targets[pawn_index] | )
-
             if let Some(target) = (attack_targets & board.enpassant_square()).bitscan()
                 && let captured_pawn = target.wrapping_shift(forwards.opposite(), 1)
                 && !(self.allowed_targets[pawn.first_piece_index().unwrap() as usize]
@@ -1013,7 +992,7 @@ fn magic_entry_generator(piece: Piece, magic_values: &[u64; 64]) -> [MagicTableE
             magic_values[square],
             piece,
         )
-        .expect("The {piece:?} magic values aren't unique")
+        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
         .0;
     }
 
@@ -1028,7 +1007,7 @@ fn magic_entry_size_generator(piece: Piece, magic_values: &[u64; 64]) -> [usize;
             magic_values[square],
             piece,
         )
-        .expect("The {piece:?} magic values aren't unique")
+        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
         .1 as usize
             + 1;
     }
