@@ -1,10 +1,7 @@
-use std::sync::LazyLock;
-
-use itertools::Itertools;
-
 use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
+    magic_bitboard::{bishop_magic_bitboard, rook_magic_bitboard},
     piece::{Color, Direction, Move, Piece},
 };
 
@@ -22,17 +19,19 @@ pub struct MoveGenerator<const ALL_MOVES: bool> {
 
 const MAX_MOVES_IN_POSITION: usize = 218;
 
-#[derive(Clone, Copy, Debug)]
-pub struct MagicTableEntry {
-    pub magic: u64,
-    pub mask: Bitboard,
-    pub bits_used: u32,
-}
+/// https://www.chessprogramming.org/Kogge-Stone_Algorithm
+pub fn occluded_fill(mut seeds: Bitboard, blockers: Bitboard, dir: Direction) -> Bitboard {
+    // prevent wrapping in the other direction because we
+    // essentially prevent it after having shifted. So we
+    // flip the margins to the other side
+    let mut propagators = (!blockers).prevent_wrapping(dir.opposite());
+    seeds |= propagators & seeds.rotate(dir, 1);
+    propagators &= propagators.rotate(dir, 1);
+    seeds |= propagators & seeds.rotate(dir, 2);
+    propagators &= propagators.rotate(dir, 2);
+    seeds |= propagators & seeds.rotate(dir, 4);
 
-impl MagicTableEntry {
-    pub const fn apply(&self, occupancy: Bitboard) -> u64 {
-        ((self.mask.const_and(occupancy)).0.wrapping_mul(self.magic)) >> (64 - self.bits_used)
-    }
+    seeds
 }
 
 impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
@@ -180,12 +179,12 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         piece: Bitboard,
         dir: Direction,
     ) -> Bitboard {
-        let targets = Self::occluded_fill(piece, blockers, dir).shift(dir);
+        let targets = occluded_fill(piece, blockers, dir).shift(dir);
 
         let attacks = targets & blockers;
         blockers ^= attacks; // remove one line of blockers
 
-        let xrayed_squares = Self::occluded_fill(piece, blockers, dir).shift(dir);
+        let xrayed_squares = occluded_fill(piece, blockers, dir).shift(dir);
 
         let endpoints = xrayed_squares & blockers;
 
@@ -243,21 +242,6 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                 moved_piece,
             });
         }
-    }
-
-    /// https://www.chessprogramming.org/Kogge-Stone_Algorithm
-    fn occluded_fill(mut seeds: Bitboard, blockers: Bitboard, dir: Direction) -> Bitboard {
-        // prevent wrapping in the other direction because we
-        // essentially prevent it after having shifted. So we
-        // flip the margins to the other side
-        let mut propagators = (!blockers).prevent_wrapping(dir.opposite());
-        seeds |= propagators & seeds.rotate(dir, 1);
-        propagators &= propagators.rotate(dir, 1);
-        seeds |= propagators & seeds.rotate(dir, 2);
-        propagators &= propagators.rotate(dir, 2);
-        seeds |= propagators & seeds.rotate(dir, 4);
-
-        seeds
     }
 
     fn generate_king_targets(king: Bitboard) -> Bitboard {
@@ -321,35 +305,13 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         }
     }
 
-    fn sliding_moves<const N: usize>(
-        piece: Bitboard,
-        directions: [Direction; N],
-        blockers: Bitboard,
-    ) -> Bitboard {
-        let mut targets = Bitboard::default();
-        for dir in directions {
-            let non_attacks = Self::occluded_fill(piece, blockers, dir);
-            targets |= non_attacks.shift(dir);
-        }
-        targets
-    }
-
-    fn rook_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
-        ROOK_MAGIC_TABLE[from_index as usize]
-            [ROOK_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
-    }
-    fn bishop_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
-        BISHOP_MAGIC_TABLE[from_index as usize]
-            [BISHOP_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
-    }
-
     fn generate_rook_moves(&self, board: &Board, moves: &mut Vec<Move>) {
         let mut pieces = board.rooks(board.color_to_move());
 
         while let Some(single_piece) = pieces.bitscan_index() {
             let occupancy = board.all_piece_bitboard();
 
-            let targets = Self::rook_magic_bitboard(single_piece, occupancy)
+            let targets = rook_magic_bitboard(single_piece, occupancy)
                 & self.allowed_targets[single_piece as usize]
                 & !board.get_color_bitboard(board.color_to_move());
 
@@ -367,7 +329,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         while let Some(rook) = rooks.bitscan_index() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
-            attacks_from_square[rook as usize] |= Self::rook_magic_bitboard(rook, occupancy);
+            attacks_from_square[rook as usize] |= rook_magic_bitboard(rook, occupancy);
         }
     }
     fn generate_bishop_moves(&self, board: &Board, moves: &mut Vec<Move>) {
@@ -375,7 +337,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         while let Some(single_piece) = pieces.bitscan_index() {
             let occupancy = board.all_piece_bitboard();
-            let targets = Self::bishop_magic_bitboard(single_piece, occupancy)
+            let targets = bishop_magic_bitboard(single_piece, occupancy)
                 & self.allowed_targets[single_piece as usize]
                 & !board.get_color_bitboard(board.color_to_move());
 
@@ -393,8 +355,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         while let Some(bishop) = bishops.bitscan_index() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
-            let entry = BISHOP_MAGIC_TABLE[bishop as usize]
-                [BISHOP_MAGIC_ENTRIES[bishop as usize].apply(occupancy) as usize];
+            let entry = bishop_magic_bitboard(bishop, occupancy);
 
             attacks_from_square[bishop as usize] |= entry;
         }
@@ -405,8 +366,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
 
         while let Some(single_piece) = pieces.bitscan_index() {
             let occupancy = board.all_piece_bitboard();
-            let targets = (Self::bishop_magic_bitboard(single_piece, occupancy)
-                | Self::rook_magic_bitboard(single_piece, occupancy))
+            let targets = (bishop_magic_bitboard(single_piece, occupancy)
+                | rook_magic_bitboard(single_piece, occupancy))
                 & self.allowed_targets[single_piece as usize]
                 & !board.get_color_bitboard(board.color_to_move());
 
@@ -424,10 +385,8 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         while let Some(queen) = queens.bitscan_index() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
-            let rook_entry = ROOK_MAGIC_TABLE[queen as usize]
-                [ROOK_MAGIC_ENTRIES[queen as usize].apply(occupancy) as usize];
-            let bishop_entry = BISHOP_MAGIC_TABLE[queen as usize]
-                [BISHOP_MAGIC_ENTRIES[queen as usize].apply(occupancy) as usize];
+            let rook_entry = rook_magic_bitboard(queen, occupancy);
+            let bishop_entry = bishop_magic_bitboard(queen, occupancy);
 
             attacks_from_square[queen as usize] |= rook_entry | bishop_entry;
         }
@@ -623,9 +582,9 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
                     let blockers = board.all_piece_bitboard() ^ both_pawns;
 
                     let pin_line = if king_square.column() < pawn_square.column() {
-                        Self::occluded_fill(king, blockers, Direction::West).shift(Direction::West)
+                        occluded_fill(king, blockers, Direction::West).shift(Direction::West)
                     } else {
-                        Self::occluded_fill(king, blockers, Direction::East).shift(Direction::East)
+                        occluded_fill(king, blockers, Direction::East).shift(Direction::East)
                     };
 
                     if (pin_line & sliders).is_empty() {
@@ -681,372 +640,4 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
             attacks_from_square[pawn.first_piece_index().unwrap() as usize] |= attacks;
         }
     }
-
-    fn magic_mask_for_rook(piece: Bitboard) -> Bitboard {
-        let vertical_mask =
-            Self::sliding_moves(piece, [Direction::North, Direction::South], Bitboard(0));
-
-        let vertical_mask = vertical_mask
-            & bitboard!(
-                0b_00000000
-                0b_11111111
-                0b_11111111
-                0b_11111111
-                0b_11111111
-                0b_11111111
-                0b_11111111
-                0b_00000000
-            );
-
-        let horizontal_mask =
-            Self::sliding_moves(piece, [Direction::East, Direction::West], Bitboard(0));
-
-        let horizontal_mask = horizontal_mask
-            & bitboard!(
-                0b_01111110
-                0b_01111110
-                0b_01111110
-                0b_01111110
-                0b_01111110
-                0b_01111110
-                0b_01111110
-                0b_01111110
-            );
-
-        vertical_mask | horizontal_mask
-    }
-    fn magic_mask_for_bishop(piece: Bitboard) -> Bitboard {
-        let mask = Self::sliding_moves(
-            piece,
-            [
-                Direction::NorthEast,
-                Direction::SouthEast,
-                Direction::SouthWest,
-                Direction::NorthWest,
-            ],
-            Bitboard(0),
-        );
-
-        mask & bitboard!(
-            0b_00000000
-            0b_01111110
-            0b_01111110
-            0b_01111110
-            0b_01111110
-            0b_01111110
-            0b_01111110
-            0b_00000000
-        )
-    }
-
-    fn occupancies_for_mask(mut mask: Bitboard) -> impl Iterator<Item = Bitboard> {
-        let num_bits = mask.0.count_ones();
-        let num_occupancies = 1 << num_bits;
-
-        let mut indices = vec![];
-
-        while let Some(index) = mask.bitscan_index() {
-            indices.push(index);
-        }
-
-        (0..num_occupancies).map(move |occupancy| {
-            let mut occupancy_bitboard = Bitboard(0);
-
-            for (index_i, index) in indices.iter().enumerate() {
-                let selected_bit = (occupancy >> index_i) & 0b1;
-                occupancy_bitboard |= Bitboard(selected_bit << index);
-            }
-
-            occupancy_bitboard
-        })
-    }
-
-    pub fn generate_magic_entry(
-        square: Bitboard,
-        magic: u64,
-        piece: Piece,
-    ) -> Option<(MagicTableEntry, u64)> {
-        let mask = match piece {
-            Piece::Rook => Self::magic_mask_for_rook(square),
-            Piece::Bishop => Self::magic_mask_for_bishop(square),
-            _ => unimplemented!(),
-        };
-        let occupancies = Self::occupancies_for_mask(mask);
-
-        let bits_used = match piece {
-            Piece::Rook => 12,
-            Piece::Bishop => 9,
-            _ => unimplemented!(),
-        };
-
-        let mut table = vec![false; 1 << bits_used];
-
-        let mut max_entry = 0;
-
-        for occupancy in occupancies {
-            let index = (occupancy.0.wrapping_mul(magic)) >> (64 - bits_used);
-            if table[index as usize] {
-                return None;
-            }
-            table[index as usize] = true;
-
-            max_entry = max_entry.max(index);
-        }
-
-        Some((
-            MagicTableEntry {
-                magic,
-                mask,
-                bits_used,
-            },
-            max_entry,
-        ))
-    }
-
-    pub fn generate_magic_table(
-        square: u32,
-        magic_entry: MagicTableEntry,
-        piece_type: Piece,
-        table_size: usize,
-    ) -> Vec<Bitboard> {
-        let piece = Bitboard(1 << square);
-
-        let mask = match piece_type {
-            Piece::Rook => Self::magic_mask_for_rook(piece),
-            Piece::Bishop => Self::magic_mask_for_bishop(piece),
-            _ => unimplemented!(),
-        };
-        let occupancies = Self::occupancies_for_mask(mask);
-
-        let mut out = vec![Bitboard(0); table_size];
-
-        for occupancy in occupancies {
-            let index = magic_entry.apply(occupancy);
-            out[index as usize] = Self::sliding_moves(
-                piece,
-                match piece_type {
-                    Piece::Rook => [
-                        Direction::North,
-                        Direction::East,
-                        Direction::South,
-                        Direction::West,
-                    ],
-                    Piece::Bishop => [
-                        Direction::NorthEast,
-                        Direction::NorthWest,
-                        Direction::SouthEast,
-                        Direction::SouthWest,
-                    ],
-                    _ => unimplemented!(),
-                },
-                occupancy,
-            );
-        }
-
-        out
-    }
 }
-pub const ROOK_MAGIC_VALUES: [u64; 64] = [
-    11637302811523555600,
-    4507997808111744,
-    9042400808798208,
-    4503668382565520,
-    9027128523816992,
-    74313791931686920,
-    18015498562177152,
-    36050935427907840,
-    2305913382590480705,
-    2305879310294061056,
-    1225049501748969489,
-    5188181981946708000,
-    9655753352392212744,
-    4611721340255211648,
-    4611756389319065601,
-    9223407221763752066,
-    90072129988464640,
-    5629533961062912,
-    563018673162244,
-    4938197128917811712,
-    1125968899015168,
-    144256063013654784,
-    9148005733105728,
-    5926877984551075872,
-    72163147691069440,
-    4505798784846848,
-    324263571485753425,
-    10664528316198814208,
-    283674538934528,
-    4611758586464305328,
-    9263904984330682369,
-    5801764421399781377,
-    563087409676688,
-    1152930317880787024,
-    288798007620534416,
-    4620702015926894656,
-    432486306020343824,
-    1752463209297625120,
-    667693831279345728,
-    144260461051772993,
-    4611721203067979783,
-    9225623905455050760,
-    4719842846964728332,
-    4612249518674542848,
-    117130149106827268,
-    1162212377869950977,
-    1190077094894256129,
-    288230651063246852,
-    4612829511061471264,
-    288379926914039824,
-    9512166462622793736,
-    568722930663456,
-    9009400962547744,
-    288230926444462112,
-    9008298774757440,
-    8072719941431984392,
-    144255925835153665,
-    38298468596613130,
-    576478481928946753,
-    2486004878690754562,
-    2684162987312807937,
-    612491782714032129,
-    277126054913,
-    720721359986037890,
-];
-pub const BISHOP_MAGIC_VALUES: [u64; 64] = [
-    70920655865920,
-    141287378919556,
-    4683884488466497792,
-    141149872390160,
-    74775380886528,
-    612560201538732032,
-    576479448312857088,
-    9223442551644651680,
-    144119590419433488,
-    2314991222984279072,
-    603482899961874440,
-    282025941533840,
-    1158058715023163584,
-    563229134700544,
-    5800680575941738560,
-    1161937570823733280,
-    36319069196025872,
-    9223444880045383746,
-    10376575018602661890,
-    1152956697577263108,
-    306387161685688832,
-    9015996492939392,
-    49548393072050215,
-    6920911469275021336,
-    72622743031390241,
-    18155687903297554,
-    9223654065899047168,
-    578721348245913632,
-    288511919864692738,
-    18049859915366432,
-    288248037061443604,
-    146437373814120462,
-    288512951780933764,
-    144186656902103106,
-    4071395351603479040,
-    468449213937091088,
-    5633914760728832,
-    1227231998108516384,
-    9259541708952059912,
-    72198400312872964,
-    9078669666418752,
-    35735207149600,
-    2360036017500586112,
-    9223377020092678208,
-    2200098054400,
-    288301295192768640,
-    721139440625655817,
-    140875063640066,
-    1441170024915028112,
-    36099441718993924,
-    9223372071759798528,
-    81064793431093312,
-    39586715672578,
-    2380152957117145092,
-    1153062381690032128,
-    90635217649271424,
-    36100266365321356,
-    1157566117139513376,
-    9042487110828129,
-    9836988603044479024,
-    2313161358624956450,
-    2310364218211205129,
-    4402345676804,
-    140879239061512,
-];
-
-fn magic_entry_generator(piece: Piece, magic_values: &[u64; 64]) -> [MagicTableEntry; 64] {
-    let mut entries = [MagicTableEntry {
-        magic: 0,
-        mask: Bitboard(0),
-        bits_used: 0,
-    }; 64];
-
-    for square in 0..64 {
-        entries[square] = MoveGenerator::<true>::generate_magic_entry(
-            Bitboard(1 << square),
-            magic_values[square],
-            piece,
-        )
-        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
-        .0;
-    }
-
-    entries
-}
-fn magic_entry_size_generator(piece: Piece, magic_values: &[u64; 64]) -> [usize; 64] {
-    let mut entries = [0; 64];
-
-    for square in 0..64 {
-        entries[square] = MoveGenerator::<true>::generate_magic_entry(
-            Bitboard(1 << square),
-            magic_values[square],
-            piece,
-        )
-        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
-        .1 as usize
-            + 1;
-    }
-
-    entries
-}
-
-pub static ROOK_MAGIC_ENTRIES: LazyLock<[MagicTableEntry; 64]> =
-    LazyLock::new(|| magic_entry_generator(Piece::Rook, &ROOK_MAGIC_VALUES));
-pub static ROOK_MAGIC_TABLE_SIZES: LazyLock<[usize; 64]> =
-    LazyLock::new(|| magic_entry_size_generator(Piece::Rook, &ROOK_MAGIC_VALUES));
-pub static ROOK_MAGIC_TABLE: LazyLock<[Vec<Bitboard>; 64]> = LazyLock::new(|| {
-    (0..64)
-        .map(|i| {
-            MoveGenerator::<true>::generate_magic_table(
-                i,
-                ROOK_MAGIC_ENTRIES[i as usize],
-                Piece::Rook,
-                ROOK_MAGIC_TABLE_SIZES[i as usize],
-            )
-        })
-        .collect_array()
-        .unwrap()
-});
-
-pub static BISHOP_MAGIC_ENTRIES: LazyLock<[MagicTableEntry; 64]> =
-    LazyLock::new(|| magic_entry_generator(Piece::Bishop, &BISHOP_MAGIC_VALUES));
-pub static BISHOP_MAGIC_TABLE_SIZES: LazyLock<[usize; 64]> =
-    LazyLock::new(|| magic_entry_size_generator(Piece::Bishop, &BISHOP_MAGIC_VALUES));
-pub static BISHOP_MAGIC_TABLE: LazyLock<[Vec<Bitboard>; 64]> = LazyLock::new(|| {
-    (0..64)
-        .map(|i| {
-            MoveGenerator::<true>::generate_magic_table(
-                i,
-                BISHOP_MAGIC_ENTRIES[i as usize],
-                Piece::Bishop,
-                BISHOP_MAGIC_TABLE_SIZES[i as usize],
-            )
-        })
-        .collect_array()
-        .unwrap()
-});

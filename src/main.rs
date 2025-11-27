@@ -16,7 +16,9 @@ use rustyline::{DefaultEditor, ExternalPrinter};
 
 use thera::bitboard::Bitboard;
 use thera::board::{FenParseError, MoveUndoState};
-use thera::move_generator::{BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES};
+use thera::magic_bitboard::{
+    BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
+};
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
 use thera::piece::{Piece, Square};
 use thera::{self, board::Board, move_generator::MoveGenerator};
@@ -502,15 +504,14 @@ fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
                 .cloned()
                 .enumerate()
                 .map(|(square, magic)| {
-                    MoveGenerator::<true>::generate_magic_entry(Bitboard(1 << square), magic, piece)
-                        .unwrap_or((
-                            MagicTableEntry {
-                                magic: 0,
-                                mask: Bitboard(0),
-                                bits_used: 64,
-                            },
-                            1 << 32,
-                        ))
+                    generate_magic_entry(Bitboard(1 << square), magic, piece).unwrap_or((
+                        MagicTableEntry {
+                            magic: 0,
+                            mask: Bitboard(0),
+                            bits_used: 64,
+                        },
+                        1 << 32,
+                    ))
                 })
                 .map(Option::Some)
                 .collect_array()
@@ -533,11 +534,7 @@ fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
                     // magic numbers shouldn't have too many set bits
                     let magic = rng.random::<u64>() & rng.random::<u64>() & rng.random::<u64>();
                     let Some((new_magic, new_entry_size)) =
-                        MoveGenerator::<true>::generate_magic_entry(
-                            Bitboard::from_square(square),
-                            magic,
-                            piece,
-                        )
+                        generate_magic_entry(Bitboard::from_square(square), magic, piece)
                     else {
                         continue;
                     };
