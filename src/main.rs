@@ -8,8 +8,6 @@ use std::time::{Duration, Instant};
 use atty::Stream;
 use itertools::Itertools;
 
-use clap::{ArgAction, Parser, Subcommand};
-
 use rand::Rng;
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
@@ -93,7 +91,7 @@ struct MagicImprovement {
     values: [u64; 64],
     packed_size: usize,
     padded_size: usize,
-    magic_type: MagicSubcommand,
+    magic_type: MagicType,
     max_bits: u32,
     min_bits: u32,
 }
@@ -120,163 +118,307 @@ struct ReplState {
     work_queue: SyncSender<BackgroundTask>,
 }
 
-#[derive(Debug, Parser)]
-#[command(multicall = true, disable_help_flag = true)]
-struct Repl {
-    #[command(subcommand)]
-    command: ReplCommands,
+trait ReplCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String>
+    where
+        Self: std::marker::Sized;
 }
 
-#[derive(Debug, Subcommand)]
-#[command(disable_help_flag = true)]
-enum ReplCommands {
-    /// Runs a perft test on the current position. Outputs a breakdown of nodes for each move as
-    /// well as the total number of nodes in the same format as stockfish.
-    Perft {
-        /// The number of plies to play before counting leaf nodes
-        depth: u32,
-        #[command(subcommand)]
-        subcmd: Option<NostatCommand>,
-    },
-    /// Runs a perft test on the current position. Also feeds the position into stockfish. In case
-    /// any moves aren't matching, one of the incorrect ones is played and another bisect is done
-    /// on the new position. Reports the FEN string of the respective position as well as the series
-    /// of move mismatches.
-    Bisect {
-        /// The number of plies to play before counting leaf nodes
-        depth: u32,
-    },
-    /// Set up a position on the internal board.
-    Position {
-        #[command(subcommand)]
-        subcmd: PositionCommand,
-    },
-    /// Prints the current board.
-    Print {
-        #[command(subcommand)]
-        subcmd: Option<PrintSubcommand>,
-    },
-    /// Stops the currently running task (if any).
-    Stop,
-    /// Exits Thera
-    #[command(alias = "exit")]
-    Quit,
-    /// Undoes the last move that was made.
-    Undo,
-    /// Plays the given move on the board.
-    Play {
-        /// The move to play given in long algebraic notation.
-        #[arg(name = "move")]
-        move_: String,
-    },
-    /// Enables UCI mode.
-    Uci,
-    /// Resets all internal state to play a new game.
-    #[command(name = "ucinewgame")]
-    UciNewGame,
-    /// Pings the engine which will respond with "readyok" once it is ready.
-    #[command(name = "isready")]
-    IsReady,
-    /// Generates magic bitboards forever
-    Magic {
-        #[command(subcommand)]
-        subcmd: MagicSubcommand,
-    },
+struct PerftCommand {
+    /// The number of plies to play before counting leaf nodes
+    depth: u32,
+    /// don't collect statistics in this perft invocation
+    nostat: bool,
 }
 
-#[derive(Debug, Subcommand)]
-#[command(disable_help_flag = true)]
-enum PrintSubcommand {
+fn missing_subcommand_text(locator: &(impl AsRef<str> + ?Sized)) -> String {
+    format!("Missing subcommand in {}", locator.as_ref())
+}
+fn invalid_subcommand_text(
+    subcmd: &(impl AsRef<str> + ?Sized),
+    locator: &(impl AsRef<str> + ?Sized),
+) -> String {
+    format!(
+        "Invalid subcommand {} in {}",
+        subcmd.as_ref(),
+        locator.as_ref()
+    )
+}
+fn missing_argument_text(
+    arg: &(impl AsRef<str> + ?Sized),
+    locator: &(impl AsRef<str> + ?Sized),
+) -> String {
+    format!(
+        "Missing argument <{}> in {}",
+        arg.as_ref(),
+        locator.as_ref()
+    )
+}
+fn invalid_argument_text(
+    arg: &(impl AsRef<str> + ?Sized),
+    error: &(impl AsRef<str> + ?Sized),
+    locator: &(impl AsRef<str> + ?Sized),
+) -> String {
+    format!(
+        "Invalid argument <{}> in {}: {}",
+        arg.as_ref(),
+        locator.as_ref(),
+        error.as_ref()
+    )
+}
+fn unknown_argument_text(
+    arg: &(impl AsRef<str> + ?Sized),
+    locator: &(impl AsRef<str> + ?Sized),
+) -> String {
+    format!("Unknown argument {} in {}", arg.as_ref(), locator.as_ref(),)
+}
+
+fn invalid_value_text(
+    arg: &(impl AsRef<str> + ?Sized),
+    value: &(impl AsRef<str> + ?Sized),
+    locator: &(impl AsRef<str> + ?Sized),
+) -> String {
+    format!(
+        "Invalid value {} for argument <{}> in {}",
+        value.as_ref(),
+        arg.as_ref(),
+        locator.as_ref(),
+    )
+}
+
+impl ReplCommand for PerftCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            depth: tokens
+                .next()
+                .ok_or_else(|| missing_argument_text("depth", "perft command"))?
+                .parse()
+                .map_err(|_| invalid_argument_text("depth", "Not an integer", "perft command"))?,
+            nostat: match tokens.next() {
+                Some("nostat") => true,
+                Some(other) => return Err(unknown_argument_text(other, "perft command")),
+                None => false,
+            },
+        })
+    }
+}
+
+struct BisectCommand {
+    /// The number of plies to play before counting leaf nodes
+    depth: u32,
+}
+impl ReplCommand for BisectCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            depth: tokens
+                .next()
+                .ok_or_else(|| missing_argument_text("depth", "bisect command"))?
+                .parse()
+                .map_err(|_| invalid_argument_text("depth", "Not an integer", "bisect command"))?,
+        })
+    }
+}
+
+struct PrintCommand {
     /// Configure the engine to print the board after every command.
-    Always {
-        #[arg(action = ArgAction::Set)]
-        /// Should printing be enabled or disabled.
-        enable: bool,
-    },
+    always: Option<bool>,
 }
 
-#[derive(Debug, Subcommand, PartialEq, Eq, Clone, Copy)]
-#[command(disable_help_flag = true)]
-enum MagicSubcommand {
+impl ReplCommand for PrintCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            always: match tokens.next() {
+                Some("always") => Some(
+                    match tokens
+                        .next()
+                        .ok_or_else(|| missing_argument_text("always", "print command"))?
+                    {
+                        "true" => true,
+                        "false" => false,
+                        other => return Err(invalid_value_text(other, "always", "print command")),
+                    },
+                ),
+                Some(other) => return Err(unknown_argument_text(other, "print command")),
+                None => None,
+            },
+        })
+    }
+}
+struct PlayCommand {
+    /// The move to play given in long algebraic notation.
+    move_: String,
+}
+impl ReplCommand for PlayCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            move_: tokens
+                .next()
+                .ok_or_else(|| missing_argument_text("move", "play command"))?
+                .to_string(),
+        })
+    }
+}
+struct MagicCommand {
+    // Which piece to generate magic bitboards for
+    type_: MagicType,
+}
+impl ReplCommand for MagicCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            type_: match tokens
+                .next()
+                .ok_or_else(|| missing_argument_text("type", "magic command"))?
+            {
+                "rook" => MagicType::Rook,
+                "bishop" => MagicType::Bishop,
+                other => return Err(invalid_value_text("type", other, "magic command")),
+            },
+        })
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum MagicType {
     /// Generate rook magic values
     Rook,
     /// Generate bishop magic values
     Bishop,
 }
 
-#[derive(Debug, Subcommand)]
-#[command(disable_help_flag = true)]
-enum NostatCommand {
-    /// Don't collect stats for this perft invocation
-    Nostat,
+struct MoveSuffixCommand {
+    /// Apply a series of moves given in long algebraic notation after loading the position.
+    moves: Vec<String>,
+}
+impl ReplCommand for MoveSuffixCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(Self {
+            moves: tokens.map(ToString::to_string).collect_vec(),
+        })
+    }
 }
 
-#[derive(Debug, Subcommand)]
-#[command(disable_help_flag = true)]
 enum PositionCommand {
     /// Loads the starting position for vanilla chess.
-    Startpos {
-        #[command(subcommand)]
-        moves: Option<MovesSubcommand>,
-    },
+    Startpos { moves: Option<MoveSuffixCommand> },
     /// Loads the position specified in the FEN string.
     Fen {
-        #[clap(value_delimiter = ' ', num_args = 1..=6)]
         /// The FEN string to load.
         fen: Vec<String>,
-        #[command(subcommand)]
-        moves: Option<MovesSubcommand>,
+        moves: Option<MoveSuffixCommand>,
     },
 }
+impl ReplCommand for PositionCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(
+            match tokens
+                .next()
+                .ok_or_else(|| missing_subcommand_text("position command"))?
+            {
+                "startpos" => Self::Startpos {
+                    moves: Some(MoveSuffixCommand::parse(tokens)?),
+                },
+                "fen" => Self::Fen {
+                    fen: tokens
+                        .take_while(|token| *token != "moves") // also takes the "moves" token
+                        .map(ToString::to_string)
+                        .collect_vec(),
+                    moves: Some(MoveSuffixCommand::parse(tokens)?),
+                },
+                other => return Err(invalid_subcommand_text(other, "position command")),
+            },
+        )
+    }
+}
+enum TopLevelCommand {
+    /// Runs a perft test on the current position. Outputs a breakdown of nodes for each move as
+    /// well as the total number of nodes in the same format as stockfish.
+    Perft(PerftCommand),
+    /// Runs a perft test on the current position. Also feeds the position into stockfish. In case
+    /// any moves aren't matching, one of the incorrect ones is played and another bisect is done
+    /// on the new position. Reports the FEN string of the respective position as well as the series
+    /// of move mismatches.
+    Bisect(BisectCommand),
+    /// Set up a position on the internal board.
+    Position(PositionCommand),
+    /// Prints the current board.
+    Print(PrintCommand),
+    /// Stops the currently running task (if any).
+    Stop,
+    /// Exits Thera
+    Quit,
+    /// Undoes the last move that was made.
+    Undo,
+    /// Plays the given move on the board.
+    Play(PlayCommand),
+    /// Enables UCI mode.
+    Uci,
+    /// Resets all internal state to play a new game.
+    UciNewGame,
+    /// Pings the engine which will respond with "readyok" once it is ready.
+    IsReady,
+    /// Generates magic bitboards forever
+    Magic(MagicCommand),
+}
 
-#[derive(Debug, Subcommand)]
-#[command(disable_help_flag = true, disable_help_subcommand = true)]
-enum MovesSubcommand {
-    /// Applies a series of moves given in long algebraic notation after loading the position.
-    Moves {
-        /// The moves to apply after loading the position.
-        moves: Vec<String>,
-    },
+impl ReplCommand for TopLevelCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        Ok(
+            match tokens.next().ok_or_else(|| "Missing command".to_string())? {
+                "perft" => TopLevelCommand::Perft(PerftCommand::parse(tokens)?),
+                "bisect" => TopLevelCommand::Bisect(BisectCommand::parse(tokens)?),
+                "position" => TopLevelCommand::Position(PositionCommand::parse(tokens)?),
+                "print" => TopLevelCommand::Print(PrintCommand::parse(tokens)?),
+                "stop" => TopLevelCommand::Stop,
+                "quit" | "exit" => TopLevelCommand::Quit,
+                "undo" => TopLevelCommand::Undo,
+                "play" => TopLevelCommand::Play(PlayCommand::parse(tokens)?),
+                "uci" => TopLevelCommand::Uci,
+                "ucinewgame" => TopLevelCommand::UciNewGame,
+                "isready" => TopLevelCommand::IsReady,
+                "magic" => TopLevelCommand::Magic(MagicCommand::parse(tokens)?),
+                other => return Err(format!("Invalid command {other}")),
+            },
+        )
+    }
 }
 
 fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
-    let args = line.split_whitespace().collect_vec();
-    let repl = Repl::try_parse_from(args).map_err(|e| e.to_string())?;
-    match repl.command {
-        ReplCommands::Perft { depth, subcmd } => {
-            repl_handle_perft(state, depth, subcmd);
+    let command = TopLevelCommand::parse(&mut line.split_whitespace())?;
+    match command {
+        TopLevelCommand::Perft(subcmd) => {
+            repl_handle_perft(state, subcmd);
         }
-        ReplCommands::Bisect { depth } => {
-            repl_handle_bisect(state, depth);
+        TopLevelCommand::Bisect(subcmd) => {
+            repl_handle_bisect(state, subcmd);
         }
-        ReplCommands::Position { subcmd } => {
+        TopLevelCommand::Position(subcmd) => {
             repl_handle_position(state, subcmd);
         }
-        ReplCommands::Print { subcmd } => {
+        TopLevelCommand::Print(subcmd) => {
             repl_handle_print(state, subcmd);
         }
-        ReplCommands::Stop => {
+        TopLevelCommand::Stop => {
             repl_handle_stop(state);
         }
-        ReplCommands::Undo => {
+        TopLevelCommand::Undo => {
             repl_handle_undo(state);
         }
-        ReplCommands::Play { move_ } => {
-            repl_handle_play(state, move_);
+        TopLevelCommand::Play(subcmd) => {
+            repl_handle_play(state, subcmd);
         }
-        ReplCommands::Uci => {
+        TopLevelCommand::Uci => {
             repl_handle_uci(state);
         }
-        ReplCommands::UciNewGame => {
+        TopLevelCommand::UciNewGame => {
             repl_handle_ucinewgame(state);
         }
-        ReplCommands::IsReady => {
+        TopLevelCommand::IsReady => {
             repl_handle_isready(state);
         }
-        ReplCommands::Magic { subcmd } => {
+        TopLevelCommand::Magic(subcmd) => {
             repl_handle_magic(state, subcmd);
         }
-        ReplCommands::Quit => return Ok(true),
+        TopLevelCommand::Quit => return Ok(true),
     }
 
     if state.always_print {
@@ -295,23 +437,23 @@ fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<MoveUndoState> 
         .map(|found_move| board.make_move(found_move))
 }
 
-fn repl_handle_perft(state: &mut ReplState, depth: u32, subcmd: Option<NostatCommand>) {
+fn repl_handle_perft(state: &mut ReplState, cmd: PerftCommand) {
     let mut board_copy = state.board;
-    let spawn_attempt = if subcmd.is_none() {
+    let spawn_attempt = if cmd.nostat {
         state.work_queue.try_send(Box::new(move |cancel_flag, _| {
             let start = Instant::now();
-            perft(&mut board_copy, depth, &|| {
+            perft_nostats(&mut board_copy, cmd.depth, &|| {
                 cancel_flag.load(Ordering::Relaxed)
             })
-            .map(|stats| TaskOutput::Perft(stats, Instant::now() - start))
+            .map(|node_count| TaskOutput::PerftNostat(node_count, Instant::now() - start))
         }))
     } else {
         state.work_queue.try_send(Box::new(move |cancel_flag, _| {
             let start = Instant::now();
-            perft_nostats(&mut board_copy, depth, &|| {
+            perft(&mut board_copy, cmd.depth, &|| {
                 cancel_flag.load(Ordering::Relaxed)
             })
-            .map(|node_count| TaskOutput::PerftNostat(node_count, Instant::now() - start))
+            .map(|stats| TaskOutput::Perft(stats, Instant::now() - start))
         }))
     };
 
@@ -333,7 +475,7 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
     match cmd {
         PositionCommand::Startpos { moves } => {
             state.board = Board::starting_position();
-            if let Some(MovesSubcommand::Moves { moves }) = moves {
+            if let Some(MoveSuffixCommand { moves }) = moves {
                 for m in moves {
                     if let Some(undo_state) = apply_move(&mut state.board, &m) {
                         state.undo_stack.push(undo_state);
@@ -350,7 +492,7 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
             match Board::from_fen(&fen) {
                 Ok(new_board) => {
                     state.board = new_board;
-                    if let Some(MovesSubcommand::Moves { moves }) = moves {
+                    if let Some(MoveSuffixCommand { moves }) = moves {
                         for m in moves {
                             if let Some(undo_state) = apply_move(&mut state.board, &m) {
                                 state.undo_stack.push(undo_state);
@@ -438,8 +580,8 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
         }
     }
 }
-fn repl_handle_print(state: &mut ReplState, cmd: Option<PrintSubcommand>) {
-    if let Some(PrintSubcommand::Always { enable }) = cmd {
+fn repl_handle_print(state: &mut ReplState, cmd: PrintCommand) {
+    if let Some(enable) = cmd.always {
         state.always_print = enable;
     }
     if !state.always_print {
@@ -461,11 +603,14 @@ fn repl_handle_undo(state: &mut ReplState) {
     }
 }
 
-fn repl_handle_play(state: &mut ReplState, move_: String) {
-    if let Some(undo_state) = apply_move(&mut state.board, &move_) {
+fn repl_handle_play(state: &mut ReplState, cmd: PlayCommand) {
+    if let Some(undo_state) = apply_move(&mut state.board, &cmd.move_) {
         state.undo_stack.push(undo_state);
     } else {
-        println!("The move {move_} isn't possible in the current position.");
+        println!(
+            "The move {} isn't possible in the current position.",
+            cmd.move_
+        );
     }
 }
 fn repl_handle_uci(state: &mut ReplState) {
@@ -483,15 +628,15 @@ fn repl_handle_ucinewgame(state: &mut ReplState) {
 fn repl_handle_isready(_state: &mut ReplState) {
     println!("readyok");
 }
-fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
-    let piece = match subcmd {
-        MagicSubcommand::Rook => Piece::Rook,
-        MagicSubcommand::Bishop => Piece::Bishop,
+fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
+    let piece = match cmd.type_ {
+        MagicType::Rook => Piece::Rook,
+        MagicType::Bishop => Piece::Bishop,
     };
 
-    let starting_values = match subcmd {
-        MagicSubcommand::Rook => &ROOK_MAGIC_VALUES,
-        MagicSubcommand::Bishop => &BISHOP_MAGIC_VALUES,
+    let starting_values = match cmd.type_ {
+        MagicType::Rook => &ROOK_MAGIC_VALUES,
+        MagicType::Bishop => &BISHOP_MAGIC_VALUES,
     };
 
     let spawn_attempt = state
@@ -581,7 +726,7 @@ fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
                                 .map(|(magic, _max_entries)| magic.bits_used)
                                 .max()
                                 .unwrap_or_default(),
-                            magic_type: subcmd,
+                            magic_type: cmd.type_,
                             values: best_magic
                                 .iter()
                                 .map(|x| x.map(|x| x.0.magic).unwrap_or_default())
@@ -608,7 +753,7 @@ fn repl_handle_magic(state: &mut ReplState, subcmd: MagicSubcommand) {
     }
 }
 
-fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
+fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
     // clone the board so we don't have to restore it
     let board_clone = state.board;
 
@@ -619,7 +764,7 @@ fn repl_handle_bisect(state: &mut ReplState, depth: u32) {
             let fen = board.to_fen();
             let mut move_stack = vec![];
 
-            'next_depth: for depth in (1..=depth).rev() {
+            'next_depth: for depth in (1..=cmd.depth).rev() {
                 let movegen = MoveGenerator::<true>::with_attacks(&mut board);
                 let moves = movegen.generate_all_moves(&board);
 
@@ -835,8 +980,8 @@ fn output_thread_task(
                 values,
             }))) => {
                 let magic_name = match magic_type {
-                    MagicSubcommand::Rook => "rook",
-                    MagicSubcommand::Bishop => "bishop",
+                    MagicType::Rook => "rook",
+                    MagicType::Bishop => "bishop",
                 };
                 writeln!(writer, "Magic {magic_name} values improved!").unwrap();
                 writeln!(writer, "packed: {}kB", packed_size / 1024).unwrap();
