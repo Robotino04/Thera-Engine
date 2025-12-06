@@ -18,7 +18,8 @@ use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
-use thera::piece::{Piece, Square};
+use thera::piece::{Move, Piece, Square};
+use thera::search::{DepthSummary, RootSearchExit, SearchOptions, SearchStats, search_root};
 use thera::{self, board::Board, move_generator::MoveGenerator};
 
 fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<PerftMove> {
@@ -96,12 +97,23 @@ struct MagicImprovement {
     min_bits: u32,
 }
 
+struct SearchFinished {
+    best_move: Move,
+}
+
+enum SearchFailed {
+    NoMoves,
+}
+
 #[allow(clippy::large_enum_variant)]
 enum TaskOutput {
     Perft(PerftStatistics, Duration),
     PerftNostat(u64, Duration),
     BisectStep(BisectStep),
     MagicImprovement(MagicImprovement),
+    SearchFinished(SearchFinished),
+    SearchFailed(SearchFailed),
+    DepthFinished(DepthSummary),
 }
 
 type BackgroundTask =
@@ -276,6 +288,95 @@ impl ReplCommand for MagicCommand {
         })
     }
 }
+struct GoCommand {
+    search_options: SearchOptions,
+}
+impl ReplCommand for GoCommand {
+    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+        let mut search_options = SearchOptions {
+            depth: None,
+            movetime: None,
+            wtime: None,
+            btime: None,
+            winc: None,
+            binc: None,
+        };
+        while let Some(token) = tokens.next() {
+            match token {
+                "depth" => {
+                    search_options.depth = Some(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("depth", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("depth", "Not an integer", "go command")
+                            })?,
+                    )
+                }
+                "movetime" => {
+                    search_options.movetime = Some(Duration::from_millis(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("movetime", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("movetime", "Not an integer", "go command")
+                            })?,
+                    ))
+                }
+                "wtime" => {
+                    search_options.wtime = Some(Duration::from_millis(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("wtime", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("wtime", "Not an integer", "go command")
+                            })?,
+                    ))
+                }
+                "btime" => {
+                    search_options.btime = Some(Duration::from_millis(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("btime", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("btime", "Not an integer", "go command")
+                            })?,
+                    ))
+                }
+                "winc" => {
+                    search_options.winc = Some(Duration::from_millis(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("winc", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("winc", "Not an integer", "go command")
+                            })?,
+                    ))
+                }
+                "binc" => {
+                    search_options.binc = Some(Duration::from_millis(
+                        tokens
+                            .next()
+                            .ok_or_else(|| missing_argument_text("binc", "go command"))?
+                            .parse()
+                            .map_err(|_| {
+                                invalid_argument_text("binc", "Not an integer", "go command")
+                            })?,
+                    ))
+                }
+
+                other => return Err(unknown_argument_text(other, "go command")),
+            }
+        }
+
+        Ok(Self { search_options })
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum MagicType {
@@ -358,6 +459,8 @@ enum TopLevelCommand {
     IsReady,
     /// Generates magic bitboards forever
     Magic(MagicCommand),
+    /// Start searching for the best move
+    Go(GoCommand),
 }
 
 impl ReplCommand for TopLevelCommand {
@@ -376,6 +479,7 @@ impl ReplCommand for TopLevelCommand {
                 "ucinewgame" => TopLevelCommand::UciNewGame,
                 "isready" => TopLevelCommand::IsReady,
                 "magic" => TopLevelCommand::Magic(MagicCommand::parse(tokens)?),
+                "go" => TopLevelCommand::Go(GoCommand::parse(tokens)?),
                 other => return Err(format!("Invalid command {other}")),
             },
         )
@@ -417,6 +521,9 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         }
         TopLevelCommand::Magic(subcmd) => {
             repl_handle_magic(state, subcmd);
+        }
+        TopLevelCommand::Go(subcmd) => {
+            repl_handle_go(state, subcmd);
         }
         TopLevelCommand::Quit => return Ok(true),
     }
@@ -832,6 +939,42 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
         }
     }
 }
+fn repl_handle_go(state: &mut ReplState, cmd: GoCommand) {
+    let mut board_clone = state.board.clone();
+
+    let spawn_attempt =
+        state.work_queue.try_send(Box::new(
+            move |cancel_flag, result_sender| match search_root(
+                &mut board_clone,
+                cmd.search_options,
+                |summary| {
+                    result_sender
+                        .send(Some(TaskOutput::DepthFinished(summary)))
+                        .unwrap();
+                },
+                || cancel_flag.load(Ordering::Relaxed),
+            ) {
+                Ok(best_move) => Some(TaskOutput::SearchFinished(SearchFinished { best_move })),
+                Err(RootSearchExit::NoMove) => {
+                    Some(TaskOutput::SearchFailed(SearchFailed::NoMoves))
+                }
+            },
+        ));
+
+    match spawn_attempt {
+        Ok(()) => {
+            if !state.is_uci.load(Ordering::Relaxed) {
+                println!("Started search.");
+            }
+        }
+        Err(mpsc::TrySendError::Full(_)) => {
+            println!("A task is already running. Not starting search.");
+        }
+        Err(mpsc::TrySendError::Disconnected(_)) => {
+            println!("The task thread died.");
+        }
+    }
+}
 
 struct ExternalPrinterWriter<P: ExternalPrinter + Send> {
     printer: P,
@@ -988,6 +1131,37 @@ fn output_thread_task(
                 writeln!(writer, "padded: {}kB", padded_size / 1024).unwrap();
                 writeln!(writer, "min_bits: {min_bits}, max_bits: {max_bits}").unwrap();
                 writeln!(writer, "{values:?}").unwrap();
+            }
+            Ok(Some(TaskOutput::SearchFinished(SearchFinished { best_move }))) => {
+                writeln!(writer, "bestmove {best_move}").unwrap();
+            }
+            Ok(Some(TaskOutput::SearchFailed(fail_reason))) => {
+                writeln!(
+                    writer,
+                    "Search failed: {}",
+                    match fail_reason {
+                        SearchFailed::NoMoves => "No legal moves found",
+                    }
+                )
+                .unwrap();
+            }
+            Ok(Some(TaskOutput::DepthFinished(DepthSummary {
+                best_move,
+                eval,
+                depth,
+                time_taken,
+                stats: SearchStats { nodes_searched },
+            }))) => {
+                let time_taken_ms = time_taken.as_millis();
+                let nps = nodes_searched as f64 / time_taken.as_secs_f64();
+
+                let eval = eval.to_uci();
+
+                writeln!(
+                    writer,
+                    "info depth {depth} score {eval} nodes {nodes_searched} nps {nps:.0} time {time_taken_ms} pv {best_move}",
+                )
+                .unwrap();
             }
             Ok(None) => {
                 writeln!(writer, "{prefix}Task was interrupted.").unwrap();

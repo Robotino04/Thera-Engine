@@ -366,6 +366,9 @@ impl Board {
 
     #[must_use]
     pub fn make_move(&mut self, m: Move) -> MoveUndoState {
+    pub fn is_draw_50(&self) -> bool {
+        self.halfmove_clock >= 100
+    }
         let undo_state = MoveUndoState {
             move_: m,
             can_castle: self.can_castle,
@@ -373,6 +376,11 @@ impl Board {
             halfmove_clock: self.halfmove_clock,
             fullmove_counter: self.fullmove_counter,
         };
+
+        self.halfmove_clock += 1;
+        if (self.color_to_move() == Color::Black) {
+            self.fullmove_counter += 1;
+        }
 
         match m {
             Move::Normal {
@@ -392,6 +400,10 @@ impl Board {
 
                 self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
+
+                if captured_piece.is_some() || moved_piece == Piece::Pawn {
+                    self.halfmove_clock = 0;
+                }
             }
             Move::DoublePawn {
                 from_square,
@@ -408,6 +420,7 @@ impl Board {
                     )
                     .unwrap(),
                 );
+                self.halfmove_clock = 0;
             }
             Move::EnPassant {
                 from_square,
@@ -427,6 +440,7 @@ impl Board {
                 self.pieces[Piece::Pawn as usize] ^= captured_pawn;
 
                 self.enpassant_square = Bitboard(0);
+                self.halfmove_clock = 0;
             }
             Move::Promotion {
                 from_square,
@@ -447,6 +461,7 @@ impl Board {
 
                 self.can_castle &= !to_square & !from_square;
                 self.enpassant_square = Bitboard(0);
+                self.halfmove_clock = 0;
             }
             Move::Castle {
                 from_square,

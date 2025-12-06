@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use itertools::Itertools;
 
 use crate::bitboard::Bitboard;
@@ -249,6 +251,12 @@ pub enum Move {
         promotion_piece: Piece,
         captured_piece: Option<Piece>,
     },
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_algebraic())
+    }
 }
 
 impl Move {
