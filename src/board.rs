@@ -6,7 +6,7 @@ use crate::{
     piece::{Color, Direction, Move, Piece, Square},
 };
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Board {
     pieces: [Bitboard; 6],
     colors: [Bitboard; 2],
@@ -15,10 +15,11 @@ pub struct Board {
     enpassant_square: Bitboard,
     halfmove_clock: u32,
     fullmove_counter: u32,
+    undo_data: Vec<MoveUndoState>,
 }
 
-#[derive(Debug)]
-pub struct MoveUndoState {
+#[derive(Debug, Copy, Clone)]
+struct MoveUndoState {
     move_: Move,
     can_castle: Bitboard,
     enpassant_square: Bitboard,
@@ -26,11 +27,9 @@ pub struct MoveUndoState {
     fullmove_counter: u32,
 }
 
-impl MoveUndoState {
-    pub fn move_(&self) -> Move {
-        self.move_
-    }
-}
+#[derive(Debug)]
+#[must_use = "You should always undo your moves"]
+pub struct UndoToken(());
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FenParseError {
@@ -186,6 +185,7 @@ impl Board {
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
+            undo_data: Vec::new(),
         })
     }
 
@@ -364,11 +364,10 @@ impl Board {
             .find(|&color| self.colors[color as usize].at(index))
     }
 
-    #[must_use]
-    pub fn make_move(&mut self, m: Move) -> MoveUndoState {
     pub fn is_draw_50(&self) -> bool {
         self.halfmove_clock >= 100
     }
+    pub fn make_move(&mut self, m: Move) -> UndoToken {
         let undo_state = MoveUndoState {
             move_: m,
             can_castle: self.can_castle,
@@ -378,7 +377,7 @@ impl Board {
         };
 
         self.halfmove_clock += 1;
-        if (self.color_to_move() == Color::Black) {
+        if self.color_to_move() == Color::Black {
             self.fullmove_counter += 1;
         }
 
@@ -483,10 +482,12 @@ impl Board {
         }
         self.color_to_move = self.color_to_move.opposite();
 
-        undo_state
+        self.undo_data.push(undo_state);
+
+        UndoToken(())
     }
 
-    pub fn undo_move(&mut self, undo_data: MoveUndoState) {
+    pub fn undo_move(&mut self, _token: UndoToken) -> Move {
         self.color_to_move = self.color_to_move.opposite();
 
         let MoveUndoState {
@@ -495,7 +496,7 @@ impl Board {
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
-        } = undo_data;
+        } = self.undo_data.pop().unwrap();
 
         self.can_castle = can_castle;
         self.enpassant_square = enpassant_square;
@@ -576,6 +577,8 @@ impl Board {
                 self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
             }
         }
+
+        move_
     }
 
     pub fn pawns(&self, color: Color) -> Bitboard {

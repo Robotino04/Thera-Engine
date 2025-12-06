@@ -13,7 +13,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
 use thera::bitboard::Bitboard;
-use thera::board::{FenParseError, MoveUndoState};
+use thera::board::{FenParseError, UndoToken};
 use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
@@ -121,7 +121,7 @@ type BackgroundTask =
 
 struct ReplState {
     board: Board,
-    undo_stack: Vec<MoveUndoState>,
+    undo_stack: Vec<UndoToken>,
 
     always_print: bool,
     is_uci: Arc<AtomicBool>,
@@ -535,7 +535,7 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
     Ok(false)
 }
 
-fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<MoveUndoState> {
+fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<UndoToken> {
     let possible_moves = MoveGenerator::<true>::with_attacks(board).generate_all_moves(board);
 
     possible_moves
@@ -545,7 +545,7 @@ fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<MoveUndoState> 
 }
 
 fn repl_handle_perft(state: &mut ReplState, cmd: PerftCommand) {
-    let mut board_copy = state.board;
+    let mut board_copy = state.board.clone();
     let spawn_attempt = if cmd.nostat {
         state.work_queue.try_send(Box::new(move |cancel_flag, _| {
             let start = Instant::now();
@@ -702,8 +702,7 @@ fn repl_handle_stop(state: &mut ReplState) {
 
 fn repl_handle_undo(state: &mut ReplState) {
     if let Some(undo_state) = state.undo_stack.pop() {
-        let m = undo_state.move_();
-        state.board.undo_move(undo_state);
+        let m = state.board.undo_move(undo_state);
         println!("Undid move {}", m.to_algebraic())
     } else {
         println!("There are no moves on the stack.")
@@ -862,7 +861,7 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
 
 fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
     // clone the board so we don't have to restore it
-    let board_clone = state.board;
+    let board_clone = state.board.clone();
 
     let spawn_attempt = state
         .work_queue
@@ -894,7 +893,7 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
                                     thera_count: m.nodes,
                                     stockfish_count: equiv.nodes,
                                     move_: m.algebraic_move.clone(),
-                                    board,
+                                    board: board.clone(),
                                 })))
                                 .unwrap();
 

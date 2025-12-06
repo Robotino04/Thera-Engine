@@ -7,7 +7,9 @@ use crate::{
 
 #[derive(Debug)]
 pub struct MoveGenerator<const ALL_MOVES: bool> {
+    #[expect(dead_code)]
     attacks_from_square: [Bitboard; 64],
+    #[expect(dead_code)]
     attacks_to_square: [Bitboard; 64],
     /// NOTE: this does not consider the king as a blocker for sliding pieces.
     /// That's a good thing for king move generation, but maybe not expected for other uses
