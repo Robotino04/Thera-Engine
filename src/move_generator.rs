@@ -69,7 +69,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
     };
 
     pub fn with_attacks(board: &mut Board) -> Self {
-        board.make_null_move();
+        let undo = board.make_null_move();
 
         let mut attacks_from_square = [Bitboard(0); 64];
 
@@ -80,7 +80,7 @@ impl<const ALL_MOVES: bool> MoveGenerator<ALL_MOVES> {
         Self::generate_queen_attacks(board, &mut attacks_from_square);
         Self::generate_pawn_attacks(board, &mut attacks_from_square);
 
-        board.undo_null_move();
+        board.undo_null_move(undo);
 
         let mut attacks_to_square = [Bitboard(0); 64];
         let mut attacked_squares = Bitboard(0);

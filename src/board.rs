@@ -31,6 +31,10 @@ struct MoveUndoState {
 #[must_use = "You should always undo your moves"]
 pub struct UndoToken(());
 
+#[derive(Debug)]
+#[must_use = "You should always undo your moves"]
+pub struct NullUndoToken(());
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum FenParseError {
     WrongPartCount,
@@ -617,10 +621,11 @@ impl Board {
         self.color_to_move
     }
 
-    pub fn make_null_move(&mut self) {
+    pub fn make_null_move(&mut self) -> NullUndoToken {
         self.color_to_move = self.color_to_move.opposite();
+        NullUndoToken(())
     }
-    pub fn undo_null_move(&mut self) {
+    pub fn undo_null_move(&mut self, _token: NullUndoToken) {
         self.color_to_move = self.color_to_move.opposite();
     }
 
