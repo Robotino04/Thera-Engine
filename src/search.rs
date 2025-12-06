@@ -195,12 +195,12 @@ fn search(
 
     stats.nodes_searched += 1;
 
-    if depth_left == 0 {
-        return Ok(static_eval(board));
+    if board.is_draw_50() | board.is_draw_repetition() {
+        return Ok(Evaluation::DRAW);
     }
 
-    if board.is_draw_50() {
-        return Ok(Evaluation::DRAW);
+    if depth_left == 0 {
+        return Ok(static_eval(board));
     }
 
     let movegen = MoveGenerator::<true>::with_attacks(board);

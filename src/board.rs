@@ -1,4 +1,7 @@
+use std::sync::LazyLock;
+
 use itertools::Itertools;
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{
     ansi::Ansi,
@@ -15,6 +18,7 @@ pub struct Board {
     enpassant_square: Bitboard,
     halfmove_clock: u32,
     fullmove_counter: u32,
+    zobrist_hash: u64,
     undo_data: Vec<MoveUndoState>,
 }
 
@@ -25,6 +29,7 @@ struct MoveUndoState {
     enpassant_square: Bitboard,
     halfmove_clock: u32,
     fullmove_counter: u32,
+    zobrist_hash: u64,
 }
 
 #[derive(Debug)]
@@ -48,10 +53,47 @@ pub enum FenParseError {
     InvalidFullMoveCounter,
 }
 
+struct ZobristKeys {
+    pieces: [[[u64; 64]; 2]; 7],
+    castling: [[u64; 2]; 2], // first index by color, then piece
+    en_passant: [u64; 8],
+    black: u64,
+}
+
+static ZOBRIST_KEYS: LazyLock<ZobristKeys> = LazyLock::new(|| {
+    let mut rng = StdRng::seed_from_u64(0);
+    ZobristKeys {
+        pieces: rng.random(),
+        castling: rng.random(),
+        en_passant: rng.random(),
+        black: rng.random(),
+    }
+});
+
+impl ZobristKeys {
+    pub fn square(&self, square: Square, color: Color, piece: Piece) -> u64 {
+        self.pieces[piece as usize][color as usize][square as usize]
+    }
+    pub fn king_castling(&self, color: Color) -> u64 {
+        self.castling[color as usize][0]
+    }
+    pub fn queen_castling(&self, color: Color) -> u64 {
+        self.castling[color as usize][0]
+    }
+    pub fn en_passant(&self, square: Square) -> u64 {
+        self.en_passant[square.column() as usize]
+    }
+    pub fn black(&self) -> u64 {
+        self.black
+    }
+}
+
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, FenParseError> {
         let mut pieces = [Bitboard(0); 6];
         let mut colors = [Bitboard(0); 2];
+
+        let mut zobrist_hash = 0u64;
 
         let [
             pieces_str,
@@ -73,12 +115,12 @@ impl Board {
             let mut x = 0;
             for ch in row.chars() {
                 let board = match ch {
-                    'p' | 'P' => Some(&mut pieces[Piece::Pawn as usize]),
-                    'b' | 'B' => Some(&mut pieces[Piece::Bishop as usize]),
-                    'n' | 'N' => Some(&mut pieces[Piece::Knight as usize]),
-                    'r' | 'R' => Some(&mut pieces[Piece::Rook as usize]),
-                    'q' | 'Q' => Some(&mut pieces[Piece::Queen as usize]),
-                    'k' | 'K' => Some(&mut pieces[Piece::King as usize]),
+                    'p' | 'P' => Some(Piece::Pawn),
+                    'b' | 'B' => Some(Piece::Bishop),
+                    'n' | 'N' => Some(Piece::Knight),
+                    'r' | 'R' => Some(Piece::Rook),
+                    'q' | 'Q' => Some(Piece::Queen),
+                    'k' | 'K' => Some(Piece::King),
 
                     '0'..='8' => {
                         x += ch.to_digit(10).unwrap();
@@ -87,15 +129,18 @@ impl Board {
                     _ => return Err(FenParseError::InvalidPiece(ch)),
                 };
 
-                if let Some(board) = board {
+                if let Some(piece) = board {
+                    let board = &mut pieces[piece as usize];
                     let square =
                         Square::from_xy(x, y as u32).ok_or(FenParseError::TooManyPiecesInRow)?;
                     board.set(square);
-                    if ch.is_ascii_lowercase() {
-                        colors[Color::Black as usize].set(square);
+                    let color = if ch.is_ascii_lowercase() {
+                        Color::Black
                     } else {
-                        colors[Color::White as usize].set(square);
-                    }
+                        Color::White
+                    };
+                    colors[color as usize].set(square);
+                    zobrist_hash ^= ZOBRIST_KEYS.square(square, color, piece);
                     x += 1;
                 }
             }
@@ -106,6 +151,12 @@ impl Board {
             "b" => Color::Black,
             c => return Err(FenParseError::InvalidTurnColor(c.chars().next().unwrap())),
         };
+        match color_to_play {
+            Color::White => {}
+            Color::Black => {
+                zobrist_hash ^= ZOBRIST_KEYS.black();
+            }
+        }
 
         let mut can_castle = Bitboard(0);
         if castling_str == "-" {
@@ -122,7 +173,8 @@ impl Board {
                             0b00000000
                             0b00000000
                             0b00000000
-                        )
+                        );
+                        zobrist_hash ^= ZOBRIST_KEYS.queen_castling(Color::Black);
                     }
                     'Q' => {
                         can_castle |= bitboard!(
@@ -134,7 +186,8 @@ impl Board {
                             0b00000000
                             0b00000000
                             0b10001000
-                        )
+                        );
+                        zobrist_hash ^= ZOBRIST_KEYS.queen_castling(Color::White);
                     }
                     'k' => {
                         can_castle |= bitboard!(
@@ -146,7 +199,8 @@ impl Board {
                             0b00000000
                             0b00000000
                             0b00000000
-                        )
+                        );
+                        zobrist_hash ^= ZOBRIST_KEYS.king_castling(Color::Black);
                     }
                     'K' => {
                         can_castle |= bitboard!(
@@ -158,7 +212,8 @@ impl Board {
                             0b00000000
                             0b00000000
                             0b00001001
-                        )
+                        );
+                        zobrist_hash ^= ZOBRIST_KEYS.king_castling(Color::White);
                     }
                     _ => return Err(FenParseError::InvalidCastlingRight(ch)),
                 }
@@ -168,10 +223,10 @@ impl Board {
         let enpassant_square = if enpassant_str == "-" {
             Bitboard(0)
         } else {
-            Bitboard::from_square(
-                Square::from_algebraic(enpassant_str)
-                    .ok_or(FenParseError::InvalidEnpassantSquare)?,
-            )
+            let square = Square::from_algebraic(enpassant_str)
+                .ok_or(FenParseError::InvalidEnpassantSquare)?;
+            zobrist_hash ^= ZOBRIST_KEYS.en_passant(square);
+            Bitboard::from_square(square)
         };
 
         let halfmove_clock = halfmove_str
@@ -189,6 +244,7 @@ impl Board {
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
+            zobrist_hash,
             undo_data: Vec::new(),
         })
     }
@@ -371,6 +427,37 @@ impl Board {
     pub fn is_draw_50(&self) -> bool {
         self.halfmove_clock >= 100
     }
+    pub fn is_draw_repetition(&self) -> bool {
+        // the current position is one repetition
+        // and this indicates that we found a second one
+        let mut already_found = false;
+
+        for undo_data in &self.undo_data {
+            // stop searching if we made an irreversible move
+            match undo_data.move_ {
+                Move::Normal { captured_piece, .. } => {
+                    if captured_piece.is_some() {
+                        break;
+                    }
+                }
+                Move::DoublePawn { .. }
+                | Move::EnPassant { .. }
+                | Move::Castle { .. }
+                | Move::Promotion { .. } => break,
+            }
+            if self.zobrist_hash == undo_data.zobrist_hash {
+                if already_found {
+                    // we found a third repetition
+                    return true;
+                } else {
+                    already_found = true;
+                }
+            }
+        }
+
+        false
+    }
+
     pub fn make_move(&mut self, m: Move) -> UndoToken {
         let undo_state = MoveUndoState {
             move_: m,
@@ -378,6 +465,7 @@ impl Board {
             enpassant_square: self.enpassant_square,
             halfmove_clock: self.halfmove_clock,
             fullmove_counter: self.fullmove_counter,
+            zobrist_hash: self.zobrist_hash,
         };
 
         self.halfmove_clock += 1;
@@ -395,14 +483,31 @@ impl Board {
                 if let Some(captured_piece) = captured_piece {
                     self.colors[self.color_to_move().opposite() as usize] ^= to_square;
                     self.pieces[captured_piece as usize] ^= to_square;
+                    self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                        to_square.first_piece_square().unwrap(),
+                        self.color_to_move().opposite(),
+                        captured_piece,
+                    );
                 }
 
                 // toggle piece into place
                 self.colors[self.color_to_move() as usize] ^= to_square | from_square;
                 self.pieces[moved_piece as usize] ^= to_square | from_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    moved_piece,
+                ) ^ ZOBRIST_KEYS.square(
+                    from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    moved_piece,
+                );
 
+                self.disable_ep();
+
+                self.toggle_castling_hashes();
                 self.can_castle &= !to_square & !from_square;
-                self.enpassant_square = Bitboard(0);
+                self.toggle_castling_hashes();
 
                 if captured_piece.is_some() || moved_piece == Piece::Pawn {
                     self.halfmove_clock = 0;
@@ -414,15 +519,26 @@ impl Board {
             } => {
                 self.colors[self.color_to_move() as usize] ^= from_square | to_square;
                 self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
-
-                self.enpassant_square = Bitboard::from_square(
-                    Square::new(
-                        (from_square.first_piece_index().unwrap() as u8
-                            + to_square.first_piece_index().unwrap() as u8)
-                            / 2,
-                    )
-                    .unwrap(),
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Pawn,
+                ) ^ ZOBRIST_KEYS.square(
+                    from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Pawn,
                 );
+
+                self.disable_ep();
+                let new_ep_square = Square::new(
+                    (from_square.first_piece_index().unwrap() as u8
+                        + to_square.first_piece_index().unwrap() as u8)
+                        / 2,
+                )
+                .unwrap();
+                self.enpassant_square = Bitboard::from_square(new_ep_square);
+                self.zobrist_hash ^= ZOBRIST_KEYS.en_passant(new_ep_square);
+
                 self.halfmove_clock = 0;
             }
             Move::EnPassant {
@@ -437,12 +553,30 @@ impl Board {
                 // toggle pawn to new place
                 self.colors[self.color_to_move() as usize] ^= from_square | to_square;
                 self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Pawn,
+                ) ^ ZOBRIST_KEYS.square(
+                    to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Pawn,
+                );
 
                 // remove the opponent pawn
                 self.colors[self.color_to_move().opposite() as usize] ^= captured_pawn;
                 self.pieces[Piece::Pawn as usize] ^= captured_pawn;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    captured_pawn.first_piece_square().unwrap(),
+                    self.color_to_move().opposite(),
+                    Piece::Pawn,
+                );
 
+                // done manually because we know ep is set
+                self.zobrist_hash ^=
+                    ZOBRIST_KEYS.en_passant(self.enpassant_square.first_piece_square().unwrap());
                 self.enpassant_square = Bitboard(0);
+
                 self.halfmove_clock = 0;
             }
             Move::Promotion {
@@ -454,16 +588,35 @@ impl Board {
                 if let Some(captured_piece) = captured_piece {
                     self.colors[self.color_to_move().opposite() as usize] ^= to_square;
                     self.pieces[captured_piece as usize] ^= to_square;
+                    self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                        to_square.first_piece_square().unwrap(),
+                        self.color_to_move().opposite(),
+                        captured_piece,
+                    );
                 }
 
                 self.pieces[Piece::Pawn as usize] ^= from_square;
                 self.colors[self.color_to_move() as usize] ^= from_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Pawn,
+                );
 
                 self.pieces[promotion_piece as usize] ^= to_square;
                 self.colors[self.color_to_move() as usize] ^= to_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    promotion_piece,
+                );
 
+                self.disable_ep();
+
+                self.toggle_castling_hashes();
                 self.can_castle &= !to_square & !from_square;
-                self.enpassant_square = Bitboard(0);
+                self.toggle_castling_hashes();
+
                 self.halfmove_clock = 0;
             }
             Move::Castle {
@@ -475,20 +628,65 @@ impl Board {
                 // toggle king into place
                 self.pieces[Piece::King as usize] ^= from_square | to_square;
                 self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::King,
+                ) ^ ZOBRIST_KEYS.square(
+                    to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::King,
+                );
 
                 // toggle rook into place
                 self.pieces[Piece::Rook as usize] ^= rook_from_square | rook_to_square;
                 self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
+                self.zobrist_hash ^= ZOBRIST_KEYS.square(
+                    rook_from_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Rook,
+                ) ^ ZOBRIST_KEYS.square(
+                    rook_to_square.first_piece_square().unwrap(),
+                    self.color_to_move(),
+                    Piece::Rook,
+                );
 
+                self.disable_ep();
+
+                self.toggle_castling_hashes();
                 self.can_castle &= !to_square & !from_square;
-                self.enpassant_square = Bitboard(0);
+                self.toggle_castling_hashes();
             }
         }
         self.color_to_move = self.color_to_move.opposite();
+        self.zobrist_hash ^= ZOBRIST_KEYS.black();
 
         self.undo_data.push(undo_state);
 
         UndoToken(())
+    }
+
+    fn toggle_castling_hashes(&mut self) {
+        if self.can_castle_kingside(Color::White) {
+            self.zobrist_hash ^= ZOBRIST_KEYS.king_castling(Color::White)
+        }
+        if self.can_castle_kingside(Color::Black) {
+            self.zobrist_hash ^= ZOBRIST_KEYS.king_castling(Color::Black)
+        }
+        if self.can_castle_queenside(Color::White) {
+            self.zobrist_hash ^= ZOBRIST_KEYS.queen_castling(Color::White)
+        }
+        if self.can_castle_queenside(Color::Black) {
+            self.zobrist_hash ^= ZOBRIST_KEYS.queen_castling(Color::Black)
+        }
+    }
+
+    fn disable_ep(&mut self) {
+        if !self.enpassant_square().is_empty() {
+            self.zobrist_hash ^=
+                ZOBRIST_KEYS.en_passant(self.enpassant_square.first_piece_square().unwrap());
+        }
+        self.enpassant_square = Bitboard(0);
     }
 
     pub fn undo_move(&mut self, _token: UndoToken) -> Move {
@@ -500,12 +698,14 @@ impl Board {
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
+            zobrist_hash,
         } = self.undo_data.pop().unwrap();
 
         self.can_castle = can_castle;
         self.enpassant_square = enpassant_square;
         self.halfmove_clock = halfmove_clock;
         self.fullmove_counter = fullmove_counter;
+        self.zobrist_hash = zobrist_hash;
 
         // NOTE: xor doesn't care about the order of toggling bits. So this code is mostly kept
         // identical to make_move
