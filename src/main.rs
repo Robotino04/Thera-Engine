@@ -1,11 +1,12 @@
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, stdin, stdout};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, RecvError, SyncSender};
-use std::sync::{Arc, mpsc};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use atty::Stream;
+use crossbeam::channel::{Receiver, Sender, bounded, unbounded};
+use indent::{indent_all_with, indent_with};
 use itertools::Itertools;
 
 use rand::Rng;
@@ -21,6 +22,8 @@ use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
 use thera::piece::{Move, Piece, Square};
 use thera::search::{DepthSummary, RootSearchExit, SearchOptions, SearchStats, search_root};
 use thera::{self, board::Board, move_generator::MoveGenerator};
+use time::Duration;
+use time::ext::InstantExt;
 
 fn perft_stockfish(fen: &str, depth: u32, preapplied_moves: &[String]) -> Vec<PerftMove> {
     use std::io::Write;
@@ -105,19 +108,42 @@ enum SearchFailed {
     NoMoves,
 }
 
+struct Identification {
+    name: String,
+    author: String,
+}
+
 #[allow(clippy::large_enum_variant)]
 enum TaskOutput {
     Perft(PerftStatistics, Duration),
     PerftNostat(u64, Duration),
     BisectStep(BisectStep),
     MagicImprovement(MagicImprovement),
+
     SearchFinished(SearchFinished),
     SearchFailed(SearchFailed),
     DepthFinished(DepthSummary),
+
+    TaskStart(String),
+    TaskStartFailure(String),
+    TaskThreadDead,
+    Error(String),
+
+    FenImpossibleMove(String),
+    FenParseError(FenParseError),
+
+    PlayImpossibleMove(String),
+
+    UndidMove(Move),
+    UndoMoveFailed,
+    PrintBoard(Board, Option<Bitboard>),
+
+    ReadyOk,
+    Identify(Identification),
 }
 
 type BackgroundTask =
-    Box<dyn FnOnce(&AtomicBool, &SyncSender<Option<TaskOutput>>) -> Option<TaskOutput> + Send>;
+    Box<dyn FnOnce(&AtomicBool, &Sender<Option<TaskOutput>>) -> Option<TaskOutput> + Send>;
 
 struct ReplState {
     board: Board,
@@ -127,7 +153,8 @@ struct ReplState {
     is_uci: Arc<AtomicBool>,
 
     cancel_flag: Arc<AtomicBool>,
-    work_queue: SyncSender<BackgroundTask>,
+    work_queue: Sender<BackgroundTask>,
+    output_queue: Sender<Option<TaskOutput>>,
 }
 
 trait ReplCommand {
@@ -142,6 +169,8 @@ struct PerftCommand {
     /// don't collect statistics in this perft invocation
     nostat: bool,
 }
+
+const WORKER_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(50);
 
 fn missing_subcommand_text(locator: &(impl AsRef<str> + ?Sized)) -> String {
     format!("Missing subcommand in {}", locator.as_ref())
@@ -315,7 +344,7 @@ impl ReplCommand for GoCommand {
                     )
                 }
                 "movetime" => {
-                    search_options.movetime = Some(Duration::from_millis(
+                    search_options.movetime = Some(Duration::milliseconds(
                         tokens
                             .next()
                             .ok_or_else(|| missing_argument_text("movetime", "go command"))?
@@ -326,7 +355,7 @@ impl ReplCommand for GoCommand {
                     ))
                 }
                 "wtime" => {
-                    search_options.wtime = Some(Duration::from_millis(
+                    search_options.wtime = Some(Duration::milliseconds(
                         tokens
                             .next()
                             .ok_or_else(|| missing_argument_text("wtime", "go command"))?
@@ -337,7 +366,7 @@ impl ReplCommand for GoCommand {
                     ))
                 }
                 "btime" => {
-                    search_options.btime = Some(Duration::from_millis(
+                    search_options.btime = Some(Duration::milliseconds(
                         tokens
                             .next()
                             .ok_or_else(|| missing_argument_text("btime", "go command"))?
@@ -348,7 +377,7 @@ impl ReplCommand for GoCommand {
                     ))
                 }
                 "winc" => {
-                    search_options.winc = Some(Duration::from_millis(
+                    search_options.winc = Some(Duration::milliseconds(
                         tokens
                             .next()
                             .ok_or_else(|| missing_argument_text("winc", "go command"))?
@@ -359,7 +388,7 @@ impl ReplCommand for GoCommand {
                     ))
                 }
                 "binc" => {
-                    search_options.binc = Some(Duration::from_millis(
+                    search_options.binc = Some(Duration::milliseconds(
                         tokens
                             .next()
                             .ok_or_else(|| missing_argument_text("binc", "go command"))?
@@ -529,7 +558,10 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
     }
 
     if state.always_print {
-        println!("{}", state.board.dump_ansi(None));
+        state
+            .output_queue
+            .send(Some(TaskOutput::PrintBoard(state.board.clone(), None)))
+            .unwrap();
     }
 
     Ok(false)
@@ -544,37 +576,55 @@ fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<UndoToken> {
         .map(|found_move| board.make_move(found_move))
 }
 
-fn repl_handle_perft(state: &mut ReplState, cmd: PerftCommand) {
-    let mut board_copy = state.board.clone();
-    let spawn_attempt = if cmd.nostat {
-        state.work_queue.try_send(Box::new(move |cancel_flag, _| {
-            let start = Instant::now();
-            perft_nostats(&mut board_copy, cmd.depth, &|| {
-                cancel_flag.load(Ordering::Relaxed)
-            })
-            .map(|node_count| TaskOutput::PerftNostat(node_count, Instant::now() - start))
-        }))
-    } else {
-        state.work_queue.try_send(Box::new(move |cancel_flag, _| {
-            let start = Instant::now();
-            perft(&mut board_copy, cmd.depth, &|| {
-                cancel_flag.load(Ordering::Relaxed)
-            })
-            .map(|stats| TaskOutput::Perft(stats, Instant::now() - start))
-        }))
-    };
+fn start_task(
+    state: &mut ReplState,
+    name: String,
+    task: impl FnOnce(&AtomicBool, &Sender<Option<TaskOutput>>) -> Option<TaskOutput> + Send + 'static,
+) {
+    let spawn_attempt = state
+        .work_queue
+        .send_timeout(Box::new(task), WORKER_SEND_TIMEOUT);
 
     match spawn_attempt {
         Ok(()) => {
-            println!("Started perft.");
+            state
+                .output_queue
+                .send(Some(TaskOutput::TaskStart(name)))
+                .unwrap();
         }
-        Err(mpsc::TrySendError::Full(_)) => {
-            println!("A task is already running. Not starting perft.");
+        Err(crossbeam::channel::SendTimeoutError::Timeout(_)) => {
+            state
+                .output_queue
+                .send(Some(TaskOutput::TaskStartFailure(name)))
+                .unwrap();
         }
-        Err(mpsc::TrySendError::Disconnected(_)) => {
-            println!("The task thread died.");
+        Err(crossbeam::channel::SendTimeoutError::Disconnected(_)) => {
+            state
+                .output_queue
+                .send(Some(TaskOutput::TaskThreadDead))
+                .unwrap();
         }
     }
+}
+
+fn repl_handle_perft(state: &mut ReplState, cmd: PerftCommand) {
+    let mut board_copy = state.board.clone();
+    start_task(state, "perft".to_string(), move |cancel_flag, _| {
+        let start = Instant::now();
+        if cmd.nostat {
+            perft_nostats(&mut board_copy, cmd.depth, &|| {
+                cancel_flag.load(Ordering::Relaxed)
+            })
+            .map(|nodes| {
+                TaskOutput::PerftNostat(nodes, Instant::now().signed_duration_since(start))
+            })
+        } else {
+            perft(&mut board_copy, cmd.depth, &|| {
+                cancel_flag.load(Ordering::Relaxed)
+            })
+            .map(|stats| TaskOutput::Perft(stats, Instant::now().signed_duration_since(start)))
+        }
+    });
 }
 
 fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
@@ -587,8 +637,10 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
                     if let Some(undo_state) = apply_move(&mut state.board, &m) {
                         state.undo_stack.push(undo_state);
                     } else {
-                        println!("The move {m} isn't possible in the current position.");
-                        println!("Previous moves are still applied and on the stack");
+                        state
+                            .output_queue
+                            .send(Some(TaskOutput::FenImpossibleMove(m)))
+                            .unwrap();
                         break;
                     }
                 }
@@ -604,85 +656,21 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
                             if let Some(undo_state) = apply_move(&mut state.board, &m) {
                                 state.undo_stack.push(undo_state);
                             } else {
-                                println!("The move {m} isn't possible in the current position.");
-                                println!("Previous moves are still applied and on the stack");
+                                state
+                                    .output_queue
+                                    .send(Some(TaskOutput::FenImpossibleMove(m)))
+                                    .unwrap();
                                 break;
                             }
                         }
                     }
                 }
-                Err(err) => match err {
-                    FenParseError::WrongPartCount => {
-                        println!(
-                            "This FEN is missing some components. You always need:\
-                        \n - the pieces\
-                        \n - the color to move (w/b)\
-                        \n - castling rights (any combination of KQkq or - if no one can castle)\
-                        \n - the en passant square (or - if en passant isn't possible)\
-                        \n - the halfmove clock\
-                        \n - the fullmove counter"
-                        );
-                    }
-                    FenParseError::WrongRowCount => {
-                        println!(
-                            "There is an incorrect number of rows in this FEN. \
-                        You always need exactly 8 rows separated slashes."
-                        );
-                    }
-                    FenParseError::InvalidPiece(invalid_piece) => {
-                        println!(
-                            "There is no piece associated with the character '{invalid_piece}'.\
-                        \nThese ones are available:\
-                        \n - P/p: white/black pawn\
-                        \n - B/b: white/black bishop\
-                        \n - N/n: white/black knight\
-                        \n - R/r: white/black rook\
-                        \n - Q/q: white/black queen\
-                        \n - K/k: white/black king"
-                        );
-                    }
-                    FenParseError::TooManyPiecesInRow => {
-                        println!(
-                            "There are too many pieces in this FEN. \
-                        You always need 8 rows separated by slashes. \
-                        Each row must consist of exactly n pieces and spacing numbers adding up to (8 - n)"
-                        );
-                    }
-                    FenParseError::InvalidTurnColor(c) => {
-                        println!(
-                            "There is no turn-color associated with the character '{c}'. Use either w (white) or b (black)."
-                        );
-                    }
-                    FenParseError::InvalidCastlingRight(c) => {
-                        println!(
-                            "There is no castling right associated with the character '{c}'. \
-                        Use any combination of these (or a dash if no one can castle):\
-                        \n - K: White can castle on the kings side (o-o)\
-                        \n - k: Black can castle on the kings side (o-o)\
-                        \n - Q: White can castle on the queens side (o-o-o)\
-                        \n - q: Black can castle on the queens side (o-o-o)"
-                        );
-                    }
-                    FenParseError::InvalidEnpassantSquare => {
-                        println!(
-                            "The en passant square isn't valid. It should either be \
-                        set to the square that the last double pawn move jumped \
-                        over or, if the last move wasn't a pawn, a single dash"
-                        );
-                    }
-                    FenParseError::InvalidHalfMoveClock => {
-                        println!(
-                            "The halfmove clock isn't valid. It should be the number of \
-                        plies since the last pawn move, capture or castling change."
-                        );
-                    }
-                    FenParseError::InvalidFullMoveCounter => {
-                        println!(
-                            "The fullmove counter isn't valid. It should be the number of \
-                        moves since the start of the game."
-                        );
-                    }
-                },
+                Err(err) => {
+                    state
+                        .output_queue
+                        .send(Some(TaskOutput::FenParseError(err)))
+                        .unwrap();
+                }
             }
         }
     }
@@ -692,7 +680,10 @@ fn repl_handle_print(state: &mut ReplState, cmd: PrintCommand) {
         state.always_print = enable;
     }
     if !state.always_print {
-        println!("{}", state.board.dump_ansi(None));
+        state
+            .output_queue
+            .send(Some(TaskOutput::PrintBoard(state.board.clone(), None)))
+            .unwrap();
     }
 }
 
@@ -703,9 +694,15 @@ fn repl_handle_stop(state: &mut ReplState) {
 fn repl_handle_undo(state: &mut ReplState) {
     if let Some(undo_state) = state.undo_stack.pop() {
         let m = state.board.undo_move(undo_state);
-        println!("Undid move {}", m.to_algebraic())
+        state
+            .output_queue
+            .send(Some(TaskOutput::UndidMove(m)))
+            .unwrap();
     } else {
-        println!("There are no moves on the stack.")
+        state
+            .output_queue
+            .send(Some(TaskOutput::UndoMoveFailed))
+            .unwrap();
     }
 }
 
@@ -713,26 +710,30 @@ fn repl_handle_play(state: &mut ReplState, cmd: PlayCommand) {
     if let Some(undo_state) = apply_move(&mut state.board, &cmd.move_) {
         state.undo_stack.push(undo_state);
     } else {
-        println!(
-            "The move {} isn't possible in the current position.",
-            cmd.move_
-        );
+        state
+            .output_queue
+            .send(Some(TaskOutput::PlayImpossibleMove(cmd.move_)))
+            .unwrap();
     }
 }
 fn repl_handle_uci(state: &mut ReplState) {
     state.always_print = false;
     state.is_uci.store(true, Ordering::SeqCst);
 
-    println!("id name Thera v{}", env!("CARGO_PKG_VERSION"));
-    println!("id author Robotino");
-    println!("uciok");
+    state
+        .output_queue
+        .send(Some(TaskOutput::Identify(Identification {
+            name: format!("Thera v{}", env!("CARGO_PKG_VERSION")),
+            author: "Robotino".to_string(),
+        })))
+        .unwrap();
 }
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
     state.undo_stack.clear();
 }
-fn repl_handle_isready(_state: &mut ReplState) {
-    println!("readyok");
+fn repl_handle_isready(state: &mut ReplState) {
+    state.output_queue.send(Some(TaskOutput::ReadyOk)).unwrap();
 }
 fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
     let piece = match cmd.type_ {
@@ -745,9 +746,10 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
         MagicType::Bishop => &BISHOP_MAGIC_VALUES,
     };
 
-    let spawn_attempt = state
-        .work_queue
-        .try_send(Box::new(move |cancel_flag, result_sender| {
+    start_task(
+        state,
+        "magic generation".to_string(),
+        move |cancel_flag, result_sender| {
             let mut rng = rand::rng();
 
             let mut best_magic: [Option<(MagicTableEntry, u64)>; 64] = starting_values
@@ -844,28 +846,18 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
             }
 
             None
-        }));
-
-    match spawn_attempt {
-        Ok(()) => {
-            println!("Started magic generation.");
-        }
-        Err(mpsc::TrySendError::Full(_)) => {
-            println!("A task is already running. Not starting magic generation.");
-        }
-        Err(mpsc::TrySendError::Disconnected(_)) => {
-            println!("The task thread died.");
-        }
-    }
+        },
+    );
 }
 
 fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
     // clone the board so we don't have to restore it
     let board_clone = state.board.clone();
 
-    let spawn_attempt = state
-        .work_queue
-        .try_send(Box::new(move |cancel_flag, result_sender| {
+    start_task(
+        state,
+        "bisect".to_string(),
+        move |cancel_flag, result_sender| {
             let mut board = board_clone;
             let fen = board.to_fen();
             let mut move_stack = vec![];
@@ -924,55 +916,29 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
             }
 
             Some(TaskOutput::BisectStep(BisectStep::Identical))
-        }));
-
-    match spawn_attempt {
-        Ok(()) => {
-            println!("Started bisect.");
-        }
-        Err(mpsc::TrySendError::Full(_)) => {
-            println!("A task is already running. Not starting bisect.");
-        }
-        Err(mpsc::TrySendError::Disconnected(_)) => {
-            println!("The task thread died.");
-        }
-    }
+        },
+    );
 }
 fn repl_handle_go(state: &mut ReplState, cmd: GoCommand) {
     let mut board_clone = state.board.clone();
 
-    let spawn_attempt =
-        state.work_queue.try_send(Box::new(
-            move |cancel_flag, result_sender| match search_root(
-                &mut board_clone,
-                cmd.search_options,
-                |summary| {
-                    result_sender
-                        .send(Some(TaskOutput::DepthFinished(summary)))
-                        .unwrap();
-                },
-                || cancel_flag.load(Ordering::Relaxed),
-            ) {
-                Ok(best_move) => Some(TaskOutput::SearchFinished(SearchFinished { best_move })),
-                Err(RootSearchExit::NoMove) => {
-                    Some(TaskOutput::SearchFailed(SearchFailed::NoMoves))
-                }
+    start_task(
+        state,
+        "search".to_string(),
+        move |cancel_flag, result_sender| match search_root(
+            &mut board_clone,
+            cmd.search_options,
+            |summary| {
+                result_sender
+                    .send(Some(TaskOutput::DepthFinished(summary)))
+                    .unwrap();
             },
-        ));
-
-    match spawn_attempt {
-        Ok(()) => {
-            if !state.is_uci.load(Ordering::Relaxed) {
-                println!("Started search.");
-            }
-        }
-        Err(mpsc::TrySendError::Full(_)) => {
-            println!("A task is already running. Not starting search.");
-        }
-        Err(mpsc::TrySendError::Disconnected(_)) => {
-            println!("The task thread died.");
-        }
-    }
+            || cancel_flag.load(Ordering::Relaxed),
+        ) {
+            Ok(best_move) => Some(TaskOutput::SearchFinished(SearchFinished { best_move })),
+            Err(RootSearchExit::NoMove) => Some(TaskOutput::SearchFailed(SearchFailed::NoMoves)),
+        },
+    );
 }
 
 struct ExternalPrinterWriter<P: ExternalPrinter + Send> {
@@ -1028,9 +994,7 @@ fn output_thread_task(
     mut writer: impl Write,
     is_uci: Arc<AtomicBool>,
 ) {
-    loop {
-        let task_output = results.recv();
-
+    for task_output in results {
         let prefix = if is_uci.load(Ordering::SeqCst) {
             "info string "
         } else {
@@ -1049,7 +1013,7 @@ fn output_thread_task(
         }
 
         match task_output {
-            Ok(Some(TaskOutput::Perft(perft_results, duration))) => {
+            Some(TaskOutput::Perft(perft_results, duration)) => {
                 for PerftMove {
                     algebraic_move,
                     nodes,
@@ -1067,22 +1031,22 @@ fn output_thread_task(
                 writeln!(
                     writer,
                     "{prefix}Time spent: {}s ({} MN/s)",
-                    duration.as_secs_f32(),
-                    perft_results.node_count as f32 / duration.as_secs_f32() / 1e6
+                    duration.as_seconds_f32(),
+                    perft_results.node_count as f32 / duration.as_seconds_f32() / 1e6
                 )
                 .unwrap();
             }
-            Ok(Some(TaskOutput::PerftNostat(node_count, duration))) => {
+            Some(TaskOutput::PerftNostat(node_count, duration)) => {
                 writeln!(writer, "{prefix}Nodes searched: {}", node_count).unwrap();
                 writeln!(
                     writer,
                     "{prefix}Time spent: {}s ({} MN/s)",
-                    duration.as_secs_f32(),
-                    node_count as f32 / duration.as_secs_f32() / 1e6
+                    duration.as_seconds_f32(),
+                    node_count as f32 / duration.as_seconds_f32() / 1e6
                 )
                 .unwrap();
             }
-            Ok(Some(TaskOutput::BisectStep(perft_results))) => match perft_results {
+            Some(TaskOutput::BisectStep(perft_results)) => match perft_results {
                 BisectStep::Identical => {
                     writeln!(writer, "{prefix}All moves are identical").unwrap();
                 }
@@ -1113,46 +1077,46 @@ fn output_thread_task(
                     writeln!(writer, "{prefix}Move {} is missing from Thera", move_).unwrap();
                 }
             },
-            Ok(Some(TaskOutput::MagicImprovement(MagicImprovement {
+            Some(TaskOutput::MagicImprovement(MagicImprovement {
                 packed_size,
                 padded_size,
                 magic_type,
                 min_bits,
                 max_bits,
                 values,
-            }))) => {
+            })) => {
                 let magic_name = match magic_type {
                     MagicType::Rook => "rook",
                     MagicType::Bishop => "bishop",
                 };
-                writeln!(writer, "Magic {magic_name} values improved!").unwrap();
-                writeln!(writer, "packed: {}kB", packed_size / 1024).unwrap();
-                writeln!(writer, "padded: {}kB", padded_size / 1024).unwrap();
-                writeln!(writer, "min_bits: {min_bits}, max_bits: {max_bits}").unwrap();
-                writeln!(writer, "{values:?}").unwrap();
+                writeln!(writer, "{prefix}Magic {magic_name} values improved!").unwrap();
+                writeln!(writer, "{prefix}packed: {}kB", packed_size / 1024).unwrap();
+                writeln!(writer, "{prefix}padded: {}kB", padded_size / 1024).unwrap();
+                writeln!(writer, "{prefix}min_bits: {min_bits}, max_bits: {max_bits}").unwrap();
+                writeln!(writer, "{prefix}{values:?}").unwrap();
             }
-            Ok(Some(TaskOutput::SearchFinished(SearchFinished { best_move }))) => {
+            Some(TaskOutput::SearchFinished(SearchFinished { best_move })) => {
                 writeln!(writer, "bestmove {best_move}").unwrap();
             }
-            Ok(Some(TaskOutput::SearchFailed(fail_reason))) => {
+            Some(TaskOutput::SearchFailed(fail_reason)) => {
                 writeln!(
                     writer,
-                    "Search failed: {}",
+                    "{prefix}Search failed: {}",
                     match fail_reason {
                         SearchFailed::NoMoves => "No legal moves found",
                     }
                 )
                 .unwrap();
             }
-            Ok(Some(TaskOutput::DepthFinished(DepthSummary {
+            Some(TaskOutput::DepthFinished(DepthSummary {
                 best_move,
                 eval,
                 depth,
                 time_taken,
                 stats: SearchStats { nodes_searched },
-            }))) => {
-                let time_taken_ms = time_taken.as_millis();
-                let nps = nodes_searched as f64 / time_taken.as_secs_f64();
+            })) => {
+                let time_taken_ms = time_taken.whole_milliseconds();
+                let nps = nodes_searched as f64 / time_taken.as_seconds_f64();
 
                 let eval = eval.to_uci();
 
@@ -1162,17 +1126,170 @@ fn output_thread_task(
                 )
                 .unwrap();
             }
-            Ok(None) => {
+            Some(TaskOutput::Error(line)) => {
+                writeln!(writer, "{prefix}Error: {}", indent_with(prefix, line)).unwrap();
+            }
+            Some(TaskOutput::ReadyOk) => {
+                writeln!(writer, "readyok").unwrap();
+            }
+            Some(TaskOutput::Identify(Identification { name, author })) => {
+                writeln!(
+                    writer,
+                    "id name {name}\n\
+                     id author {author}\n\
+                     uciok",
+                )
+                .unwrap();
+            }
+            Some(TaskOutput::TaskStart(name)) => {
+                writeln!(writer, "{prefix}Started {name}.").unwrap();
+            }
+            Some(TaskOutput::TaskStartFailure(name)) => {
+                writeln!(
+                    writer,
+                    "{prefix}A task is already running. Not starting {name}."
+                )
+                .unwrap();
+            }
+            Some(TaskOutput::TaskThreadDead) => {
+                writeln!(writer, "{prefix}The task thread died.").unwrap();
+            }
+            Some(TaskOutput::PlayImpossibleMove(m)) => {
+                writeln!(
+                    writer,
+                    "{prefix}The move {m} isn't possible in the current position."
+                )
+                .unwrap();
+            }
+            Some(TaskOutput::FenImpossibleMove(m)) => {
+                writeln!(
+                    writer,
+                    "{prefix}The move {m} isn't possible in the current position."
+                )
+                .unwrap();
+                writeln!(
+                    writer,
+                    "{prefix}Previous moves are still applied and on the stack"
+                )
+                .unwrap();
+            }
+            Some(TaskOutput::FenParseError(err)) => match err {
+                FenParseError::WrongPartCount => {
+                    writeln!(
+                        writer,
+                        "{prefix}This FEN is missing some components. You always need:\
+                        \n{prefix} - the pieces\
+                        \n{prefix} - the color to move (w/b)\
+                        \n{prefix} - castling rights (any combination of KQkq or - if no one can castle)\
+                        \n{prefix} - the en passant square (or - if en passant isn't possible)\
+                        \n{prefix} - the halfmove clock\
+                        \n{prefix} - the fullmove counter"
+                    )
+                    .unwrap();
+                }
+                FenParseError::WrongRowCount => {
+                    writeln!(
+                        writer,
+                        "{prefix}There is an incorrect number of rows in this FEN. \
+                        You always need exactly 8 rows separated slashes."
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidPiece(invalid_piece) => {
+                    writeln!(
+                        writer,
+                        "{prefix}There is no piece associated with the character '{invalid_piece}'.\
+                        \n{prefix}These ones are available:\
+                        \n{prefix} - P/p: white/black pawn\
+                        \n{prefix} - B/b: white/black bishop\
+                        \n{prefix} - N/n: white/black knight\
+                        \n{prefix} - R/r: white/black rook\
+                        \n{prefix} - Q/q: white/black queen\
+                        \n{prefix} - K/k: white/black king"
+                    )
+                    .unwrap();
+                }
+                FenParseError::TooManyPiecesInRow => {
+                    writeln!(
+                        writer,
+                        "{prefix}There are too many pieces in this FEN. \
+                        You always need 8 rows separated by slashes. \
+                        Each row must consist of exactly n pieces and \
+                        spacing numbers adding up to (8 - n)"
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidTurnColor(c) => {
+                    writeln!(
+                        writer,
+                        "{prefix}There is no turn-color associated with the character '{c}'. \
+                        Use either w (white) or b (black)."
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidCastlingRight(c) => {
+                    writeln!(
+                        writer,
+                        "{prefix}There is no castling right associated with the character '{c}'. \
+                        Use any combination of these (or a dash if no one can castle):\
+                        \n{prefix} - K: White can castle on the kings side (o-o)\
+                        \n{prefix} - k: Black can castle on the kings side (o-o)\
+                        \n{prefix} - Q: White can castle on the queens side (o-o-o)\
+                        \n{prefix} - q: Black can castle on the queens side (o-o-o)"
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidEnpassantSquare => {
+                    writeln!(
+                        writer,
+                        "{prefix}The en passant square isn't valid. It should either be \
+                        set to the square that the last double pawn move jumped \
+                        over or, if the last move wasn't a pawn, a single dash"
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidHalfMoveClock => {
+                    writeln!(
+                        writer,
+                        "{prefix}The halfmove clock isn't valid. It should be the number of \
+                        plies since the last pawn move, capture or castling change."
+                    )
+                    .unwrap();
+                }
+                FenParseError::InvalidFullMoveCounter => {
+                    writeln!(
+                        writer,
+                        "{prefix}The fullmove counter isn't valid. It should be the number of \
+                        moves since the start of the game."
+                    )
+                    .unwrap();
+                }
+            },
+            Some(TaskOutput::PrintBoard(board, highlight)) => {
+                writeln!(
+                    writer,
+                    "{}",
+                    indent_all_with(prefix, board.dump_ansi(highlight))
+                )
+                .unwrap();
+            }
+            Some(TaskOutput::UndidMove(m)) => {
+                writeln!(writer, "{prefix}Undid move {m}.",).unwrap();
+            }
+            Some(TaskOutput::UndoMoveFailed) => {
+                writeln!(writer, "{prefix}There are no moves on the stack.").unwrap();
+            }
+            None => {
                 writeln!(writer, "{prefix}Task was interrupted.").unwrap();
             }
-            Err(RecvError) => break,
         }
     }
 }
 
 fn main() {
-    let (task_sender, task_receiver) = mpsc::sync_channel::<BackgroundTask>(0);
-    let (result_sender, result_receiver) = mpsc::sync_channel::<Option<TaskOutput>>(5);
+    let (task_sender, task_receiver) = bounded::<BackgroundTask>(0);
+    let (result_sender, result_receiver) = unbounded::<Option<TaskOutput>>();
+    let result_sender2 = result_sender.clone();
 
     let cancel_flag = Arc::new(AtomicBool::new(false));
     let cancel_flag2 = cancel_flag.clone();
@@ -1180,10 +1297,10 @@ fn main() {
     let task_thread = std::thread::Builder::new()
         .name("tasks".to_string())
         .spawn(move || {
-            while let Ok(task) = task_receiver.recv() {
+            for task in task_receiver {
                 cancel_flag2.store(false, Ordering::SeqCst);
-                let out = task(&cancel_flag2, &result_sender);
-                if result_sender.send(out).is_err() {
+                let out = task(&cancel_flag2, &result_sender2);
+                if result_sender2.send(out).is_err() {
                     break;
                 }
             }
@@ -1197,6 +1314,7 @@ fn main() {
         is_uci: Arc::new(AtomicBool::new(false)),
         cancel_flag,
         work_queue: task_sender,
+        output_queue: result_sender,
     };
 
     let is_uci2 = state.is_uci.clone();
@@ -1230,7 +1348,10 @@ fn main() {
                             }
                         }
                         Err(err) => {
-                            println!("{err}");
+                            state
+                                .output_queue
+                                .send(Some(TaskOutput::Error(err.to_string())))
+                                .unwrap();
                         }
                     }
                 }
@@ -1241,10 +1362,16 @@ fn main() {
                     repl_handle_stop(&mut state);
                 }
                 Err(err) => {
-                    println!("{err}");
+                    state
+                        .output_queue
+                        .send(Some(TaskOutput::Error(err.to_string())))
+                        .unwrap();
                 }
             }
         }
+
+        // Explicit drop in case we ever place something below here.
+        // This undoes any signal hooks so Ctrl-C works again.
         drop(line_editor);
     } else {
         output_thread = output_thread_builder
@@ -1263,14 +1390,14 @@ fn main() {
                     }
                 }
                 Err(err) => {
-                    println!("info string error: {err}");
+                    state
+                        .output_queue
+                        .send(Some(TaskOutput::Error(err.to_string())))
+                        .unwrap();
                 }
             }
         }
     };
-
-    // Explicit drop in case we ever place something below here.
-    // This undoes any signal hooks so Ctrl-C works again.
 
     let ReplState {
         board: _,
@@ -1279,10 +1406,12 @@ fn main() {
         is_uci: _,
         cancel_flag,
         work_queue,
+        output_queue,
     } = state;
 
-    cancel_flag.store(true, Ordering::Relaxed);
     drop(work_queue); // make sure the task thread exits
+    drop(output_queue);
+    cancel_flag.store(true, Ordering::Relaxed);
     task_thread.join().unwrap();
     output_thread.join().unwrap();
 }

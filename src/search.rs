@@ -3,8 +3,10 @@ use std::{
     iter::Sum,
     num::NonZeroI32,
     ops::{Add, AddAssign, Mul, MulAssign, Neg},
-    time::{Duration, Instant},
+    time::Instant,
 };
+
+use time::{Duration, ext::InstantExt};
 
 use crate::{
     board::Board,
@@ -199,22 +201,26 @@ fn search(
         return Ok(Evaluation::DRAW);
     }
 
-    if depth_left == 0 {
-        return Ok(static_eval(board));
-    }
-
+    let mut best_score = Evaluation::MIN;
     let movegen = MoveGenerator::<true>::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
-
-    let mut best_score = Evaluation::MIN;
-
     if moves.is_empty() {
         if movegen.is_check() {
             best_score = Evaluation::Loss(plies);
         } else {
             best_score = Evaluation::DRAW;
         }
-    } else {
+    }
+
+    if depth_left == 0 {
+        if moves.is_empty() {
+            return Ok(best_score);
+        } else {
+            return Ok(static_eval(board));
+        }
+    }
+
+    {
         for m in moves {
             let undo = board.make_move(m);
             let eval = -search(
@@ -300,9 +306,13 @@ pub fn search_root(
     let movegen = MoveGenerator::<true>::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
 
+    if moves.is_empty() {
+        return Err(RootSearchExit::NoMove);
+    }
+
     let mut search_stats = SearchStats::default();
 
-    let mut prev_best_move = None;
+    let mut prev_best_move = (Evaluation::MIN, *moves.first().unwrap());
     'search: for depth in 1..options.depth.unwrap_or(u32::MAX) {
         let mut best_move = None;
         let depth_start = Instant::now();
@@ -332,15 +342,15 @@ pub fn search_root(
                 best_move,
                 eval,
                 depth,
-                time_taken: Instant::now() - depth_start,
+                time_taken: Instant::now().signed_duration_since(depth_start),
                 stats: search_stats,
             });
         }
 
-        prev_best_move = best_move;
+        if let Some(best_move) = best_move {
+            prev_best_move = best_move;
+        }
     }
 
-    prev_best_move
-        .map(|(_best_eval, best_move)| best_move)
-        .ok_or(RootSearchExit::NoMove)
+    Ok(prev_best_move.1)
 }

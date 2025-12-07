@@ -6,9 +6,12 @@ edition = "2024"
 [dependencies]
 atty = "0.2.14"
 clap = { version = "4.5.52", features = ["derive", "wrap_help"] }
+crossbeam = { version = "0.8.4", features = ["crossbeam-channel"] }
+indent = "0.1.1"
 itertools = "0.14.0"
 rand = "0.9.2"
 rustyline = "17.0.2"
+time = "0.3.44"
 
 [profile.release]
 lto = true
