@@ -28,7 +28,7 @@ pub fn perft_nostats(
         return None;
     }
 
-    let movegen = MoveGenerator::<true>::with_attacks(board);
+    let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
 
     if depth == 0 {
@@ -57,7 +57,7 @@ pub fn perft(
         return None;
     }
 
-    let movegen = MoveGenerator::<true>::with_attacks(board);
+    let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
 
     let is_checkmate = moves.is_empty() && movegen.is_check();

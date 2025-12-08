@@ -568,7 +568,7 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
 }
 
 fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<UndoToken> {
-    let possible_moves = MoveGenerator::<true>::with_attacks(board).generate_all_moves(board);
+    let possible_moves = MoveGenerator::with_attacks(board).generate_all_moves(board);
 
     possible_moves
         .into_iter()
@@ -863,7 +863,7 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
             let mut move_stack = vec![];
 
             'next_depth: for depth in (1..=cmd.depth).rev() {
-                let movegen = MoveGenerator::<true>::with_attacks(&mut board);
+                let movegen = MoveGenerator::with_attacks(&mut board);
                 let moves = movegen.generate_all_moves(&board);
 
                 let mut thera_out =

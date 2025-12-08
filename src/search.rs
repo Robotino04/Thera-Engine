@@ -50,7 +50,7 @@ fn search(
     }
 
     let mut best_score = Evaluation::MIN;
-    let movegen = MoveGenerator::<true>::with_attacks(board);
+    let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
     if moves.is_empty() {
         if movegen.is_check() {
@@ -151,7 +151,7 @@ pub fn search_root(
             || search_end_time.is_some_and(|search_end_time| Instant::now() >= search_end_time)
     };
 
-    let movegen = MoveGenerator::<true>::with_attacks(board);
+    let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
 
     if moves.is_empty() {
