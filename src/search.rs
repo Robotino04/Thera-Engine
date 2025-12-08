@@ -45,7 +45,7 @@ fn search(
         return Err(SearchExit::Cancelled);
     }
 
-    if board.is_draw_50() | board.is_draw_repetition() {
+    if board.is_draw_50() || board.is_draw_repetition() {
         return Ok(Evaluation::DRAW);
     }
 
@@ -83,12 +83,9 @@ fn search(
         } else {
             best_score = Evaluation::DRAW;
         }
-    }
-
-    if depth_left == 0 {
-        if moves.is_empty() {
-            return Ok(best_score);
-        } else {
+    } else {
+        // only call static eval if there are moves. otherwise, we can store the draw or loss in the TT
+        if depth_left == 0 {
             return Ok(static_eval(board));
         }
     }
@@ -115,7 +112,7 @@ fn search(
                 alpha = eval;
             }
             if alpha >= beta {
-                return Ok(alpha);
+                break;
             }
         }
     }
