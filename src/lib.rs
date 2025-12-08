@@ -1,6 +1,7 @@
 pub mod ansi;
 pub mod bitboard;
 pub mod board;
+pub mod centi_pawns;
 pub mod magic_bitboard;
 pub mod move_generator;
 pub mod perft;

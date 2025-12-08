@@ -1,165 +1,13 @@
-use std::{
-    cmp::Ordering,
-    iter::Sum,
-    num::NonZeroI32,
-    ops::{Add, AddAssign, Mul, MulAssign, Neg},
-    time::Instant,
-};
+use std::time::Instant;
 
 use time::{Duration, ext::InstantExt};
 
 use crate::{
     board::Board,
+    centi_pawns::{CentiPawns, Evaluation},
     move_generator::MoveGenerator,
     piece::{Color, Move, Piece},
 };
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CentiPawns(pub i32);
-impl Mul<i32> for CentiPawns {
-    type Output = Self;
-    fn mul(self, rhs: i32) -> Self::Output {
-        Self(self.0 * rhs)
-    }
-}
-impl Mul<CentiPawns> for i32 {
-    type Output = CentiPawns;
-    fn mul(self, rhs: CentiPawns) -> Self::Output {
-        CentiPawns(self * rhs.0)
-    }
-}
-impl MulAssign<i32> for CentiPawns {
-    fn mul_assign(&mut self, rhs: i32) {
-        *self = *self * rhs
-    }
-}
-impl Add for CentiPawns {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self(self.0 + rhs.0)
-    }
-}
-impl AddAssign for CentiPawns {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs
-    }
-}
-impl Sum for CentiPawns {
-    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        let mut sum = CentiPawns(0);
-        for x in iter {
-            sum += x;
-        }
-        sum
-    }
-}
-impl Neg for CentiPawns {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        self * -1
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Evaluation {
-    Win(u32),
-    Loss(u32),
-    CentiPawns(CentiPawns),
-}
-impl Evaluation {
-    const MIN: Self = Self::Loss(0); // immediate loss
-    const MAX: Self = Self::Win(0); // immediate win
-    const DRAW: Self = Self::CentiPawns(CentiPawns(0));
-
-    pub fn to_uci(self) -> String {
-        match self {
-            Evaluation::Win(depth) => format!("mate {}", depth.div_ceil(2)),
-            Evaluation::Loss(depth) => format!("mate -{}", depth.div_ceil(2)),
-            Evaluation::CentiPawns(CentiPawns(centi_pawns)) => format!("cp {centi_pawns}"),
-        }
-    }
-}
-
-impl Mul<NonZeroI32> for Evaluation {
-    type Output = Self;
-
-    fn mul(self, rhs: NonZeroI32) -> Self::Output {
-        match (self, rhs.get().cmp(&0)) {
-            (_, Ordering::Equal) => unreachable!("rhs is non-zero"),
-
-            (Self::Win(x), Ordering::Less) => Self::Loss(x),
-            (Self::Win(x), Ordering::Greater) => Self::Win(x),
-            (Self::Loss(x), Ordering::Less) => Self::Win(x),
-            (Self::Loss(x), Ordering::Greater) => Self::Loss(x),
-            (Self::CentiPawns(cp), _) => Self::CentiPawns(cp * rhs.get()),
-        }
-    }
-}
-
-impl Mul<Evaluation> for NonZeroI32 {
-    type Output = Evaluation;
-
-    fn mul(self, rhs: Evaluation) -> Self::Output {
-        rhs * self
-    }
-}
-impl Mul<i32> for Evaluation {
-    type Output = Self;
-
-    fn mul(self, rhs: i32) -> Self::Output {
-        self * NonZeroI32::new(rhs).expect("Evaluations should never be multiplied by zero")
-    }
-}
-impl Mul<Evaluation> for i32 {
-    type Output = Evaluation;
-
-    fn mul(self, rhs: Evaluation) -> Self::Output {
-        rhs * self
-    }
-}
-
-impl Neg for Evaluation {
-    type Output = Self;
-
-    fn neg(self) -> Self::Output {
-        self * -1
-    }
-}
-
-impl Ord for Evaluation {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (Self::Win(depth1), Self::Win(depth2)) => depth2.cmp(depth1), // winning earlier is better
-            (Self::Win(_depth), Self::CentiPawns(_)) => Ordering::Greater,
-            (Self::Win(_depth), Self::Loss(_)) => Ordering::Greater,
-
-            (Self::Loss(_depth), Self::Win(_)) => Ordering::Less,
-            (Self::Loss(_depth), Self::CentiPawns(_)) => Ordering::Less,
-            (Self::Loss(depth1), Self::Loss(depth2)) => depth1.cmp(depth2), // losing later is better
-
-            (Self::CentiPawns(_cp), Self::Win(_)) => Ordering::Less,
-            (Self::CentiPawns(cp1), Self::CentiPawns(cp2)) => cp1.cmp(cp2),
-            (Self::CentiPawns(_cp), Self::Loss(_)) => Ordering::Greater,
-        }
-    }
-}
-impl PartialOrd for Evaluation {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-fn piece_value(piece: Piece) -> CentiPawns {
-    match piece {
-        Piece::Pawn => CentiPawns(100),
-        Piece::Bishop => CentiPawns(300),
-        Piece::Knight => CentiPawns(300),
-        Piece::Rook => CentiPawns(500),
-        Piece::Queen => CentiPawns(900),
-        Piece::King => CentiPawns(20000),
-    }
-}
 
 fn static_eval(board: &Board) -> Evaluation {
     let player = board.color_to_move();
@@ -172,7 +20,7 @@ fn static_eval(board: &Board) -> Evaluation {
             .map(|piece| {
                 (board.get_piece_bitboard(piece, player).count_ones() as i32
                     - board.get_piece_bitboard(piece, opponent).count_ones() as i32)
-                    * piece_value(piece)
+                    * CentiPawns::piece_value(piece)
             })
             .sum(),
     )
