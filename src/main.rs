@@ -732,7 +732,7 @@ fn repl_handle_uci(state: &mut ReplState) {
 }
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
-    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::new(1 << 24)));
+    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::new(1 << 20)));
     state.undo_stack.clear();
 }
 fn repl_handle_isready(state: &mut ReplState) {

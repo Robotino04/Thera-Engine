@@ -270,13 +270,16 @@ pub fn search_root(
         let mut best_move = None;
         let depth_start = Instant::now();
 
+        let mut alpha = Evaluation::MIN;
+        let beta = Evaluation::MAX;
+
         for &m in &moves {
             let undo = board.make_move(m);
             let eval = match search(
                 board,
                 depth - 1,
-                Evaluation::MIN,
-                Evaluation::MAX,
+                -beta,
+                -alpha,
                 &mut search_stats,
                 1,
                 &should_exit,
@@ -286,8 +289,13 @@ pub fn search_root(
                 Err(SearchExit::Cancelled) => break 'search,
             };
             board.undo_move(undo);
+
             if best_move.is_none_or(|(best_eval, _best_move)| eval > best_eval) {
                 best_move = Some((eval, m));
+            }
+
+            if eval > alpha {
+                alpha = eval;
             }
         }
 
