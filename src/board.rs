@@ -884,6 +884,9 @@ impl Board {
     pub fn enpassant_square(&self) -> Bitboard {
         self.enpassant_square
     }
+    pub fn zobrist_hash(&self) -> u64 {
+        self.zobrist_hash
+    }
 
     pub fn to_fen(&self) -> String {
         let mut out = String::new();

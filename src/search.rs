@@ -7,6 +7,7 @@ use crate::{
     centi_pawns::{CentiPawns, Evaluation},
     move_generator::MoveGenerator,
     piece::{Color, Move, Piece},
+    transposition_table::{EvalKind, TranspositionTable},
 };
 
 fn static_eval(board: &Board) -> Evaluation {
@@ -33,21 +34,45 @@ pub enum SearchExit {
 fn search(
     board: &mut Board,
     depth_left: u32,
-    mut alpha: Evaluation,
+    alpha: Evaluation,
     beta: Evaluation,
     stats: &mut SearchStats,
     plies: u32,
     should_exit: &impl Fn() -> bool,
+    transposition_table: &mut TranspositionTable,
 ) -> Result<Evaluation, SearchExit> {
     if should_exit() {
         return Err(SearchExit::Cancelled);
     }
 
-    stats.nodes_searched += 1;
-
     if board.is_draw_50() | board.is_draw_repetition() {
         return Ok(Evaluation::DRAW);
     }
+
+    let original_alpha = alpha;
+    let mut alpha = alpha;
+
+    let SearchStats {
+        nodes_searched: prev_nodes_searched,
+        transposition_hits: _,
+        cached_nodes: _,
+    } = *stats;
+
+    if let Some(entry) = transposition_table.get(board, depth_left, plies) {
+        let prune = match entry.kind {
+            EvalKind::Exact => true,
+            EvalKind::LowerBound => entry.eval >= beta,
+            EvalKind::UpperBound => entry.eval < alpha,
+        };
+
+        if prune {
+            stats.cached_nodes += entry.subnodes;
+            stats.transposition_hits += 1;
+            return Ok(entry.eval);
+        }
+    }
+
+    stats.nodes_searched += 1;
 
     let mut best_score = Evaluation::MIN;
     let movegen = MoveGenerator::with_attacks(board);
@@ -79,6 +104,7 @@ fn search(
                 stats,
                 plies + 1,
                 should_exit,
+                transposition_table,
             )?;
             board.undo_move(undo);
 
@@ -93,6 +119,21 @@ fn search(
             }
         }
     }
+
+    transposition_table.insert(
+        board,
+        depth_left,
+        best_score,
+        if best_score <= original_alpha {
+            EvalKind::UpperBound
+        } else if best_score >= beta {
+            EvalKind::LowerBound
+        } else {
+            EvalKind::Exact
+        },
+        stats.nodes_searched - prev_nodes_searched,
+        plies,
+    );
 
     Ok(best_score)
 }
@@ -110,9 +151,11 @@ pub struct SearchOptions {
     pub binc: Option<Duration>,
 }
 
-#[derive(Copy, Clone, Debug, Hash, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct SearchStats {
     pub nodes_searched: u64,
+    pub transposition_hits: u64,
+    pub cached_nodes: u64,
 }
 
 pub struct DepthSummary {
@@ -121,12 +164,14 @@ pub struct DepthSummary {
     pub depth: u32,
     pub time_taken: Duration,
     pub stats: SearchStats,
+    pub hash_percentage: f32,
 }
 
 pub fn search_root(
     board: &mut Board,
     options: SearchOptions,
     on_depth_finished: impl Fn(DepthSummary),
+    transposition_table: &mut TranspositionTable,
     should_exit: impl Fn() -> bool,
 ) -> Result<Move, RootSearchExit> {
     let search_start = Instant::now();
@@ -175,6 +220,7 @@ pub fn search_root(
                 &mut search_stats,
                 1,
                 &should_exit,
+                transposition_table,
             ) {
                 Ok(eval) => -eval,
                 Err(SearchExit::Cancelled) => break 'search,
@@ -192,6 +238,8 @@ pub fn search_root(
                 depth,
                 time_taken: Instant::now().signed_duration_since(depth_start),
                 stats: search_stats,
+                hash_percentage: transposition_table.used_slots() as f32
+                    / transposition_table.capacity() as f32,
             });
         }
 

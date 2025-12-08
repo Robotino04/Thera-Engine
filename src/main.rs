@@ -1,7 +1,7 @@
 use std::fmt::Write;
 use std::io::{BufRead, BufReader, stdin, stdout};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use atty::Stream;
@@ -21,6 +21,7 @@ use thera::magic_bitboard::{
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
 use thera::piece::{Move, Piece, Square};
 use thera::search::{DepthSummary, RootSearchExit, SearchOptions, SearchStats, search_root};
+use thera::transposition_table::TranspositionTable;
 use thera::{self, board::Board, move_generator::MoveGenerator};
 use time::Duration;
 use time::ext::InstantExt;
@@ -147,6 +148,7 @@ type BackgroundTask =
 
 struct ReplState {
     board: Board,
+    transposition_table: Arc<Mutex<TranspositionTable>>,
     undo_stack: Vec<UndoToken>,
 
     always_print: bool,
@@ -730,6 +732,7 @@ fn repl_handle_uci(state: &mut ReplState) {
 }
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
+    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::new(1 << 24)));
     state.undo_stack.clear();
 }
 fn repl_handle_isready(state: &mut ReplState) {
@@ -921,22 +924,29 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
 }
 fn repl_handle_go(state: &mut ReplState, cmd: GoCommand) {
     let mut board_clone = state.board.clone();
+    let transposition_table = state.transposition_table.clone();
 
     start_task(
         state,
         "search".to_string(),
-        move |cancel_flag, result_sender| match search_root(
-            &mut board_clone,
-            cmd.search_options,
-            |summary| {
-                result_sender
-                    .send(Some(TaskOutput::DepthFinished(summary)))
-                    .unwrap();
-            },
-            || cancel_flag.load(Ordering::Relaxed),
-        ) {
-            Ok(best_move) => Some(TaskOutput::SearchFinished(SearchFinished { best_move })),
-            Err(RootSearchExit::NoMove) => Some(TaskOutput::SearchFailed(SearchFailed::NoMoves)),
+        move |cancel_flag, result_sender| {
+            let mut transposition_table = transposition_table.lock().unwrap();
+            match search_root(
+                &mut board_clone,
+                cmd.search_options,
+                |summary| {
+                    result_sender
+                        .send(Some(TaskOutput::DepthFinished(summary)))
+                        .unwrap();
+                },
+                &mut transposition_table,
+                || cancel_flag.load(Ordering::Relaxed),
+            ) {
+                Ok(best_move) => Some(TaskOutput::SearchFinished(SearchFinished { best_move })),
+                Err(RootSearchExit::NoMove) => {
+                    Some(TaskOutput::SearchFailed(SearchFailed::NoMoves))
+                }
+            }
         },
     );
 }
@@ -1113,16 +1123,46 @@ fn output_thread_task(
                 eval,
                 depth,
                 time_taken,
-                stats: SearchStats { nodes_searched },
+                stats:
+                    SearchStats {
+                        nodes_searched,
+                        transposition_hits,
+                        cached_nodes,
+                    },
+                hash_percentage,
             })) => {
                 let time_taken_ms = time_taken.whole_milliseconds();
                 let nps = nodes_searched as f64 / time_taken.as_seconds_f64();
 
                 let eval = eval.to_uci();
+                let hash_percentage = hash_percentage * 1000.0;
+
+                let hit_percentage = transposition_hits as f32
+                    / (nodes_searched + transposition_hits) as f32
+                    * 100.0;
+                let cache_percentage =
+                    cached_nodes as f32 / (nodes_searched + cached_nodes) as f32 * 100.0;
 
                 writeln!(
                     writer,
-                    "info depth {depth} score {eval} nodes {nodes_searched} nps {nps:.0} time {time_taken_ms} pv {best_move}",
+                    "\
+                    {prefix}TranspositionTable\
+                  \n{prefix}    hits: {transposition_hits}\
+                  \n{prefix}        hits/search: {hit_percentage:.1}%\
+                  \n{prefix}        cache: {cache_percentage:.1}%"
+                )
+                .unwrap();
+
+                writeln!(
+                    writer,
+                    "info \
+                        depth {depth} \
+                        score {eval} \
+                        nodes {nodes_searched} \
+                        nps {nps:.0} \
+                        hashfull {hash_percentage:.0} \
+                        time {time_taken_ms} \
+                        pv {best_move}",
                 )
                 .unwrap();
             }
@@ -1309,6 +1349,7 @@ fn main() {
 
     let mut state = ReplState {
         board: Board::starting_position(),
+        transposition_table: Arc::new(Mutex::new(TranspositionTable::new(1 << 24))),
         undo_stack: Vec::new(),
         always_print: false,
         is_uci: Arc::new(AtomicBool::new(false)),
@@ -1401,6 +1442,7 @@ fn main() {
 
     let ReplState {
         board: _,
+        transposition_table: _,
         undo_stack: _,
         always_print: _,
         is_uci: _,
