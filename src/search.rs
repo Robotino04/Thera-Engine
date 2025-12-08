@@ -54,6 +54,7 @@ fn search(
 
     let SearchStats {
         nodes_searched: prev_nodes_searched,
+        nodes_searched_quiescence: _,
         transposition_hits: _,
         cached_nodes: _,
     } = *stats;
@@ -86,34 +87,32 @@ fn search(
     } else {
         // only call static eval if there are moves. otherwise, we can store the draw or loss in the TT
         if depth_left == 0 {
-            return Ok(static_eval(board));
+            return quiescence_search(board, alpha, beta, stats, plies, should_exit);
         }
     }
 
-    {
-        for m in moves {
-            let undo = board.make_move(m);
-            let eval = -search(
-                board,
-                depth_left - 1,
-                -beta,
-                -alpha,
-                stats,
-                plies + 1,
-                should_exit,
-                transposition_table,
-            )?;
-            board.undo_move(undo);
+    for m in moves {
+        let undo = board.make_move(m);
+        let eval = -search(
+            board,
+            depth_left - 1,
+            -beta,
+            -alpha,
+            stats,
+            plies + 1,
+            should_exit,
+            transposition_table,
+        )?;
+        board.undo_move(undo);
 
-            if eval > best_score {
-                best_score = eval;
-            }
-            if eval > alpha {
-                alpha = eval;
-            }
-            if alpha >= beta {
-                break;
-            }
+        if eval > best_score {
+            best_score = eval;
+        }
+        if eval > alpha {
+            alpha = eval;
+        }
+        if alpha >= beta {
+            break;
         }
     }
 
@@ -135,6 +134,69 @@ fn search(
     Ok(best_score)
 }
 
+fn quiescence_search(
+    board: &mut Board,
+    mut alpha: Evaluation,
+    beta: Evaluation,
+    stats: &mut SearchStats,
+    plies: u32,
+    should_exit: &impl Fn() -> bool,
+) -> Result<Evaluation, SearchExit> {
+    if should_exit() {
+        return Err(SearchExit::Cancelled);
+    }
+
+    if board.is_draw_50() || board.is_draw_repetition() {
+        return Ok(Evaluation::DRAW);
+    }
+
+    stats.nodes_searched_quiescence += 1;
+
+    let movegen = MoveGenerator::with_attacks(board);
+    let moves = movegen.generate_captures(board);
+    if moves.is_empty() {
+        let moves = movegen.generate_all_moves(board);
+        // no captures
+        if moves.is_empty() {
+            // and also no other moves => draw or checkmate
+            if movegen.is_check() {
+                return Ok(Evaluation::Loss(plies));
+            } else {
+                return Ok(Evaluation::DRAW);
+            }
+        } else {
+            // but non-captures => quiet position
+            return Ok(static_eval(board));
+        }
+    }
+
+    let mut best_score = static_eval(board);
+    if best_score >= beta {
+        return Ok(best_score);
+    }
+    if best_score > alpha {
+        alpha = best_score;
+    }
+
+    for m in moves {
+        let undo = board.make_move(m);
+        let eval = -quiescence_search(board, -beta, -alpha, stats, plies + 1, should_exit)?;
+        board.undo_move(undo);
+
+        if eval > best_score {
+            best_score = eval;
+        }
+        if eval > alpha {
+            alpha = eval;
+        }
+        if alpha >= beta {
+            break;
+        }
+    }
+
+    Ok(best_score)
+}
+
 pub enum RootSearchExit {
     NoMove,
 }
@@ -151,6 +213,7 @@ pub struct SearchOptions {
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct SearchStats {
     pub nodes_searched: u64,
+    pub nodes_searched_quiescence: u64,
     pub transposition_hits: u64,
     pub cached_nodes: u64,
 }

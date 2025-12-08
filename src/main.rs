@@ -1126,6 +1126,7 @@ fn output_thread_task(
                 stats:
                     SearchStats {
                         nodes_searched,
+                        nodes_searched_quiescence: _,
                         transposition_hits,
                         cached_nodes,
                     },
