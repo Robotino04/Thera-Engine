@@ -1,6 +1,8 @@
 use crate::{centi_pawns::Evaluation, transposition_table::EvalKind};
 
-#[derive(Debug)]
+/// Doesn't derive Copy, because accidentally copying
+/// the search window will cause awful bugs.
+#[derive(Debug, Clone)]
 pub struct AlphaBetaWindow {
     starting_alpha: Evaluation,
     alpha: Evaluation,

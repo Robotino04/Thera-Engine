@@ -82,7 +82,14 @@ fn search(
     } else {
         // only call static eval if there are moves. otherwise, we can store the draw or loss in the TT
         if depth_left == 0 {
-            return quiescence_search(board, window, stats, should_exit);
+            let eval = quiescence_search(board, window.clone(), stats, should_exit)?;
+            transposition_table.insert(
+                board,
+                depth_left,
+                window.set_exact(eval),
+                stats.nodes_searched - prev_nodes_searched,
+            );
+            return Ok(eval);
         }
     }
 
