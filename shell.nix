@@ -16,5 +16,6 @@ in
 
       pkgs.stockfish
       pkgs.cutechess
+      pkgs.gawk
     ];
   }
