@@ -1,3 +1,4 @@
+pub mod alpha_beta_window;
 pub mod ansi;
 pub mod bitboard;
 pub mod board;

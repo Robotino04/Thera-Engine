@@ -1,4 +1,8 @@
-use crate::{board::Board, centi_pawns::Evaluation};
+use crate::{
+    alpha_beta_window::{AlphaBetaWindow, NodeEvalSummary},
+    board::Board,
+    centi_pawns::Evaluation,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EvalKind {
@@ -30,30 +34,35 @@ impl TranspositionTable {
         }
     }
 
-    pub fn get(&self, board: &Board, depth: u32, plies: u32) -> Option<TranspositionEntry> {
+    pub fn get(
+        &self,
+        board: &Board,
+        depth: u32,
+        window: &AlphaBetaWindow,
+    ) -> Option<TranspositionEntry> {
         let hash_part = board.zobrist_hash() % self.table.len() as u64;
         let mut entry = self.table[hash_part as usize]?;
         if entry.hash == board.zobrist_hash() && entry.depth >= depth {
             entry.eval = match entry.eval {
-                Evaluation::Win(x) => Evaluation::Win(x + plies),
-                Evaluation::Loss(x) => Evaluation::Loss(x + plies),
+                Evaluation::Win(x) => Evaluation::Win(x + window.plies()),
+                Evaluation::Loss(x) => Evaluation::Loss(x + window.plies()),
                 x @ Evaluation::CentiPawns(_) => x,
             };
-            Some(entry)
+
+            // We have the adjusted entry, but it might not be relevant for this window
+            let can_prune = match entry.kind {
+                EvalKind::Exact => true,
+                EvalKind::LowerBound => window.causes_cutoff(entry.eval),
+                EvalKind::UpperBound => window.fails_low(entry.eval),
+            };
+
+            can_prune.then_some(entry)
         } else {
             None
         }
     }
 
-    pub fn insert(
-        &mut self,
-        board: &Board,
-        depth: u32,
-        eval: Evaluation,
-        kind: EvalKind,
-        subnodes: u64,
-        plies: u32,
-    ) {
+    pub fn insert(&mut self, board: &Board, depth: u32, node: NodeEvalSummary, subnodes: u64) {
         let hash_part = board.zobrist_hash() % self.table.len() as u64;
         let entry = &mut self.table[hash_part as usize];
         let replace =
@@ -64,13 +73,13 @@ impl TranspositionTable {
             }
             *entry = Some(TranspositionEntry {
                 hash: board.zobrist_hash(),
-                eval: match eval {
-                    Evaluation::Win(x) => Evaluation::Win(x - plies),
-                    Evaluation::Loss(x) => Evaluation::Loss(x - plies),
+                eval: match node.eval {
+                    Evaluation::Win(x) => Evaluation::Win(x - node.plies),
+                    Evaluation::Loss(x) => Evaluation::Loss(x - node.plies),
                     x @ Evaluation::CentiPawns(_) => x,
                 },
                 depth,
-                kind,
+                kind: node.kind,
                 subnodes,
             });
         }

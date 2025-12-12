@@ -3,11 +3,12 @@ use std::time::Instant;
 use time::{Duration, ext::InstantExt};
 
 use crate::{
+    alpha_beta_window::{AlphaBetaWindow, WindowUpdate},
     board::Board,
     centi_pawns::{CentiPawns, Evaluation},
     move_generator::MoveGenerator,
     piece::{Color, Move, Piece},
-    transposition_table::{EvalKind, TranspositionTable},
+    transposition_table::TranspositionTable,
 };
 
 fn static_eval(board: &Board) -> Evaluation {
@@ -34,10 +35,8 @@ pub enum SearchExit {
 fn search(
     board: &mut Board,
     depth_left: u32,
-    alpha: Evaluation,
-    beta: Evaluation,
+    mut window: AlphaBetaWindow,
     stats: &mut SearchStats,
-    plies: u32,
     should_exit: &impl Fn() -> bool,
     transposition_table: &mut TranspositionTable,
 ) -> Result<Evaluation, SearchExit> {
@@ -49,9 +48,6 @@ fn search(
         return Ok(Evaluation::DRAW);
     }
 
-    let original_alpha = alpha;
-    let mut alpha = alpha;
-
     let SearchStats {
         nodes_searched: prev_nodes_searched,
         nodes_searched_quiescence: _,
@@ -59,35 +55,34 @@ fn search(
         cached_nodes: _,
     } = *stats;
 
-    if let Some(entry) = transposition_table.get(board, depth_left, plies) {
-        let prune = match entry.kind {
-            EvalKind::Exact => true,
-            EvalKind::LowerBound => entry.eval >= beta,
-            EvalKind::UpperBound => entry.eval < alpha,
-        };
-
-        if prune {
-            stats.cached_nodes += entry.subnodes;
-            stats.transposition_hits += 1;
-            return Ok(entry.eval);
-        }
+    if let Some(entry) = transposition_table.get(board, depth_left, &window) {
+        stats.cached_nodes += entry.subnodes;
+        stats.transposition_hits += 1;
+        return Ok(entry.eval);
     }
 
     stats.nodes_searched += 1;
 
-    let mut best_score = Evaluation::MIN;
     let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
     if moves.is_empty() {
-        if movegen.is_check() {
-            best_score = Evaluation::Loss(plies);
+        let eval = if movegen.is_check() {
+            Evaluation::Loss(window.plies())
         } else {
-            best_score = Evaluation::DRAW;
-        }
+            Evaluation::DRAW
+        };
+
+        transposition_table.insert(
+            board,
+            depth_left,
+            window.set_exact(eval),
+            stats.nodes_searched - prev_nodes_searched,
+        );
+        return Ok(eval);
     } else {
         // only call static eval if there are moves. otherwise, we can store the draw or loss in the TT
         if depth_left == 0 {
-            return quiescence_search(board, alpha, beta, stats, plies, should_exit);
+            return quiescence_search(board, window, stats, should_exit);
         }
     }
 
@@ -95,49 +90,35 @@ fn search(
         let eval = -search(
             &mut board.with_move(m),
             depth_left - 1,
-            -beta,
-            -alpha,
+            window.next_depth(),
             stats,
-            plies + 1,
             should_exit,
             transposition_table,
         )?;
 
-        if eval > best_score {
-            best_score = eval;
-        }
-        if eval > alpha {
-            alpha = eval;
-        }
-        if alpha >= beta {
-            break;
+        match window.update(eval) {
+            WindowUpdate::NoImprovement => {}
+            WindowUpdate::NewBest => {}
+            WindowUpdate::Prune => break,
         }
     }
+
+    let res = window.finalize();
 
     transposition_table.insert(
         board,
         depth_left,
-        best_score,
-        if best_score <= original_alpha {
-            EvalKind::UpperBound
-        } else if best_score >= beta {
-            EvalKind::LowerBound
-        } else {
-            EvalKind::Exact
-        },
+        res,
         stats.nodes_searched - prev_nodes_searched,
-        plies,
     );
 
-    Ok(best_score)
+    Ok(res.eval)
 }
 
 fn quiescence_search(
     board: &mut Board,
-    mut alpha: Evaluation,
-    beta: Evaluation,
+    mut window: AlphaBetaWindow,
     stats: &mut SearchStats,
-    plies: u32,
     should_exit: &impl Fn() -> bool,
 ) -> Result<Evaluation, SearchExit> {
     if should_exit() {
@@ -158,7 +139,7 @@ fn quiescence_search(
         if moves.is_empty() {
             // and also no other moves => draw or checkmate
             if movegen.is_check() {
-                return Ok(Evaluation::Loss(plies));
+                return Ok(Evaluation::Loss(window.plies()));
             } else {
                 return Ok(Evaluation::DRAW);
             }
@@ -167,37 +148,28 @@ fn quiescence_search(
             return Ok(static_eval(board));
         }
     }
-
-    let mut best_score = static_eval(board);
-    if best_score >= beta {
-        return Ok(best_score);
-    }
-    if best_score > alpha {
-        alpha = best_score;
+    match window.update(static_eval(board)) {
+        WindowUpdate::NoImprovement => {}
+        WindowUpdate::NewBest => {}
+        WindowUpdate::Prune => return Ok(window.finalize().eval),
     }
 
     for m in moves {
         let eval = -quiescence_search(
             &mut board.with_move(m),
-            -beta,
-            -alpha,
+            window.next_depth(),
             stats,
-            plies + 1,
             should_exit,
         )?;
 
-        if eval > best_score {
-            best_score = eval;
-        }
-        if eval > alpha {
-            alpha = eval;
-        }
-        if alpha >= beta {
-            break;
+        match window.update(eval) {
+            WindowUpdate::NoImprovement => {}
+            WindowUpdate::NewBest => {}
+            WindowUpdate::Prune => break,
         }
     }
 
-    Ok(best_score)
+    Ok(window.finalize().eval)
 }
 
 pub enum RootSearchExit {
@@ -268,55 +240,49 @@ pub fn search_root(
 
     let mut search_stats = SearchStats::default();
 
-    let mut prev_best_move = (Evaluation::MIN, *moves.first().unwrap());
+    let mut prev_best_move = *moves.first().unwrap();
     'search: for depth in 1..options.depth.unwrap_or(u32::MAX) {
-        let mut best_move = None;
+        let mut best = *moves.first().unwrap();
         let depth_start = Instant::now();
 
-        let mut alpha = Evaluation::MIN;
-        let beta = Evaluation::MAX;
+        let mut window = AlphaBetaWindow::default();
 
         for &m in &moves {
             let eval = search(
                 &mut board.with_move(m),
                 depth - 1,
-                -beta,
-                -alpha,
+                window.next_depth(),
                 &mut search_stats,
-                1,
                 &should_exit,
                 transposition_table,
             );
+
             let eval = match eval {
                 Ok(eval) => -eval,
                 Err(SearchExit::Cancelled) => break 'search,
             };
 
-            if best_move.is_none_or(|(best_eval, _best_move)| eval > best_eval) {
-                best_move = Some((eval, m));
+            match window.update(eval) {
+                WindowUpdate::NewBest => {
+                    best = m;
+                }
+                WindowUpdate::NoImprovement => {}
+                WindowUpdate::Prune => break,
             }
-
-            if eval > alpha {
-                alpha = eval;
-            }
         }
 
-        if let Some((eval, best_move)) = best_move {
-            on_depth_finished(DepthSummary {
-                best_move,
-                eval,
-                depth,
-                time_taken: Instant::now().signed_duration_since(depth_start),
-                stats: search_stats,
-                hash_percentage: transposition_table.used_slots() as f32
-                    / transposition_table.capacity() as f32,
-            });
-        }
+        on_depth_finished(DepthSummary {
+            best_move: best,
+            eval: window.finalize().eval,
+            depth,
+            time_taken: Instant::now().signed_duration_since(depth_start),
+            stats: search_stats,
+            hash_percentage: transposition_table.used_slots() as f32
+                / transposition_table.capacity() as f32,
+        });
 
-        if let Some(best_move) = best_move {
-            prev_best_move = best_move;
-        }
+        prev_best_move = best;
     }
 
-    Ok(prev_best_move.1)
+    Ok(prev_best_move)
 }
