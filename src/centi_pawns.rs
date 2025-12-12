@@ -155,3 +155,32 @@ impl PartialOrd for Evaluation {
         Some(self.cmp(other))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::centi_pawns::{CentiPawns, Evaluation};
+
+    #[test]
+    fn eval_ord() {
+        assert!(
+            Evaluation::Win(10) < Evaluation::Win(0),
+            "Earlier wins should be better"
+        );
+        assert!(
+            Evaluation::Win(10000) > Evaluation::Loss(0),
+            "Wins should always be better than a loss"
+        );
+        assert!(
+            Evaluation::Win(0) > Evaluation::Loss(10000),
+            "Wins should always be better than a loss, even late ones"
+        );
+        assert!(
+            Evaluation::Win(34) > Evaluation::CentiPawns(CentiPawns(4)),
+            "Wins should always be better than a normal evaluation"
+        );
+        assert!(
+            Evaluation::Loss(34) < Evaluation::CentiPawns(CentiPawns(4)),
+            "Losses should always be worse than a normal evaluation"
+        );
+    }
+}
