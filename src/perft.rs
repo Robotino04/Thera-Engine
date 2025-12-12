@@ -40,9 +40,7 @@ pub fn perft_nostats(
 
     let mut sum = 0;
     for m in moves {
-        let undo = board.make_move(m);
-        sum += perft_nostats(board, depth - 1, should_exit)?;
-        board.undo_move(undo);
+        sum += perft_nostats(&mut board.with_move(m), depth - 1, should_exit)?;
     }
 
     Some(sum)
@@ -80,9 +78,7 @@ pub fn perft(
         moves
             .into_iter()
             .map(|m| {
-                let undo = board.make_move(m);
-                let mut res = perft(board, depth - 1, should_exit)?;
-                board.undo_move(undo);
+                let mut res = perft(&mut board.with_move(m), depth - 1, should_exit)?;
 
                 res.divide = vec![PerftMove {
                     algebraic_move: m.to_algebraic(),

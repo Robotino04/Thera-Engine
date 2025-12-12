@@ -69,18 +69,18 @@ impl MoveGenerator {
     };
 
     pub fn with_attacks(board: &mut Board) -> Self {
-        let undo = board.make_null_move();
-
         let mut attacks_from_square = [Bitboard(0); 64];
 
-        Self::generate_king_attacks(board, &mut attacks_from_square);
-        Self::generate_bishop_attacks(board, &mut attacks_from_square);
-        Self::generate_knight_attacks(board, &mut attacks_from_square);
-        Self::generate_rook_attacks(board, &mut attacks_from_square);
-        Self::generate_queen_attacks(board, &mut attacks_from_square);
-        Self::generate_pawn_attacks(board, &mut attacks_from_square);
+        {
+            let board = board.make_null_move();
 
-        board.undo_null_move(undo);
+            Self::generate_king_attacks(&board, &mut attacks_from_square);
+            Self::generate_bishop_attacks(&board, &mut attacks_from_square);
+            Self::generate_knight_attacks(&board, &mut attacks_from_square);
+            Self::generate_rook_attacks(&board, &mut attacks_from_square);
+            Self::generate_queen_attacks(&board, &mut attacks_from_square);
+            Self::generate_pawn_attacks(&board, &mut attacks_from_square);
+        }
 
         let mut attacks_to_square = [Bitboard(0); 64];
         let mut attacked_squares = Bitboard(0);

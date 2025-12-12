@@ -14,7 +14,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
 use thera::bitboard::Bitboard;
-use thera::board::{FenParseError, UndoToken};
+use thera::board::FenParseError;
 use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
@@ -149,7 +149,6 @@ type BackgroundTask =
 struct ReplState {
     board: Board,
     transposition_table: Arc<Mutex<TranspositionTable>>,
-    undo_stack: Vec<UndoToken>,
 
     always_print: bool,
     is_uci: Arc<AtomicBool>,
@@ -569,13 +568,13 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
     Ok(false)
 }
 
-fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<UndoToken> {
+fn apply_move(board: &mut Board, algebraic_move: &str) -> Option<()> {
     let possible_moves = MoveGenerator::with_attacks(board).generate_all_moves(board);
 
     possible_moves
         .into_iter()
         .find(|m2| m2.to_algebraic() == algebraic_move)
-        .map(|found_move| board.make_move(found_move))
+        .map(|found_move| board.make_move_unguarded(found_move))
 }
 
 fn start_task(
@@ -630,15 +629,12 @@ fn repl_handle_perft(state: &mut ReplState, cmd: PerftCommand) {
 }
 
 fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
-    state.undo_stack.clear();
     match cmd {
         PositionCommand::Startpos { moves } => {
             state.board = Board::starting_position();
             if let Some(MoveSuffixCommand { moves }) = moves {
                 for m in moves {
-                    if let Some(undo_state) = apply_move(&mut state.board, &m) {
-                        state.undo_stack.push(undo_state);
-                    } else {
+                    if apply_move(&mut state.board, &m).is_none() {
                         state
                             .output_queue
                             .send(Some(TaskOutput::FenImpossibleMove(m)))
@@ -655,9 +651,7 @@ fn repl_handle_position(state: &mut ReplState, cmd: PositionCommand) {
                     state.board = new_board;
                     if let Some(MoveSuffixCommand { moves }) = moves {
                         for m in moves {
-                            if let Some(undo_state) = apply_move(&mut state.board, &m) {
-                                state.undo_stack.push(undo_state);
-                            } else {
+                            if apply_move(&mut state.board, &m).is_none() {
                                 state
                                     .output_queue
                                     .send(Some(TaskOutput::FenImpossibleMove(m)))
@@ -694,8 +688,7 @@ fn repl_handle_stop(state: &mut ReplState) {
 }
 
 fn repl_handle_undo(state: &mut ReplState) {
-    if let Some(undo_state) = state.undo_stack.pop() {
-        let m = state.board.undo_move(undo_state);
+    if let Some(m) = state.board.try_undo_move() {
         state
             .output_queue
             .send(Some(TaskOutput::UndidMove(m)))
@@ -709,9 +702,7 @@ fn repl_handle_undo(state: &mut ReplState) {
 }
 
 fn repl_handle_play(state: &mut ReplState, cmd: PlayCommand) {
-    if let Some(undo_state) = apply_move(&mut state.board, &cmd.move_) {
-        state.undo_stack.push(undo_state);
-    } else {
+    if apply_move(&mut state.board, &cmd.move_).is_none() {
         state
             .output_queue
             .send(Some(TaskOutput::PlayImpossibleMove(cmd.move_)))
@@ -733,7 +724,6 @@ fn repl_handle_uci(state: &mut ReplState) {
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
     state.transposition_table = Arc::new(Mutex::new(TranspositionTable::new(1 << 20)));
-    state.undo_stack.clear();
 }
 fn repl_handle_isready(state: &mut ReplState) {
     state.output_queue.send(Some(TaskOutput::ReadyOk)).unwrap();
@@ -898,7 +888,7 @@ fn repl_handle_bisect(state: &mut ReplState, cmd: BisectCommand) {
                                 .expect("Thera produced a move it doesn't know about");
 
                             move_stack.push(m.to_algebraic());
-                            let _ = board.make_move(m);
+                            board.make_move_unguarded(m);
                             continue 'next_depth;
                         }
                     } else {
@@ -1351,7 +1341,6 @@ fn main() {
     let mut state = ReplState {
         board: Board::starting_position(),
         transposition_table: Arc::new(Mutex::new(TranspositionTable::new(1 << 24))),
-        undo_stack: Vec::new(),
         always_print: false,
         is_uci: Arc::new(AtomicBool::new(false)),
         cancel_flag,
@@ -1444,7 +1433,6 @@ fn main() {
     let ReplState {
         board: _,
         transposition_table: _,
-        undo_stack: _,
         always_print: _,
         is_uci: _,
         cancel_flag,

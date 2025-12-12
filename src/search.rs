@@ -92,9 +92,8 @@ fn search(
     }
 
     for m in moves {
-        let undo = board.make_move(m);
         let eval = -search(
-            board,
+            &mut board.with_move(m),
             depth_left - 1,
             -beta,
             -alpha,
@@ -103,7 +102,6 @@ fn search(
             should_exit,
             transposition_table,
         )?;
-        board.undo_move(undo);
 
         if eval > best_score {
             best_score = eval;
@@ -179,9 +177,14 @@ fn quiescence_search(
     }
 
     for m in moves {
-        let undo = board.make_move(m);
-        let eval = -quiescence_search(board, -beta, -alpha, stats, plies + 1, should_exit)?;
-        board.undo_move(undo);
+        let eval = -quiescence_search(
+            &mut board.with_move(m),
+            -beta,
+            -alpha,
+            stats,
+            plies + 1,
+            should_exit,
+        )?;
 
         if eval > best_score {
             best_score = eval;
@@ -274,9 +277,8 @@ pub fn search_root(
         let beta = Evaluation::MAX;
 
         for &m in &moves {
-            let undo = board.make_move(m);
-            let eval = match search(
-                board,
+            let eval = search(
+                &mut board.with_move(m),
                 depth - 1,
                 -beta,
                 -alpha,
@@ -284,11 +286,11 @@ pub fn search_root(
                 1,
                 &should_exit,
                 transposition_table,
-            ) {
+            );
+            let eval = match eval {
                 Ok(eval) => -eval,
                 Err(SearchExit::Cancelled) => break 'search,
             };
-            board.undo_move(undo);
 
             if best_move.is_none_or(|(best_eval, _best_move)| eval > best_eval) {
                 best_move = Some((eval, m));

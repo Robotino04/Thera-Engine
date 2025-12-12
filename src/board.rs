@@ -1,4 +1,7 @@
-use std::sync::LazyLock;
+use std::{
+    ops::{Deref, DerefMut},
+    sync::LazyLock,
+};
 
 use itertools::Itertools;
 use rand::{Rng, SeedableRng, rngs::StdRng};
@@ -34,7 +37,49 @@ struct MoveUndoState {
 
 #[derive(Debug)]
 #[must_use = "You should always undo your moves"]
-pub struct UndoToken(());
+pub struct MoveUndoGuard<'a>(&'a mut Board);
+
+impl<'a> Deref for MoveUndoGuard<'a> {
+    type Target = Board;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+impl<'a> DerefMut for MoveUndoGuard<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<'a> Drop for MoveUndoGuard<'a> {
+    fn drop(&mut self) {
+        self.0.try_undo_move();
+    }
+}
+
+#[derive(Debug)]
+#[must_use = "You should always undo your (null) moves"]
+pub struct NullMoveUndoGuard<'a>(&'a mut Board);
+
+impl<'a> Deref for NullMoveUndoGuard<'a> {
+    type Target = Board;
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+impl<'a> DerefMut for NullMoveUndoGuard<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0
+    }
+}
+
+impl<'a> Drop for NullMoveUndoGuard<'a> {
+    fn drop(&mut self) {
+        self.0.undo_null_move();
+    }
+}
 
 #[derive(Debug)]
 #[must_use = "You should always undo your moves"]
@@ -458,7 +503,7 @@ impl Board {
         false
     }
 
-    pub fn make_move(&mut self, m: Move) -> UndoToken {
+    pub fn make_move_unguarded(&mut self, m: Move) {
         let undo_state = MoveUndoState {
             move_: m,
             can_castle: self.can_castle,
@@ -662,8 +707,13 @@ impl Board {
         self.zobrist_hash ^= ZOBRIST_KEYS.black();
 
         self.undo_data.push(undo_state);
+    }
 
-        UndoToken(())
+    pub fn with_move<'a>(&'a mut self, m: Move) -> MoveUndoGuard<'a> {
+        // this is in no way unwind safe. But if we panic in search, we don't really care because
+        // it uses a copy anyways.
+        self.make_move_unguarded(m);
+        MoveUndoGuard(self)
     }
 
     fn toggle_castling_hashes(&mut self) {
@@ -689,7 +739,7 @@ impl Board {
         self.enpassant_square = Bitboard(0);
     }
 
-    pub fn undo_move(&mut self, _token: UndoToken) -> Move {
+    pub fn try_undo_move(&mut self) -> Option<Move> {
         self.color_to_move = self.color_to_move.opposite();
 
         let MoveUndoState {
@@ -699,7 +749,7 @@ impl Board {
             halfmove_clock,
             fullmove_counter,
             zobrist_hash,
-        } = self.undo_data.pop().unwrap();
+        } = self.undo_data.pop()?;
 
         self.can_castle = can_castle;
         self.enpassant_square = enpassant_square;
@@ -782,7 +832,7 @@ impl Board {
             }
         }
 
-        move_
+        Some(move_)
     }
 
     pub fn pawns(&self, color: Color) -> Bitboard {
@@ -821,11 +871,16 @@ impl Board {
         self.color_to_move
     }
 
-    pub fn make_null_move(&mut self) -> NullUndoToken {
+    pub fn make_null_move_unguarded(&mut self) {
         self.color_to_move = self.color_to_move.opposite();
-        NullUndoToken(())
     }
-    pub fn undo_null_move(&mut self, _token: NullUndoToken) {
+    pub fn make_null_move<'a>(&'a mut self) -> NullMoveUndoGuard<'a> {
+        // this is in no way unwind safe. But if we panic in search, we don't really care because
+        // it uses a copy anyways.
+        self.make_null_move_unguarded();
+        NullMoveUndoGuard(self)
+    }
+    pub fn undo_null_move(&mut self) {
         self.color_to_move = self.color_to_move.opposite();
     }
 
