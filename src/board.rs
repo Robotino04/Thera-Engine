@@ -14,8 +14,8 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct Board {
-    pieces: [Bitboard; 6],
-    colors: [Bitboard; 2],
+    pieces: [Bitboard; Piece::COUNT],
+    colors: [Bitboard; Color::COUNT],
     color_to_move: Color,
     can_castle: Bitboard,
     enpassant_square: Bitboard,
@@ -99,8 +99,8 @@ pub enum FenParseError {
 }
 
 struct ZobristKeys {
-    pieces: [[[u64; 64]; 2]; 7],
-    castling: [[u64; 2]; 2], // first index by color, then piece
+    pieces: [[[u64; Square::COUNT]; Color::COUNT]; Piece::COUNT],
+    castling: [[u64; Color::COUNT]; 2],
     en_passant: [u64; 8],
     black: u64,
 }
@@ -135,8 +135,8 @@ impl ZobristKeys {
 
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, FenParseError> {
-        let mut pieces = [Bitboard(0); 6];
-        let mut colors = [Bitboard(0); 2];
+        let mut pieces = [Bitboard(0); Piece::COUNT];
+        let mut colors = [Bitboard(0); Color::COUNT];
 
         let mut zobrist_hash = 0u64;
 

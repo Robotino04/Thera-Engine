@@ -2,19 +2,19 @@ use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
     magic_bitboard::{bishop_magic_bitboard, rook_magic_bitboard},
-    piece::{Color, Direction, Move, Piece},
+    piece::{Color, Direction, Move, Piece, Square},
 };
 
 #[derive(Debug)]
 pub struct MoveGenerator {
     #[expect(dead_code)]
-    attacks_from_square: [Bitboard; 64],
+    attacks_from_square: [Bitboard; Square::COUNT],
     #[expect(dead_code)]
-    attacks_to_square: [Bitboard; 64],
+    attacks_to_square: [Bitboard; Square::COUNT],
     /// NOTE: this does not consider the king as a blocker for sliding pieces.
     /// That's a good thing for king move generation, but maybe not expected for other uses
     attacked_squares: Bitboard,
-    allowed_targets: [Bitboard; 64],
+    allowed_targets: [Bitboard; Square::COUNT],
     is_double_check: bool,
     is_check: bool,
 }
@@ -38,12 +38,12 @@ pub fn occluded_fill(mut seeds: Bitboard, blockers: Bitboard, dir: Direction) ->
 
 impl MoveGenerator {
     /// https://www.chessprogramming.org/Square_Attacked_By#Pure_Calculation
-    pub const SQUARES_IN_BETWEEN: [[Bitboard; 64]; 64] = const {
-        let mut tmp = [[Bitboard(0); 64]; 64];
+    pub const SQUARES_IN_BETWEEN: [[Bitboard; Square::COUNT]; Square::COUNT] = const {
+        let mut tmp = [[Bitboard(0); Square::COUNT]; Square::COUNT];
         let mut sq1 = 0;
-        while sq1 < 64 {
+        while sq1 < Square::COUNT {
             let mut sq2 = 0;
-            while sq2 < 64 {
+            while sq2 < Square::COUNT {
                 let m1: u64 = 0xFFFFFFFFFFFFFFFF;
                 let a2a7: u64 = 0x0001010101010100;
                 let b2g7: u64 = 0x0040201008040200;
@@ -58,7 +58,7 @@ impl MoveGenerator {
                 line += (((rank.wrapping_add(file)) & 15).wrapping_sub(1)) & h1b7; /* h1b7 if same antidiag */
                 line = line.wrapping_mul(btwn & btwn.wrapping_neg()); /* mul acts like shift by smaller square */
 
-                tmp[sq1 as usize][sq2 as usize] = Bitboard(line & btwn); /* return the bits on that line in-between */
+                tmp[sq1][sq2] = Bitboard(line & btwn); /* return the bits on that line in-between */
 
                 sq2 += 1;
             }
@@ -69,7 +69,7 @@ impl MoveGenerator {
     };
 
     pub fn with_attacks(board: &mut Board) -> Self {
-        let mut attacks_from_square = [Bitboard(0); 64];
+        let mut attacks_from_square = [Bitboard(0); Square::COUNT];
 
         {
             let board = board.make_null_move();
@@ -82,7 +82,7 @@ impl MoveGenerator {
             Self::generate_pawn_attacks(&board, &mut attacks_from_square);
         }
 
-        let mut attacks_to_square = [Bitboard(0); 64];
+        let mut attacks_to_square = [Bitboard(0); Square::COUNT];
         let mut attacked_squares = Bitboard(0);
         for (i, mut bb) in attacks_from_square.iter().cloned().enumerate() {
             attacked_squares |= bb;
@@ -122,7 +122,7 @@ impl MoveGenerator {
 
         let blockers = board.all_piece_bitboard();
 
-        let mut target_restrictions = [allowed_targets; 64];
+        let mut target_restrictions = [allowed_targets; Square::COUNT];
         for dir in Direction::ALL {
             let pinned_squares = Self::pinned_pieces(board, blockers, king, dir);
             let mut pinned_squares2 = pinned_squares;
@@ -261,7 +261,7 @@ impl MoveGenerator {
         targets ^ king
     }
 
-    fn generate_king_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_king_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let king = board.king(board.color_to_move());
         let targets = Self::generate_king_targets(king);
         attacks_from_square[king.first_piece_index().unwrap() as usize] |= targets;
@@ -333,7 +333,7 @@ impl MoveGenerator {
             );
         }
     }
-    fn generate_rook_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_rook_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let mut rooks = board.rooks(board.color_to_move());
         while let Some(rook) = rooks.bitscan_index() {
             let occupancy =
@@ -359,7 +359,7 @@ impl MoveGenerator {
             );
         }
     }
-    fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let mut bishops = board.bishops(board.color_to_move());
         while let Some(bishop) = bishops.bitscan_index() {
             let occupancy =
@@ -389,7 +389,7 @@ impl MoveGenerator {
             );
         }
     }
-    fn generate_queen_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_queen_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let mut queens = board.queens(board.color_to_move());
         while let Some(queen) = queens.bitscan_index() {
             let occupancy =
@@ -402,11 +402,11 @@ impl MoveGenerator {
     }
 
     fn generate_knight_targets(knight: Bitboard) -> Bitboard {
-        const LUT: [Bitboard; 64] = {
-            let mut lut = [Bitboard(0); 64];
+        const LUT: [Bitboard; Square::COUNT] = {
+            let mut lut = [Bitboard(0); Square::COUNT];
 
             let mut square = 0;
-            while square < 64 {
+            while square < Square::COUNT {
                 let knight = Bitboard(1 << square);
 
                 let top_bottom_initial = knight
@@ -428,7 +428,7 @@ impl MoveGenerator {
                     .shift(Direction::South),
                 );
 
-                lut[square as usize] = targets;
+                lut[square] = targets;
 
                 square += 1;
             }
@@ -448,7 +448,7 @@ impl MoveGenerator {
             Self::targets_to_moves::<ALL_MOVES>(knight, Piece::Knight, targets, board, moves);
         }
     }
-    fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_knight_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let mut knights = board.knights(board.color_to_move());
         while let Some(knight) = knights.bitscan() {
             attacks_from_square[knight.first_piece_index().unwrap() as usize] |=
@@ -632,7 +632,7 @@ impl MoveGenerator {
             }
         }
     }
-    fn generate_pawn_attacks(board: &Board, attacks_from_square: &mut [Bitboard; 64]) {
+    fn generate_pawn_attacks(board: &Board, attacks_from_square: &mut [Bitboard; Square::COUNT]) {
         let forwards_west = match board.color_to_move() {
             Color::White => Direction::NorthWest,
             Color::Black => Direction::SouthWest,

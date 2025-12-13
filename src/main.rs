@@ -93,7 +93,7 @@ enum BisectStep {
 }
 
 struct MagicImprovement {
-    values: [u64; 64],
+    values: [u64; Square::COUNT],
     packed_size: usize,
     padded_size: usize,
     magic_type: MagicType,
@@ -745,7 +745,7 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
         move |cancel_flag, result_sender| {
             let mut rng = rand::rng();
 
-            let mut best_magic: [Option<(MagicTableEntry, u64)>; 64] = starting_values
+            let mut best_magic: [Option<(MagicTableEntry, u64)>; Square::COUNT] = starting_values
                 .iter()
                 .cloned()
                 .enumerate()
@@ -809,7 +809,7 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                         .max()
                         .unwrap_or_default() as usize
                         * size_of::<Bitboard>()
-                        * 64;
+                        * Square::COUNT;
 
                     result_sender
                         .send(Some(TaskOutput::MagicImprovement(MagicImprovement {
@@ -831,7 +831,7 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                             values: best_magic
                                 .iter()
                                 .map(|x| x.map(|x| x.0.magic).unwrap_or_default())
-                                .collect_array::<64>()
+                                .collect_array()
                                 .unwrap(),
                         })))
                         .unwrap();

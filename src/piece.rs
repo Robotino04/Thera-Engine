@@ -16,7 +16,8 @@ pub enum Piece {
 }
 
 impl Piece {
-    pub const ALL: [Piece; 6] = [
+    pub const COUNT: usize = 6;
+    pub const ALL: [Piece; Self::COUNT] = [
         Self::Pawn,
         Self::Bishop,
         Self::Knight,
@@ -64,7 +65,8 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub const ALL: [Direction; 8] = [
+    pub const COUNT: usize = 8;
+    pub const ALL: [Direction; Self::COUNT] = [
         Self::North,
         Self::South,
         Self::East,
@@ -110,7 +112,8 @@ pub enum Color {
 }
 
 impl Color {
-    pub const ALL: [Color; 2] = [Self::White, Self::Black];
+    pub const COUNT: usize = 2;
+    pub const ALL: [Color; Self::COUNT] = [Self::White, Self::Black];
 
     pub fn opposite(&self) -> Color {
         match self {
@@ -140,8 +143,9 @@ pub enum Square {
 }
 
 impl Square {
+    pub const COUNT: usize = 64;
     #[rustfmt::skip]
-    pub const ALL: [Square; 64] = {
+    pub const ALL: [Square; Self::COUNT] = {
         use Square::*;
         [
             H1, G1, F1, E1, D1, C1, B1, A1,
