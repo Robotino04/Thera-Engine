@@ -2,7 +2,10 @@ use std::fmt::Display;
 
 use itertools::Itertools;
 
-use crate::bitboard::Bitboard;
+use crate::{
+    bitboard::Bitboard,
+    typed_array::{TypedArray, TypedIndex},
+};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -14,6 +17,14 @@ pub enum Piece {
     Queen,
     King,
 }
+
+impl TypedIndex for Piece {
+    fn typed_index(self) -> usize {
+        self as usize
+    }
+}
+
+pub type ByPiece<T> = TypedArray<T, { Piece::COUNT }, Piece>;
 
 impl Piece {
     pub const COUNT: usize = 6;
@@ -63,6 +74,14 @@ pub enum Direction {
     SouthEast = Self::South as i8 + Self::East as i8,
     SouthWest = Self::South as i8 + Self::West as i8,
 }
+
+impl TypedIndex for Direction {
+    fn typed_index(self) -> usize {
+        self as usize
+    }
+}
+
+pub type ByDirection<T> = TypedArray<T, { Direction::COUNT }, Direction>;
 
 impl Direction {
     pub const COUNT: usize = 8;
@@ -122,6 +141,14 @@ impl Color {
         }
     }
 }
+
+impl TypedIndex for Color {
+    fn typed_index(self) -> usize {
+        self as usize
+    }
+}
+
+pub type ByColor<T> = TypedArray<T, { Color::COUNT }, Color>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Rank {
@@ -225,7 +252,16 @@ impl Square {
     pub const fn column(&self) -> u8 {
         *self as u8 % 8
     }
+
 }
+
+impl TypedIndex for Square {
+    fn typed_index(self) -> usize {
+        self as usize
+    }
+}
+
+pub type BySquare<T> = TypedArray<T, { Square::COUNT }, Square>;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Move {

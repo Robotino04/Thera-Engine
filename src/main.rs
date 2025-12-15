@@ -19,7 +19,7 @@ use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
-use thera::piece::{Move, Piece, Square};
+use thera::piece::{BySquare, Move, Piece, Square};
 use thera::search::{DepthSummary, RootSearchExit, SearchOptions, SearchStats, search_root};
 use thera::transposition_table::TranspositionTable;
 use thera::{self, board::Board, move_generator::MoveGenerator};
@@ -93,7 +93,7 @@ enum BisectStep {
 }
 
 struct MagicImprovement {
-    values: [u64; Square::COUNT],
+    values: BySquare<u64>,
     packed_size: usize,
     padded_size: usize,
     magic_type: MagicType,
@@ -745,7 +745,8 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
         move |cancel_flag, result_sender| {
             let mut rng = rand::rng();
 
-            let mut best_magic: [Option<(MagicTableEntry, u64)>; Square::COUNT] = starting_values
+            let mut best_magic: BySquare<Option<(MagicTableEntry, u64)>> = starting_values
+                .as_ref()
                 .iter()
                 .cloned()
                 .enumerate()
@@ -761,7 +762,8 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                 })
                 .map(Option::Some)
                 .collect_array()
-                .unwrap();
+                .unwrap()
+                .into();
 
             /*
             let mut best_magic = [Some((
@@ -786,23 +788,25 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                     };
 
                     if new_entry_size
-                        < best_magic[square as usize]
+                        < best_magic[square]
                             .map(|(_magic, entry)| entry)
                             .unwrap_or(u64::MAX)
                     {
-                        best_magic[square as usize] = Some((new_magic, new_entry_size));
+                        best_magic[square] = Some((new_magic, new_entry_size));
                         has_improvement = true;
                     }
                 }
 
                 if has_improvement {
                     let packed_table_size = best_magic
+                        .as_ref()
                         .iter()
                         .flatten()
                         .map(|(_magic, max_entry)| *max_entry + 1)
                         .sum::<u64>() as usize
                         * size_of::<Bitboard>();
                     let padded_table_size = best_magic
+                        .as_ref()
                         .iter()
                         .flatten()
                         .map(|(_magic, max_entry)| *max_entry + 1)
@@ -816,12 +820,14 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                             packed_size: packed_table_size,
                             padded_size: padded_table_size,
                             min_bits: best_magic
+                                .as_ref()
                                 .iter()
                                 .flatten()
                                 .map(|(magic, _max_entries)| magic.bits_used)
                                 .min()
                                 .unwrap_or_default(),
                             max_bits: best_magic
+                                .as_ref()
                                 .iter()
                                 .flatten()
                                 .map(|(magic, _max_entries)| magic.bits_used)
@@ -829,10 +835,12 @@ fn repl_handle_magic(state: &mut ReplState, cmd: MagicCommand) {
                                 .unwrap_or_default(),
                             magic_type: cmd.type_,
                             values: best_magic
+                                .as_ref()
                                 .iter()
                                 .map(|x| x.map(|x| x.0.magic).unwrap_or_default())
                                 .collect_array()
-                                .unwrap(),
+                                .unwrap()
+                                .into(),
                         })))
                         .unwrap();
                 }

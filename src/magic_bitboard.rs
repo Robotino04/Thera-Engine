@@ -5,10 +5,10 @@ use itertools::Itertools;
 use crate::{
     bitboard::{Bitboard, bitboard},
     move_generator::occluded_fill,
-    piece::{Direction, Piece, Square},
+    piece::{BySquare, Direction, Piece, Square},
 };
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct MagicTableEntry {
     pub magic: u64,
     pub mask: Bitboard,
@@ -21,13 +21,11 @@ impl MagicTableEntry {
     }
 }
 
-pub fn rook_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
-    ROOK_MAGIC_TABLE[from_index as usize]
-        [ROOK_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
+pub fn rook_magic_bitboard(from_square: Square, occupancy: Bitboard) -> Bitboard {
+    ROOK_MAGIC_TABLE[from_square][ROOK_MAGIC_ENTRIES[from_square].apply(occupancy) as usize]
 }
-pub fn bishop_magic_bitboard(from_index: u32, occupancy: Bitboard) -> Bitboard {
-    BISHOP_MAGIC_TABLE[from_index as usize]
-        [BISHOP_MAGIC_ENTRIES[from_index as usize].apply(occupancy) as usize]
+pub fn bishop_magic_bitboard(from_square: Square, occupancy: Bitboard) -> Bitboard {
+    BISHOP_MAGIC_TABLE[from_square][BISHOP_MAGIC_ENTRIES[from_square].apply(occupancy) as usize]
 }
 
 fn sliding_moves<const N: usize>(
@@ -205,7 +203,7 @@ pub fn generate_magic_table(
     out
 }
 
-pub const ROOK_MAGIC_VALUES: [u64; Square::COUNT] = [
+pub const ROOK_MAGIC_VALUES: BySquare<u64> = BySquare::new([
     11637302811523555600,
     9007267974742048,
     9241404027684536324,
@@ -270,8 +268,8 @@ pub const ROOK_MAGIC_VALUES: [u64; Square::COUNT] = [
     36033229459062785,
     2314850767888057345,
     720721359986037890,
-];
-pub const BISHOP_MAGIC_VALUES: [u64; Square::COUNT] = [
+]);
+pub const BISHOP_MAGIC_VALUES: BySquare<u64> = BySquare::new([
     70920655865920,
     141287378919556,
     4683884488466497792,
@@ -336,84 +334,70 @@ pub const BISHOP_MAGIC_VALUES: [u64; Square::COUNT] = [
     2310364218211205129,
     4402345676804,
     140879239061512,
-];
+]);
 
-fn magic_entry_generator(
-    piece: Piece,
-    magic_values: &[u64; Square::COUNT],
-) -> [MagicTableEntry; Square::COUNT] {
-    let mut entries = [MagicTableEntry {
-        magic: 0,
-        mask: Bitboard(0),
-        bits_used: 0,
-    }; Square::COUNT];
+fn magic_entry_generator(piece: Piece, magic_values: &BySquare<u64>) -> BySquare<MagicTableEntry> {
+    let mut entries: BySquare<_> = Default::default();
 
     for square in Square::ALL {
-        entries[square as usize] = generate_magic_entry(
-            Bitboard::from_square(square),
-            magic_values[square as usize],
-            piece,
-        )
-        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
-        .0;
+        entries[square] =
+            generate_magic_entry(Bitboard::from_square(square), magic_values[square], piece)
+                .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
+                .0;
     }
 
     entries
 }
-fn magic_entry_size_generator(
-    piece: Piece,
-    magic_values: &[u64; Square::COUNT],
-) -> [usize; Square::COUNT] {
-    let mut entries = [0; Square::COUNT];
+fn magic_entry_size_generator(piece: Piece, magic_values: &BySquare<u64>) -> BySquare<usize> {
+    let mut entries: BySquare<_> = Default::default();
 
     for square in Square::ALL {
-        entries[square as usize] = generate_magic_entry(
-            Bitboard::from_square(square),
-            magic_values[square as usize],
-            piece,
-        )
-        .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
-        .1 as usize
-            + 1;
+        entries[square] =
+            generate_magic_entry(Bitboard::from_square(square), magic_values[square], piece)
+                .unwrap_or_else(|| panic!("The {piece:?} magic values aren't unique"))
+                .1 as usize
+                + 1;
     }
 
     entries
 }
 
-pub static ROOK_MAGIC_ENTRIES: LazyLock<[MagicTableEntry; Square::COUNT]> =
+pub static ROOK_MAGIC_ENTRIES: LazyLock<BySquare<MagicTableEntry>> =
     LazyLock::new(|| magic_entry_generator(Piece::Rook, &ROOK_MAGIC_VALUES));
-pub static ROOK_MAGIC_TABLE_SIZES: LazyLock<[usize; Square::COUNT]> =
+pub static ROOK_MAGIC_TABLE_SIZES: LazyLock<BySquare<usize>> =
     LazyLock::new(|| magic_entry_size_generator(Piece::Rook, &ROOK_MAGIC_VALUES));
-pub static ROOK_MAGIC_TABLE: LazyLock<[Vec<Bitboard>; Square::COUNT]> = LazyLock::new(|| {
+pub static ROOK_MAGIC_TABLE: LazyLock<BySquare<Vec<Bitboard>>> = LazyLock::new(|| {
     Square::ALL
         .into_iter()
         .map(|square| {
             generate_magic_table(
                 square,
-                ROOK_MAGIC_ENTRIES[square as usize],
+                ROOK_MAGIC_ENTRIES[square],
                 Piece::Rook,
-                ROOK_MAGIC_TABLE_SIZES[square as usize],
+                ROOK_MAGIC_TABLE_SIZES[square],
             )
         })
         .collect_array()
         .unwrap()
+        .into()
 });
 
-pub static BISHOP_MAGIC_ENTRIES: LazyLock<[MagicTableEntry; Square::COUNT]> =
+pub static BISHOP_MAGIC_ENTRIES: LazyLock<BySquare<MagicTableEntry>> =
     LazyLock::new(|| magic_entry_generator(Piece::Bishop, &BISHOP_MAGIC_VALUES));
-pub static BISHOP_MAGIC_TABLE_SIZES: LazyLock<[usize; Square::COUNT]> =
+pub static BISHOP_MAGIC_TABLE_SIZES: LazyLock<BySquare<usize>> =
     LazyLock::new(|| magic_entry_size_generator(Piece::Bishop, &BISHOP_MAGIC_VALUES));
-pub static BISHOP_MAGIC_TABLE: LazyLock<[Vec<Bitboard>; Square::COUNT]> = LazyLock::new(|| {
+pub static BISHOP_MAGIC_TABLE: LazyLock<BySquare<Vec<Bitboard>>> = LazyLock::new(|| {
     Square::ALL
         .into_iter()
         .map(|square| {
             generate_magic_table(
                 square,
-                BISHOP_MAGIC_ENTRIES[square as usize],
+                BISHOP_MAGIC_ENTRIES[square],
                 Piece::Bishop,
-                BISHOP_MAGIC_TABLE_SIZES[square as usize],
+                BISHOP_MAGIC_TABLE_SIZES[square],
             )
         })
         .collect_array()
         .unwrap()
+        .into()
 });

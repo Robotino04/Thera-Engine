@@ -9,13 +9,13 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use crate::{
     ansi::Ansi,
     bitboard::{Bitboard, bitboard},
-    piece::{Color, Direction, Move, Piece, Square},
+    piece::{ByColor, ByPiece, BySquare, Color, Direction, Move, Piece, Square},
 };
 
 #[derive(Clone, Debug)]
 pub struct Board {
-    pieces: [Bitboard; Piece::COUNT],
-    colors: [Bitboard; Color::COUNT],
+    pieces: ByPiece<Bitboard>,
+    colors: ByColor<Bitboard>,
     color_to_move: Color,
     can_castle: Bitboard,
     enpassant_square: Bitboard,
@@ -99,8 +99,8 @@ pub enum FenParseError {
 }
 
 struct ZobristKeys {
-    pieces: [[[u64; Square::COUNT]; Color::COUNT]; Piece::COUNT],
-    castling: [[u64; Color::COUNT]; 2],
+    pieces: ByPiece<ByColor<BySquare<u64>>>,
+    castling: ByColor<[u64; 2]>,
     en_passant: [u64; 8],
     black: u64,
 }
@@ -117,13 +117,13 @@ static ZOBRIST_KEYS: LazyLock<ZobristKeys> = LazyLock::new(|| {
 
 impl ZobristKeys {
     pub fn square(&self, square: Square, color: Color, piece: Piece) -> u64 {
-        self.pieces[piece as usize][color as usize][square as usize]
+        self.pieces[piece][color][square]
     }
     pub fn king_castling(&self, color: Color) -> u64 {
-        self.castling[color as usize][0]
+        self.castling[color][0]
     }
     pub fn queen_castling(&self, color: Color) -> u64 {
-        self.castling[color as usize][0]
+        self.castling[color][1]
     }
     pub fn en_passant(&self, square: Square) -> u64 {
         self.en_passant[square.column() as usize]
@@ -135,8 +135,8 @@ impl ZobristKeys {
 
 impl Board {
     pub fn from_fen(fen: &str) -> Result<Self, FenParseError> {
-        let mut pieces = [Bitboard(0); Piece::COUNT];
-        let mut colors = [Bitboard(0); Color::COUNT];
+        let mut pieces = ByPiece::<Bitboard>::default();
+        let mut colors = ByColor::<Bitboard>::default();
 
         let mut zobrist_hash = 0u64;
 
@@ -175,7 +175,7 @@ impl Board {
                 };
 
                 if let Some(piece) = board {
-                    let board = &mut pieces[piece as usize];
+                    let board = &mut pieces[piece];
                     let square =
                         Square::from_xy(x, y as u32).ok_or(FenParseError::TooManyPiecesInRow)?;
                     board.set(square);
@@ -184,7 +184,7 @@ impl Board {
                     } else {
                         Color::White
                     };
-                    colors[color as usize].set(square);
+                    colors[color].set(square);
                     zobrist_hash ^= ZOBRIST_KEYS.square(square, color, piece);
                     x += 1;
                 }
@@ -450,23 +450,23 @@ impl Board {
     pub fn get_piece_from_bitboard(&self, bb: Bitboard) -> Option<Piece> {
         Piece::ALL
             .into_iter()
-            .find(|&piece| !(self.pieces[piece as usize] & bb).is_empty())
+            .find(|&piece| !(self.pieces[piece] & bb).is_empty())
     }
     pub fn get_color_from_bitboard(&self, bb: Bitboard) -> Option<Color> {
         Color::ALL
             .into_iter()
-            .find(|&color| !(self.colors[color as usize] & bb).is_empty())
+            .find(|&color| !(self.colors[color] & bb).is_empty())
     }
 
     pub fn get_piece_at_index(&self, index: Square) -> Option<Piece> {
         Piece::ALL
             .into_iter()
-            .find(|&piece| self.pieces[piece as usize].at(index))
+            .find(|&piece| self.pieces[piece].at(index))
     }
     pub fn get_color_at_index(&self, index: Square) -> Option<Color> {
         Color::ALL
             .into_iter()
-            .find(|&color| self.colors[color as usize].at(index))
+            .find(|&color| self.colors[color].at(index))
     }
 
     pub fn is_draw_50(&self) -> bool {
@@ -526,8 +526,8 @@ impl Board {
                 moved_piece,
             } => {
                 if let Some(captured_piece) = captured_piece {
-                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
-                    self.pieces[captured_piece as usize] ^= to_square;
+                    self.colors[self.color_to_move.opposite()] ^= to_square;
+                    self.pieces[captured_piece] ^= to_square;
                     self.zobrist_hash ^= ZOBRIST_KEYS.square(
                         to_square.first_piece_square().unwrap(),
                         self.color_to_move().opposite(),
@@ -536,8 +536,8 @@ impl Board {
                 }
 
                 // toggle piece into place
-                self.colors[self.color_to_move() as usize] ^= to_square | from_square;
-                self.pieces[moved_piece as usize] ^= to_square | from_square;
+                self.colors[self.color_to_move] ^= to_square | from_square;
+                self.pieces[moved_piece] ^= to_square | from_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     to_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -562,8 +562,8 @@ impl Board {
                 from_square,
                 to_square,
             } => {
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
-                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
+                self.pieces[Piece::Pawn] ^= from_square | to_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     to_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -596,8 +596,8 @@ impl Board {
                 };
 
                 // toggle pawn to new place
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
-                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
+                self.pieces[Piece::Pawn] ^= from_square | to_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     from_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -609,8 +609,8 @@ impl Board {
                 );
 
                 // remove the opponent pawn
-                self.colors[self.color_to_move().opposite() as usize] ^= captured_pawn;
-                self.pieces[Piece::Pawn as usize] ^= captured_pawn;
+                self.colors[self.color_to_move.opposite()] ^= captured_pawn;
+                self.pieces[Piece::Pawn] ^= captured_pawn;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     captured_pawn.first_piece_square().unwrap(),
                     self.color_to_move().opposite(),
@@ -631,8 +631,8 @@ impl Board {
                 captured_piece,
             } => {
                 if let Some(captured_piece) = captured_piece {
-                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
-                    self.pieces[captured_piece as usize] ^= to_square;
+                    self.colors[self.color_to_move.opposite()] ^= to_square;
+                    self.pieces[captured_piece] ^= to_square;
                     self.zobrist_hash ^= ZOBRIST_KEYS.square(
                         to_square.first_piece_square().unwrap(),
                         self.color_to_move().opposite(),
@@ -640,16 +640,16 @@ impl Board {
                     );
                 }
 
-                self.pieces[Piece::Pawn as usize] ^= from_square;
-                self.colors[self.color_to_move() as usize] ^= from_square;
+                self.pieces[Piece::Pawn] ^= from_square;
+                self.colors[self.color_to_move] ^= from_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     from_square.first_piece_square().unwrap(),
                     self.color_to_move(),
                     Piece::Pawn,
                 );
 
-                self.pieces[promotion_piece as usize] ^= to_square;
-                self.colors[self.color_to_move() as usize] ^= to_square;
+                self.pieces[promotion_piece] ^= to_square;
+                self.colors[self.color_to_move] ^= to_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     to_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -671,8 +671,8 @@ impl Board {
                 rook_to_square,
             } => {
                 // toggle king into place
-                self.pieces[Piece::King as usize] ^= from_square | to_square;
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::King] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     from_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -684,8 +684,8 @@ impl Board {
                 );
 
                 // toggle rook into place
-                self.pieces[Piece::Rook as usize] ^= rook_from_square | rook_to_square;
-                self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
+                self.pieces[Piece::Rook] ^= rook_from_square | rook_to_square;
+                self.colors[self.color_to_move] ^= rook_from_square | rook_to_square;
                 self.zobrist_hash ^= ZOBRIST_KEYS.square(
                     rook_from_square.first_piece_square().unwrap(),
                     self.color_to_move(),
@@ -767,20 +767,20 @@ impl Board {
                 moved_piece,
             } => {
                 if let Some(captured_piece) = captured_piece {
-                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
-                    self.pieces[captured_piece as usize] ^= to_square;
+                    self.colors[self.color_to_move.opposite()] ^= to_square;
+                    self.pieces[captured_piece] ^= to_square;
                 }
 
                 // toggle piece into place
-                self.colors[self.color_to_move() as usize] ^= to_square | from_square;
-                self.pieces[moved_piece as usize] ^= to_square | from_square;
+                self.colors[self.color_to_move] ^= to_square | from_square;
+                self.pieces[moved_piece] ^= to_square | from_square;
             }
             Move::DoublePawn {
                 from_square,
                 to_square,
             } => {
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
-                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
+                self.pieces[Piece::Pawn] ^= from_square | to_square;
             }
             Move::EnPassant {
                 from_square,
@@ -792,12 +792,12 @@ impl Board {
                 };
 
                 // toggle pawn to new place
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
-                self.pieces[Piece::Pawn as usize] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
+                self.pieces[Piece::Pawn] ^= from_square | to_square;
 
                 // remove the opponent pawn
-                self.colors[self.color_to_move().opposite() as usize] ^= captured_pawn;
-                self.pieces[Piece::Pawn as usize] ^= captured_pawn;
+                self.colors[self.color_to_move.opposite()] ^= captured_pawn;
+                self.pieces[Piece::Pawn] ^= captured_pawn;
             }
             Move::Promotion {
                 from_square,
@@ -806,15 +806,15 @@ impl Board {
                 captured_piece,
             } => {
                 if let Some(captured_piece) = captured_piece {
-                    self.colors[self.color_to_move().opposite() as usize] ^= to_square;
-                    self.pieces[captured_piece as usize] ^= to_square;
+                    self.colors[self.color_to_move.opposite()] ^= to_square;
+                    self.pieces[captured_piece] ^= to_square;
                 }
 
-                self.pieces[Piece::Pawn as usize] ^= from_square;
-                self.colors[self.color_to_move() as usize] ^= from_square;
+                self.pieces[Piece::Pawn] ^= from_square;
+                self.colors[self.color_to_move] ^= from_square;
 
-                self.pieces[promotion_piece as usize] ^= to_square;
-                self.colors[self.color_to_move() as usize] ^= to_square;
+                self.pieces[promotion_piece] ^= to_square;
+                self.colors[self.color_to_move] ^= to_square;
             }
             Move::Castle {
                 from_square,
@@ -823,12 +823,12 @@ impl Board {
                 rook_to_square,
             } => {
                 // toggle king into place
-                self.pieces[Piece::King as usize] ^= from_square | to_square;
-                self.colors[self.color_to_move() as usize] ^= from_square | to_square;
+                self.pieces[Piece::King] ^= from_square | to_square;
+                self.colors[self.color_to_move] ^= from_square | to_square;
 
                 // toggle rook into place
-                self.pieces[Piece::Rook as usize] ^= rook_from_square | rook_to_square;
-                self.colors[self.color_to_move() as usize] ^= rook_from_square | rook_to_square;
+                self.pieces[Piece::Rook] ^= rook_from_square | rook_to_square;
+                self.colors[self.color_to_move] ^= rook_from_square | rook_to_square;
             }
         }
 
@@ -836,35 +836,35 @@ impl Board {
     }
 
     pub fn pawns(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::Pawn as usize] & self.colors[color as usize]
+        self.pieces[Piece::Pawn] & self.colors[color]
     }
     pub fn bishops(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::Bishop as usize] & self.colors[color as usize]
+        self.pieces[Piece::Bishop] & self.colors[color]
     }
     pub fn knights(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::Knight as usize] & self.colors[color as usize]
+        self.pieces[Piece::Knight] & self.colors[color]
     }
     pub fn rooks(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::Rook as usize] & self.colors[color as usize]
+        self.pieces[Piece::Rook] & self.colors[color]
     }
     pub fn queens(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::Queen as usize] & self.colors[color as usize]
+        self.pieces[Piece::Queen] & self.colors[color]
     }
     pub fn king(&self, color: Color) -> Bitboard {
-        self.pieces[Piece::King as usize] & self.colors[color as usize]
+        self.pieces[Piece::King] & self.colors[color]
     }
 
     pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {
-        self.pieces[piece as usize] & self.colors[color as usize]
+        self.pieces[piece] & self.colors[color]
     }
     pub fn get_piece_bitboard_colorless(&self, piece: Piece) -> Bitboard {
-        self.pieces[piece as usize]
+        self.pieces[piece]
     }
     pub fn all_piece_bitboard(&self) -> Bitboard {
         self.get_color_bitboard(Color::White) | self.get_color_bitboard(Color::Black)
     }
     pub fn get_color_bitboard(&self, color: Color) -> Bitboard {
-        self.colors[color as usize]
+        self.colors[color]
     }
 
     pub fn color_to_move(&self) -> Color {

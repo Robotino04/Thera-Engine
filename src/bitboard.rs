@@ -165,6 +165,15 @@ impl Bitboard {
             Some(index)
         }
     }
+    pub fn bitscan_square(&mut self) -> Option<Square> {
+        if self.0 == 0 {
+            None
+        } else {
+            let index = self.0.trailing_zeros();
+            self.0 &= self.0 - 1;
+            Some(Square::new(index as u8).unwrap())
+        }
+    }
     pub const fn first_piece_index(&self) -> Option<u32> {
         if self.0 == 0 {
             None
