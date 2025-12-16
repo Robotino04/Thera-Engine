@@ -589,7 +589,7 @@ impl MoveGenerator {
 
                     let blockers = board.all_piece_bitboard() ^ both_pawns;
 
-                    let pin_line = if king_square.column() < pawn_square.column() {
+                    let pin_line = if pawn_square.column() < king_square.column() {
                         occluded_fill(king, blockers, Direction::West).shift(Direction::West)
                     } else {
                         occluded_fill(king, blockers, Direction::East).shift(Direction::East)

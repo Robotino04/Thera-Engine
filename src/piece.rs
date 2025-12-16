@@ -250,9 +250,12 @@ impl Square {
         *self as u8 / 8
     }
     pub const fn column(&self) -> u8 {
-        *self as u8 % 8
+        7 - *self as u8 % 8
     }
 
+    pub fn flipped(&self) -> Self {
+        Self::from_xy(self.column(), 7 - self.row()).unwrap()
+    }
 }
 
 impl TypedIndex for Square {
@@ -360,5 +363,23 @@ mod test {
 
         assert_eq!(Square::from_xy(4, 1), Some(Square::E2));
         assert_eq!(Square::from_xy(1, 6), Some(Square::B7));
+    }
+
+    #[test]
+    fn flipping() {
+        assert_eq!(Square::A5.flipped(), Square::A4);
+        assert_eq!(Square::E1.flipped(), Square::E8);
+        assert_eq!(Square::F7.flipped(), Square::F2);
+        assert_eq!(Square::B3.flipped(), Square::B6);
+    }
+
+    #[test]
+    fn from_square_reversible() {
+        let test = |a: Square| {
+            assert_eq!(Square::from_xy(a.column(), a.row()).unwrap(), a);
+        };
+        test(Square::A1);
+        test(Square::B7);
+        test(Square::E3);
     }
 }
