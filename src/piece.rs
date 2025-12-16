@@ -26,6 +26,46 @@ impl TypedIndex for Piece {
 
 pub type ByPiece<T> = TypedArray<T, { Piece::COUNT }, Piece>;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByPieceTable<T> {
+    pub pawn: T,
+    pub bishop: T,
+    pub knight: T,
+    pub rook: T,
+    pub queen: T,
+    pub king: T,
+}
+
+impl<T> ByPiece<T> {
+    pub fn from_table(table: ByPieceTable<T>) -> Self {
+        let ByPieceTable {
+            pawn,
+            bishop,
+            knight,
+            rook,
+            queen,
+            king,
+        } = table;
+
+        let mut array = ByPiece::new([const { None }; Piece::COUNT]);
+        array[Piece::Pawn] = Some(pawn);
+        array[Piece::Bishop] = Some(bishop);
+        array[Piece::Knight] = Some(knight);
+        array[Piece::Rook] = Some(rook);
+        array[Piece::Queen] = Some(queen);
+        array[Piece::King] = Some(king);
+
+        Self::new(
+            array
+                .into_inner()
+                .into_iter()
+                .map(Option::unwrap)
+                .collect_array()
+                .unwrap(),
+        )
+    }
+}
+
 impl Piece {
     pub const COUNT: usize = 6;
     pub const ALL: [Piece; Self::COUNT] = [
@@ -266,6 +306,26 @@ impl TypedIndex for Square {
 
 pub type BySquare<T> = TypedArray<T, { Square::COUNT }, Square>;
 
+impl<T> BySquare<T> {
+    /// flips the array so you can write it from whites perspective in code
+    pub fn from_readable(value: [T; Square::COUNT]) -> Self {
+        Self::new(
+            value
+                .into_iter()
+                .chunks(8)
+                .into_iter()
+                .map(|row| row.collect_array::<8>().unwrap().into_iter().rev())
+                .collect_array::<8>()
+                .unwrap()
+                .into_iter()
+                .rev()
+                .flatten()
+                .collect_array::<{ Square::COUNT }>()
+                .unwrap(),
+        )
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Move {
     Normal {
@@ -352,7 +412,7 @@ impl Move {
 
 #[cfg(test)]
 mod test {
-    use crate::piece::Square;
+    use crate::piece::{BySquare, Square};
 
     #[test]
     fn from_xy_directions() {
@@ -381,5 +441,47 @@ mod test {
         test(Square::A1);
         test(Square::B7);
         test(Square::E3);
+    }
+
+    #[test]
+    fn by_square_from_readable() {
+        #[rustfmt::skip]
+        let value = [
+            0, 0, 0, 0,  0, 0, 0,  0,
+            0, 0, 0, 0,  0, 0, 0,  0,
+            0, 0, 0, 0,  0, 0, 0, -3,
+            0, 9, 0, 0,  0, 0, 0,  0,
+            0, 0, 0, 0,  0, 0, 0,  0,
+            0, 0, 0, 0, 75, 0, 0,  0,
+            0, 0, 0, 0,  0, 0, 0,  0,
+            0, 0, 0, 0,  0, 0, 0,  0,
+        ];
+
+        println!("{:#?}", BySquare::from_readable(value));
+        assert_eq!(BySquare::from_readable(value)[Square::E3], 75);
+        assert_eq!(BySquare::from_readable(value)[Square::H6], -3);
+        assert_eq!(BySquare::from_readable(value)[Square::B5], 9);
+    }
+
+    #[test]
+    fn by_square_from_readable_whole_board() {
+        use Square as S;
+
+        #[rustfmt::skip]
+        let value = [
+            S::A8, S::B8, S::C8, S::D8, S::E8, S::F8, S::G8, S::H8, 
+            S::A7, S::B7, S::C7, S::D7, S::E7, S::F7, S::G7, S::H7, 
+            S::A6, S::B6, S::C6, S::D6, S::E6, S::F6, S::G6, S::H6, 
+            S::A5, S::B5, S::C5, S::D5, S::E5, S::F5, S::G5, S::H5, 
+            S::A4, S::B4, S::C4, S::D4, S::E4, S::F4, S::G4, S::H4, 
+            S::A3, S::B3, S::C3, S::D3, S::E3, S::F3, S::G3, S::H3, 
+            S::A2, S::B2, S::C2, S::D2, S::E2, S::F2, S::G2, S::H2, 
+            S::A1, S::B1, S::C1, S::D1, S::E1, S::F1, S::G1, S::H1, 
+        ];
+
+        let flipped = BySquare::from_readable(value);
+        for square in Square::ALL {
+            assert_eq!(flipped[square], square);
+        }
     }
 }

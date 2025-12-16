@@ -2,19 +2,19 @@ use std::{
     cmp::Ordering,
     iter::Sum,
     num::NonZeroI32,
-    ops::{Add, AddAssign, Mul, MulAssign, Neg},
+    ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 use crate::piece::Piece;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,  Default)]
 pub struct CentiPawns(pub i32);
 impl CentiPawns {
     pub fn piece_value(piece: Piece) -> CentiPawns {
         match piece {
             Piece::Pawn => CentiPawns(100),
-            Piece::Bishop => CentiPawns(300),
-            Piece::Knight => CentiPawns(300),
+            Piece::Knight => CentiPawns(320),
+            Piece::Bishop => CentiPawns(330),
             Piece::Rook => CentiPawns(500),
             Piece::Queen => CentiPawns(900),
             Piece::King => CentiPawns(20000),
@@ -49,6 +49,18 @@ impl Add for CentiPawns {
 impl AddAssign for CentiPawns {
     fn add_assign(&mut self, rhs: Self) {
         *self = *self + rhs
+    }
+}
+impl Sub for CentiPawns {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
+}
+impl SubAssign for CentiPawns {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs
     }
 }
 impl Sum for CentiPawns {

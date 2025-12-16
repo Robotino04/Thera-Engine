@@ -1,5 +1,6 @@
-use std::time::Instant;
+use std::{sync::LazyLock, time::Instant};
 
+use itertools::Itertools;
 use time::{Duration, ext::InstantExt};
 
 use crate::{
@@ -7,25 +8,117 @@ use crate::{
     board::Board,
     centi_pawns::{CentiPawns, Evaluation},
     move_generator::MoveGenerator,
-    piece::{Color, Move, Piece},
+    piece::{ByPiece, ByPieceTable, BySquare, Color, Move, Piece, Square},
     transposition_table::TranspositionTable,
 };
 
-fn static_eval(board: &Board) -> Evaluation {
-    let player = board.color_to_move();
-    let opponent = board.color_to_move().opposite();
+// https://www.chessprogramming.org/Simplified_Evaluation_Function
+static PIECE_SQUARE_TABLE: LazyLock<ByPiece<BySquare<CentiPawns>>> = LazyLock::new(|| {
+    #[rustfmt::skip]
+    let pawn = [
+         0,  0,  0,  0,  0,  0,  0,  0,
+        50, 50, 50, 50, 50, 50, 50, 50,
+        10, 10, 20, 30, 30, 20, 10, 10,
+         5,  5, 10, 25, 25, 10,  5,  5,
+         0,  0,  0, 20, 20,  0,  0,  0,
+         5, -5,-10,  0,  0,-10, -5,  5,
+         5, 10, 10,-30,-30, 10, 10,  5,
+         0,  0,  0,  0,  0,  0,  0,  0,
+    ];
 
-    Evaluation::CentiPawns(
-        Piece::ALL
-            .iter()
-            .cloned()
-            .map(|piece| {
-                (board.get_piece_bitboard(piece, player).count_ones() as i32
-                    - board.get_piece_bitboard(piece, opponent).count_ones() as i32)
-                    * CentiPawns::piece_value(piece)
-            })
-            .sum(),
-    )
+    #[rustfmt::skip]
+    let knight = [
+        -50,-40,-30,-30,-30,-30,-40,-50,
+        -40,-20,  0,  0,  0,  0,-20,-40,
+        -30,  0, 10, 15, 15, 10,  0,-30,
+        -30,  5, 15, 20, 20, 15,  5,-30,
+        -30,  0, 15, 20, 20, 15,  0,-30,
+        -30,  5, 10, 15, 15, 10,  5,-30,
+        -40,-20,  0,  5,  5,  0,-20,-40,
+        -50,-35,-30,-30,-30,-30,-35,-50,
+    ];
+    #[rustfmt::skip]
+    let bishop = [
+        -20,-10,-10,-10,-10,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5, 10, 10,  5,  0,-10,
+        -10,  5,  5, 10, 10,  5,  5,-10,
+        -10,  0, 10, 10, 10, 10,  0,-10,
+        -10, 10, 10, 10, 10, 10, 10,-10,
+        -10,  5,  0,  0,  0,  0,  5,-10,
+        -20,-10,-10,-10,-10,-10,-10,-20,
+    ];
+    #[rustfmt::skip]
+    let rook = [
+         0,  0,  0,  0,  0,  0,  0,  0,
+         5, 10, 10, 10, 10, 10, 10,  5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+        -5,  0,  0,  0,  0,  0,  0, -5,
+         0,  0,  0,  5,  5,  0,  0,  0,
+    ];
+    #[rustfmt::skip]
+    let queen = [
+        -20,-10,-10, -5, -5,-10,-10,-20,
+        -10,  0,  0,  0,  0,  0,  0,-10,
+        -10,  0,  5,  5,  5,  5,  0,-10,
+         -5,  0,  5,  5,  5,  5,  0, -5,
+          0,  0,  5,  5,  5,  5,  0, -5,
+        -10,  5,  5,  5,  5,  5,  0,-10,
+        -10,  0,  5,  0,  0,  0,  0,-10,
+        -20,-10,-10, -5, -5,-10,-10,-20,
+    ];
+    #[rustfmt::skip]
+    let king = [
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -30,-40,-40,-50,-50,-40,-40,-30,
+        -20,-30,-30,-40,-40,-30,-30,-20,
+        -10,-20,-20,-20,-20,-20,-20,-10,
+         20, 20,  0,  0,  0,  0, 20, 20,
+         20, 30, 10,  0,  0, 10, 30, 20,
+    ];
+
+    fn transform(values: [i32; Square::COUNT]) -> BySquare<CentiPawns> {
+        BySquare::from_readable(values.into_iter().map(CentiPawns).collect_array().unwrap())
+    }
+
+    ByPiece::from_table(ByPieceTable {
+        pawn: transform(pawn),
+        bishop: transform(bishop),
+        knight: transform(knight),
+        rook: transform(rook),
+        queen: transform(queen),
+        king: transform(king),
+    })
+});
+
+fn static_eval(board: &Board) -> Evaluation {
+    let mut eval = CentiPawns(0);
+
+    for piece in Piece::ALL {
+        eval += (board.get_piece_bitboard(piece, Color::White).count_ones() as i32
+            - board.get_piece_bitboard(piece, Color::Black).count_ones() as i32)
+            * CentiPawns::piece_value(piece);
+
+        let mut pieces = board.get_piece_bitboard(piece, Color::White);
+        while let Some(square) = pieces.bitscan_square() {
+            eval += PIECE_SQUARE_TABLE[piece][square];
+        }
+
+        let mut pieces = board.get_piece_bitboard(piece, Color::Black);
+        while let Some(square) = pieces.bitscan_square() {
+            eval -= PIECE_SQUARE_TABLE[piece][square.flipped()];
+        }
+    }
+
+    Evaluation::CentiPawns(match board.color_to_move() {
+        Color::White => eval,
+        Color::Black => -eval,
+    })
 }
 
 pub enum SearchExit {
