@@ -108,21 +108,21 @@ impl Bitboard {
     }
 
     pub const fn at(&self, index: Square) -> bool {
-        (self.0 >> index as u8) & 0b1 == 1
+        (self.0 >> index as u32) & 0b1 == 1
     }
     pub const fn set(&mut self, index: Square) {
-        self.0 |= 1 << index as u8
+        self.0 |= 1 << index as u32
     }
     pub const fn clear(&mut self, index: Square) {
-        self.0 &= !(1 << index as u8)
+        self.0 &= !(1 << index as u32)
     }
     pub const fn assign(&mut self, index: Square, value: bool) {
         self.clear(index);
-        self.0 |= (value as u64) << (index as u8)
+        self.0 |= (value as u64) << (index as u32)
     }
 
     pub const fn from_square(square: Square) -> Bitboard {
-        Bitboard(1 << (square as u8))
+        Bitboard(1 << (square as u32))
     }
 
     pub const fn is_empty(&self) -> bool {
@@ -171,7 +171,7 @@ impl Bitboard {
         } else {
             let index = self.0.trailing_zeros();
             self.0 &= self.0 - 1;
-            Some(Square::new(index as u8).unwrap())
+            Some(Square::new(index).unwrap())
         }
     }
     pub const fn first_piece_index(&self) -> Option<u32> {
@@ -183,8 +183,7 @@ impl Bitboard {
     }
 
     pub fn first_piece_square(&self) -> Option<Square> {
-        self.first_piece_index()
-            .map(|x| Square::new(x as u8).unwrap())
+        self.first_piece_index().map(|x| Square::new(x).unwrap())
     }
 
     pub const fn const_or(&self, rhs: Bitboard) -> Self {

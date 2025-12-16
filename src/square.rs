@@ -33,14 +33,14 @@ impl Square {
         ]
     };
 
-    pub fn new(index: u8) -> Option<Self> {
+    pub fn new(index: u32) -> Option<Self> {
         Self::ALL.get(index as usize).copied()
     }
 
     /// 0, 0 is the bottom left
     pub fn from_xy<T>(x: T, y: T) -> Option<Self>
     where
-        T: TryInto<u8>,
+        T: TryInto<u32>,
     {
         let x = x.try_into().ok()?;
         let y = y.try_into().ok()?;
@@ -93,11 +93,11 @@ impl Square {
         strs[*self as usize]
     }
 
-    pub const fn row(&self) -> u8 {
-        *self as u8 / 8
+    pub const fn row(&self) -> u32 {
+        *self as u32 / 8
     }
-    pub const fn column(&self) -> u8 {
-        7 - *self as u8 % 8
+    pub const fn column(&self) -> u32 {
+        7 - *self as u32 % 8
     }
 
     pub fn flipped(&self) -> Self {

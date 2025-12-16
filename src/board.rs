@@ -391,8 +391,8 @@ impl Board {
                 } else {
                     this_square_color
                 };
+                let next_square = Square::new((square as u32).saturating_sub(1)).unwrap();
                 let next_square_color = if let Some(highlights) = highlights
-                    && let Some(next_square) = Square::new((square as u8).saturating_sub(1))
                     && highlights.at(next_square)
                 {
                     overlay_color(next_square_color, highligh_color, highlight_alpha)
@@ -585,8 +585,8 @@ impl Board {
 
                 self.disable_ep();
                 let new_ep_square = Square::new(
-                    (from_square.first_piece_index().unwrap() as u8
-                        + to_square.first_piece_index().unwrap() as u8)
+                    (from_square.first_piece_index().unwrap()
+                        + to_square.first_piece_index().unwrap())
                         / 2,
                 )
                 .unwrap();
