@@ -159,7 +159,7 @@ struct ReplState {
 }
 
 trait ReplCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String>
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String>
     where
         Self: std::marker::Sized;
 }
@@ -229,7 +229,7 @@ fn invalid_value_text(
 }
 
 impl ReplCommand for PerftCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             depth: tokens
                 .next()
@@ -250,7 +250,7 @@ struct BisectCommand {
     depth: u32,
 }
 impl ReplCommand for BisectCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             depth: tokens
                 .next()
@@ -267,7 +267,7 @@ struct PrintCommand {
 }
 
 impl ReplCommand for PrintCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             always: match tokens.next() {
                 Some("always") => Some(
@@ -291,7 +291,7 @@ struct PlayCommand {
     move_: String,
 }
 impl ReplCommand for PlayCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             move_: tokens
                 .next()
@@ -305,7 +305,7 @@ struct MagicCommand {
     type_: MagicType,
 }
 impl ReplCommand for MagicCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             type_: match tokens
                 .next()
@@ -322,7 +322,7 @@ struct GoCommand {
     search_options: SearchOptions,
 }
 impl ReplCommand for GoCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         let mut search_options = SearchOptions {
             depth: None,
             movetime: None,
@@ -421,7 +421,7 @@ struct MoveSuffixCommand {
     moves: Vec<String>,
 }
 impl ReplCommand for MoveSuffixCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(Self {
             moves: tokens.map(ToString::to_string).collect_vec(),
         })
@@ -439,15 +439,21 @@ enum PositionCommand {
     },
 }
 impl ReplCommand for PositionCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(
             match tokens
                 .next()
                 .ok_or_else(|| missing_subcommand_text("position command"))?
             {
-                "startpos" => Self::Startpos {
-                    moves: Some(MoveSuffixCommand::parse(tokens)?),
-                },
+                "startpos" => {
+                    let moves = if let Some("moves") = tokens.clone().next() {
+                        tokens.next().unwrap();
+                        Some(MoveSuffixCommand::parse(tokens)?)
+                    } else {
+                        None
+                    };
+                    Self::Startpos { moves }
+                }
                 "fen" => Self::Fen {
                     fen: tokens
                         .take_while(|token| *token != "moves") // also takes the "moves" token
@@ -494,7 +500,7 @@ enum TopLevelCommand {
 }
 
 impl ReplCommand for TopLevelCommand {
-    fn parse<'a>(tokens: &mut impl Iterator<Item = &'a str>) -> Result<Self, String> {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
         Ok(
             match tokens.next().ok_or_else(|| "Missing command".to_string())? {
                 "perft" => TopLevelCommand::Perft(PerftCommand::parse(tokens)?),
