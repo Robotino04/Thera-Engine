@@ -1,4 +1,7 @@
-use crate::{board::Board, move_generator::MoveGenerator, piece::Move};
+use crate::{
+    board::Board,
+    move_generator::{Move, MoveGenerator},
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PerftMove {

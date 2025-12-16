@@ -1,8 +1,13 @@
+use std::fmt::Display;
+
 use crate::{
     bitboard::{Bitboard, bitboard},
     board::Board,
+    color::Color,
+    direction::Direction,
     magic_bitboard::{bishop_magic_bitboard, rook_magic_bitboard},
-    piece::{BySquare, Color, Direction, Move, Piece, Square},
+    piece::Piece,
+    square::{BySquare, Square},
 };
 
 #[derive(Debug)]
@@ -646,6 +651,90 @@ impl MoveGenerator {
             let attacks = pawn.shift(forwards_west) | pawn.shift(forwards_east);
 
             attacks_from_square[pawn.first_piece_square().unwrap()] |= attacks;
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Move {
+    Normal {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        captured_piece: Option<Piece>,
+        moved_piece: Piece,
+    },
+    DoublePawn {
+        from_square: Bitboard,
+        to_square: Bitboard,
+    },
+    EnPassant {
+        from_square: Bitboard,
+        to_square: Bitboard,
+    },
+    Castle {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        rook_from_square: Bitboard,
+        rook_to_square: Bitboard,
+    },
+    Promotion {
+        from_square: Bitboard,
+        to_square: Bitboard,
+        promotion_piece: Piece,
+        captured_piece: Option<Piece>,
+    },
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.to_algebraic())
+    }
+}
+
+impl Move {
+    pub fn to_algebraic(&self) -> String {
+        match self {
+            Move::Normal {
+                from_square,
+                to_square,
+                captured_piece: _,
+                moved_piece: _,
+            }
+            | Move::DoublePawn {
+                from_square,
+                to_square,
+            }
+            | Move::EnPassant {
+                from_square,
+                to_square,
+            }
+            | Move::Castle {
+                from_square,
+                to_square,
+                rook_from_square: _,
+                rook_to_square: _,
+            } => {
+                from_square
+                    .first_piece_square()
+                    .unwrap()
+                    .to_algebraic()
+                    .to_string()
+                    + to_square.first_piece_square().unwrap().to_algebraic()
+            }
+            Move::Promotion {
+                from_square,
+                to_square,
+                promotion_piece,
+                captured_piece: _,
+            } => {
+                from_square
+                    .first_piece_square()
+                    .unwrap()
+                    .to_algebraic()
+                    .to_string()
+                    + to_square.first_piece_square().unwrap().to_algebraic()
+                    + promotion_piece.to_algebraic()
+            }
         }
     }
 }

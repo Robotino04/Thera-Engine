@@ -7,8 +7,10 @@ use crate::{
     alpha_beta_window::{AlphaBetaWindow, WindowUpdate},
     board::Board,
     centi_pawns::{CentiPawns, Evaluation},
-    move_generator::MoveGenerator,
-    piece::{ByPiece, ByPieceTable, BySquare, Color, Move, Piece, Square},
+    color::Color,
+    move_generator::{Move, MoveGenerator},
+    piece::{ByPiece, ByPieceTable, Piece},
+    square::{BySquare, Square},
     transposition_table::TranspositionTable,
 };
 

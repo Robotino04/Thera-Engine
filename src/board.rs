@@ -9,7 +9,11 @@ use rand::{Rng, SeedableRng, rngs::StdRng};
 use crate::{
     ansi::Ansi,
     bitboard::{Bitboard, bitboard},
-    piece::{ByColor, ByPiece, BySquare, Color, Direction, Move, Piece, Square},
+    color::{ByColor, Color},
+    direction::Direction,
+    move_generator::Move,
+    piece::{ByPiece, Piece},
+    square::{BySquare, Square},
 };
 
 #[derive(Clone, Debug)]
@@ -480,16 +484,21 @@ impl Board {
         for undo_data in &self.undo_data {
             // stop searching if we made an irreversible move
             match undo_data.move_ {
-                Move::Normal { captured_piece, .. } => {
-                    if captured_piece.is_some() {
-                        break;
-                    }
+                Move::Normal {
+                    captured_piece: Some(_),
+                    ..
                 }
-                Move::DoublePawn { .. }
+                | Move::DoublePawn { .. }
                 | Move::EnPassant { .. }
                 | Move::Castle { .. }
                 | Move::Promotion { .. } => break,
+
+                Move::Normal {
+                    captured_piece: None,
+                    ..
+                } => {}
             }
+
             if self.zobrist_hash == undo_data.zobrist_hash {
                 if already_found {
                     // we found a third repetition

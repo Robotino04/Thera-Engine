@@ -4,8 +4,10 @@ use itertools::Itertools;
 
 use crate::{
     bitboard::{Bitboard, bitboard},
+    direction::Direction,
     move_generator::occluded_fill,
-    piece::{BySquare, Direction, Piece, Square},
+    piece::Piece,
+    square::{BySquare, Square},
 };
 
 #[derive(Clone, Copy, Debug, Default)]

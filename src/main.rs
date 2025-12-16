@@ -18,9 +18,11 @@ use thera::board::FenParseError;
 use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
+use thera::move_generator::Move;
 use thera::perft::{PerftMove, PerftStatistics, perft, perft_nostats};
-use thera::piece::{BySquare, Move, Piece, Square};
+use thera::piece::Piece;
 use thera::search::{DepthSummary, RootSearchExit, SearchOptions, SearchStats, search_root};
+use thera::square::{BySquare, Square};
 use thera::transposition_table::TranspositionTable;
 use thera::{self, board::Board, move_generator::MoveGenerator};
 use time::Duration;

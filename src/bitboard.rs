@@ -2,8 +2,6 @@ use std::ops::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, DerefMut, Not,
 };
 
-use crate::piece::{Direction, Square};
-
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct Bitboard(pub u64);
 
@@ -23,6 +21,8 @@ macro_rules! bitboard {
     };
 }
 pub use bitboard;
+
+use crate::{direction::Direction, square::Square};
 
 impl std::fmt::Debug for Bitboard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -321,10 +321,7 @@ impl Bitboard {
 
 #[cfg(test)]
 mod test {
-    use crate::{
-        bitboard::Bitboard,
-        piece::{Direction, Square},
-    };
+    use crate::{bitboard::Bitboard, direction::Direction, square::Square};
 
     #[test]
     fn shift_directions() {
