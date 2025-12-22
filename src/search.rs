@@ -98,29 +98,47 @@ static PIECE_SQUARE_TABLE: LazyLock<ByPiece<BySquare<CentiPawns>>> = LazyLock::n
     })
 });
 
-fn static_eval(board: &Board) -> Evaluation {
+fn eval_piece_placement(board: &Board, color: Color) -> CentiPawns {
     let mut eval = CentiPawns(0);
 
     for piece in Piece::ALL {
-        eval += (board.get_piece_bitboard(piece, Color::White).count_ones() as i32
-            - board.get_piece_bitboard(piece, Color::Black).count_ones() as i32)
-            * CentiPawns::piece_value(piece);
-
-        let mut pieces = board.get_piece_bitboard(piece, Color::White);
+        let mut pieces = board.get_piece_bitboard(piece, color);
         while let Some(square) = pieces.bitscan_square() {
-            eval += PIECE_SQUARE_TABLE[piece][square];
-        }
-
-        let mut pieces = board.get_piece_bitboard(piece, Color::Black);
-        while let Some(square) = pieces.bitscan_square() {
-            eval -= PIECE_SQUARE_TABLE[piece][square.flipped()];
+            eval += PIECE_SQUARE_TABLE[piece][match color {
+                Color::White => square,
+                Color::Black => square.flipped(),
+            }];
         }
     }
 
-    Evaluation::CentiPawns(match board.color_to_move() {
-        Color::White => eval,
-        Color::Black => -eval,
-    })
+    eval
+}
+
+fn eval_material(board: &Board, color: Color) -> CentiPawns {
+    let mut material = CentiPawns(0);
+
+    for piece in Piece::ALL {
+        material += board.get_piece_bitboard(piece, color).count_ones() as i32
+            * CentiPawns::piece_value(piece);
+    }
+
+    material
+}
+
+fn static_eval(board: &Board) -> Evaluation {
+    let me = board.color_to_move();
+    let they = board.color_to_move().opposite();
+
+    let my_material = eval_material(board, me);
+    let their_material = eval_material(board, they);
+
+    let my_placement = eval_piece_placement(board, me);
+    let their_placement = eval_piece_placement(board, they);
+
+    let material_advantage = my_material - their_material;
+    let placement_advantage = my_placement - their_placement;
+
+    Evaluation::CentiPawns(material_advantage + placement_advantage)
 }
 
 pub enum SearchExit {
