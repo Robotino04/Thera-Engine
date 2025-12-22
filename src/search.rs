@@ -361,7 +361,11 @@ pub fn search_root(
     let mut search_stats = SearchStats::default();
 
     let mut prev_best_move = *moves.first().unwrap();
-    'search: for depth in 1..options.depth.unwrap_or(u32::MAX) {
+    'search: for depth in 1..options.depth.unwrap_or(256) {
+        if should_exit() {
+            break 'search;
+        }
+
         let mut best = *moves.first().unwrap();
         let depth_start = Instant::now();
 
