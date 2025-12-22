@@ -847,20 +847,38 @@ impl Board {
     pub fn pawns(&self, color: Color) -> Bitboard {
         self.pieces[Piece::Pawn] & self.colors[color]
     }
+    pub fn both_pawns(&self) -> Bitboard {
+        self.pieces[Piece::Pawn]
+    }
     pub fn bishops(&self, color: Color) -> Bitboard {
         self.pieces[Piece::Bishop] & self.colors[color]
+    }
+    pub fn both_bishops(&self) -> Bitboard {
+        self.pieces[Piece::Bishop]
     }
     pub fn knights(&self, color: Color) -> Bitboard {
         self.pieces[Piece::Knight] & self.colors[color]
     }
+    pub fn both_knights(&self) -> Bitboard {
+        self.pieces[Piece::Knight]
+    }
     pub fn rooks(&self, color: Color) -> Bitboard {
         self.pieces[Piece::Rook] & self.colors[color]
+    }
+    pub fn both_rooks(&self) -> Bitboard {
+        self.pieces[Piece::Rook]
     }
     pub fn queens(&self, color: Color) -> Bitboard {
         self.pieces[Piece::Queen] & self.colors[color]
     }
+    pub fn both_queens(&self) -> Bitboard {
+        self.pieces[Piece::Queen]
+    }
     pub fn king(&self, color: Color) -> Bitboard {
         self.pieces[Piece::King] & self.colors[color]
+    }
+    pub fn both_kings(&self) -> Bitboard {
+        self.pieces[Piece::King]
     }
 
     pub fn get_piece_bitboard(&self, piece: Piece, color: Color) -> Bitboard {

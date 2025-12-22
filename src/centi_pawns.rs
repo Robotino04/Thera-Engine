@@ -7,19 +7,27 @@ use std::{
 
 use crate::piece::Piece;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash,  Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct CentiPawns(pub i32);
 impl CentiPawns {
-    pub fn piece_value(piece: Piece) -> CentiPawns {
+    pub const fn piece_value(piece: Piece) -> CentiPawns {
         match piece {
             Piece::Pawn => CentiPawns(100),
             Piece::Knight => CentiPawns(320),
             Piece::Bishop => CentiPawns(330),
             Piece::Rook => CentiPawns(500),
             Piece::Queen => CentiPawns(900),
-            Piece::King => CentiPawns(20000),
+            Piece::King => CentiPawns(0), // ignore the king for most purposes
         }
     }
+    pub const MAX_MATERIAL: CentiPawns = CentiPawns(
+        2 * (8 * Self::piece_value(Piece::Pawn).0
+            + 2 * Self::piece_value(Piece::Knight).0
+            + 2 * Self::piece_value(Piece::Bishop).0
+            + 2 * Self::piece_value(Piece::Rook).0
+            + Self::piece_value(Piece::Queen).0
+            + Self::piece_value(Piece::King).0),
+    );
 }
 
 impl Mul<i32> for CentiPawns {

@@ -100,8 +100,19 @@ impl Square {
         7 - *self as u32 % 8
     }
 
+    pub const fn to_xy(&self) -> (u32, u32) {
+        (self.column(), self.row())
+    }
+
     pub fn flipped(&self) -> Self {
         Self::from_xy(self.column(), 7 - self.row()).unwrap()
+    }
+
+    pub fn manhattan_distance(&self, other: Self) -> u32 {
+        let (x1, y1) = self.to_xy();
+        let (x2, y2) = other.to_xy();
+
+        x1.abs_diff(x2) + y1.abs_diff(y2)
     }
 }
 
