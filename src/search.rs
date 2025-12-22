@@ -252,11 +252,12 @@ fn quiescence_search(
     stats.nodes_searched_quiescence += 1;
 
     let movegen = MoveGenerator::with_attacks(board);
-    let moves = movegen.generate_captures(board);
-    if moves.is_empty() {
-        let moves = movegen.generate_all_moves(board);
+    let captures = movegen.generate_captures(board);
+
+    if captures.is_empty() {
         // no captures
-        if moves.is_empty() {
+        let all_moves = movegen.generate_all_moves(board);
+        if all_moves.is_empty() {
             // and also no other moves => draw or checkmate
             if movegen.is_check() {
                 return Ok(Evaluation::Loss(window.plies()));
@@ -268,13 +269,14 @@ fn quiescence_search(
             return Ok(static_eval(board));
         }
     }
+
     match window.update(static_eval(board)) {
         WindowUpdate::NoImprovement => {}
         WindowUpdate::NewBest => {}
         WindowUpdate::Prune => return Ok(window.finalize().eval),
     }
 
-    for m in moves {
+    for m in captures {
         let eval = -quiescence_search(
             &mut board.with_move(m),
             window.next_depth(),
