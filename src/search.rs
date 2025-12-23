@@ -221,7 +221,7 @@ fn search(
         cached_nodes: _,
     } = *stats;
 
-    if let Some(entry) = transposition_table.get(board, depth_left, &window) {
+    if let Some(entry) = transposition_table.get_if_improves(board, depth_left, &window) {
         stats.cached_nodes += entry.subnodes;
         stats.transposition_hits += 1;
         return Ok(entry.eval);

@@ -34,15 +34,15 @@ impl TranspositionTable {
         }
     }
 
-    pub fn get(
+    pub fn get_if_improves(
         &self,
         board: &Board,
         depth: u32,
         window: &AlphaBetaWindow,
     ) -> Option<TranspositionEntry> {
-        let hash_part = board.zobrist_hash() % self.table.len() as u64;
-        let mut entry = self.table[hash_part as usize]?;
-        if entry.hash == board.zobrist_hash() && entry.depth >= depth {
+        if let Some(mut entry) = self.get(board)
+            && entry.depth >= depth
+        {
             entry.eval = match entry.eval {
                 Evaluation::Win(x) => Evaluation::Win(x + window.plies()),
                 Evaluation::Loss(x) => Evaluation::Loss(x + window.plies()),
@@ -62,11 +62,22 @@ impl TranspositionTable {
         }
     }
 
-    pub fn insert(&mut self, board: &Board, depth: u32, node: NodeEvalSummary, subnodes: u64) {
+    pub fn get(&self, board: &Board) -> Option<TranspositionEntry> {
         let hash_part = board.zobrist_hash() % self.table.len() as u64;
+        let entry = self.table[hash_part as usize]?;
+        if entry.hash == board.zobrist_hash() {
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    pub fn insert(&mut self, board: &Board, depth: u32, node: NodeEvalSummary, subnodes: u64) {
+        let hash = board.zobrist_hash();
+        let hash_part = hash % self.table.len() as u64;
         let entry = &mut self.table[hash_part as usize];
-        let replace =
-            entry.is_none_or(|entry| depth >= entry.depth || entry.hash != board.zobrist_hash());
+
+        let replace = entry.is_none_or(|entry| depth >= entry.depth || entry.hash != hash);
         if replace {
             if entry.is_none() {
                 self.used_slots += 1;
