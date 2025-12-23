@@ -141,6 +141,59 @@ fn static_eval(board: &Board) -> Evaluation {
     Evaluation::CentiPawns(material_advantage + placement_advantage)
 }
 
+/// This relies on derive(Ord), which always treats later entries as greater.
+/// But sort is ascending by default so we have to reverse it as well.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+enum MoveOrdering {
+    QuietMove,
+    Castle,
+    EnPassant,
+    Capture(CentiPawns),
+    Promotion(CentiPawns),
+    PrincipalVariation,
+}
+
+impl MoveOrdering {
+    fn order_moves(moves: impl IntoIterator<Item = Move>) -> impl Iterator<Item = Move> {
+        moves
+            .into_iter()
+            .sorted_unstable_by_key(Self::score_move)
+            .rev()
+    }
+
+    fn score_move(m: &Move) -> MoveOrdering {
+        match m {
+            Move::Normal {
+                captured_piece,
+                moved_piece,
+                ..
+            } => {
+                if let Some(captured_piece) = captured_piece {
+                    MoveOrdering::Capture(
+                        CentiPawns::piece_value(*captured_piece)
+                            - CentiPawns::piece_value(*moved_piece),
+                    )
+                } else {
+                    MoveOrdering::QuietMove
+                }
+            }
+            Move::DoublePawn { .. } => MoveOrdering::QuietMove,
+            Move::EnPassant { .. } => MoveOrdering::EnPassant,
+            Move::Castle { .. } => MoveOrdering::Castle,
+            Move::Promotion {
+                promotion_piece,
+                captured_piece,
+                ..
+            } => MoveOrdering::Promotion(
+                CentiPawns::piece_value(*promotion_piece)
+                    + captured_piece
+                        .map(CentiPawns::piece_value)
+                        .unwrap_or_default(),
+            ),
+        }
+    }
+}
+
 pub enum SearchExit {
     Cancelled,
 }
@@ -205,6 +258,8 @@ fn search(
             return Ok(eval);
         }
     }
+
+    let moves = MoveOrdering::order_moves(moves).collect_vec();
 
     for m in moves {
         let eval = -search(
@@ -275,6 +330,8 @@ fn quiescence_search(
         WindowUpdate::NewBest => {}
         WindowUpdate::Prune => return Ok(window.finalize().eval),
     }
+
+    let captures = MoveOrdering::order_moves(captures).collect_vec();
 
     for m in captures {
         let eval = -quiescence_search(
@@ -373,7 +430,9 @@ pub fn search_root(
 
         let mut window = AlphaBetaWindow::default();
 
-        for &m in &moves {
+        let moves = MoveOrdering::order_moves(moves.iter().copied()).collect_vec();
+
+        for m in moves {
             let eval = search(
                 &mut board.with_move(m),
                 depth - 1,
