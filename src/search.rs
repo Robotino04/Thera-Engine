@@ -411,7 +411,7 @@ pub fn search_root(
     };
 
     let movegen = MoveGenerator::with_attacks(board);
-    let moves = movegen.generate_all_moves(board);
+    let mut moves = movegen.generate_all_moves(board);
 
     if moves.is_empty() {
         return Err(RootSearchExit::NoMove);
@@ -430,9 +430,10 @@ pub fn search_root(
 
         let mut window = AlphaBetaWindow::default();
 
-        let moves = MoveOrdering::order_moves(moves.iter().copied()).collect_vec();
+        // keep order so after each iteration, it is already mostly sorted
+        moves = MoveOrdering::order_moves(moves).collect_vec();
 
-        for m in moves {
+        for &m in &moves {
             let eval = search(
                 &mut board.with_move(m),
                 depth - 1,
