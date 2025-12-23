@@ -1,4 +1,4 @@
-use crate::{centi_pawns::Evaluation, transposition_table::EvalKind};
+use crate::{centi_pawns::Evaluation, move_generator::Move, transposition_table::EvalKind};
 
 /// Doesn't derive Copy, because accidentally copying
 /// the search window will cause awful bugs.
@@ -8,6 +8,7 @@ pub struct AlphaBetaWindow {
     alpha: Evaluation,
     beta: Evaluation,
     best: Evaluation,
+    best_move: Option<Move>,
     plies: u32,
 }
 
@@ -23,6 +24,7 @@ pub struct NodeEvalSummary {
     pub eval: Evaluation,
     pub kind: EvalKind,
     pub plies: u32,
+    pub best_move: Option<Move>,
 }
 
 impl Default for AlphaBetaWindow {
@@ -39,17 +41,21 @@ impl AlphaBetaWindow {
             starting_alpha: alpha,
             beta,
             best: Evaluation::MIN,
+            best_move: None,
             plies,
         }
     }
 
     #[must_use = "You should always handle potential beta-cutoffs"]
-    pub fn update(&mut self, eval: Evaluation) -> WindowUpdate {
+    pub fn update(&mut self, eval: Evaluation, m: Option<Move>) -> WindowUpdate {
         if eval > self.alpha {
             self.alpha = eval;
         }
         if eval > self.best {
             self.best = eval;
+            if m.is_some() {
+                self.best_move = m;
+            }
 
             if self.has_cutoff() {
                 WindowUpdate::Prune
@@ -75,6 +81,7 @@ impl AlphaBetaWindow {
             eval,
             kind: EvalKind::Exact,
             plies: self.plies,
+            best_move: self.best_move,
         }
     }
 
@@ -106,6 +113,7 @@ impl AlphaBetaWindow {
                 EvalKind::Exact
             },
             plies: self.plies,
+            best_move: self.best_move,
         }
     }
 }

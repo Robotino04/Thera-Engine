@@ -2,6 +2,7 @@ use crate::{
     alpha_beta_window::{AlphaBetaWindow, NodeEvalSummary},
     board::Board,
     centi_pawns::Evaluation,
+    move_generator::Move,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -18,6 +19,7 @@ pub struct TranspositionEntry {
     pub depth: u32,
     pub kind: EvalKind,
     pub subnodes: u64,
+    pub best_move: Option<Move>,
 }
 
 #[derive(Debug, Clone)]
@@ -92,6 +94,15 @@ impl TranspositionTable {
                 depth,
                 kind: node.kind,
                 subnodes,
+                best_move: if let Some(entry) = entry
+                    && entry.hash == hash
+                {
+                    // keep the previous best move if we somehow happen to get a deeper result
+                    // without also finding a new best one
+                    node.best_move.or(entry.best_move)
+                } else {
+                    node.best_move
+                },
             });
         }
     }
