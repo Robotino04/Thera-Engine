@@ -1132,33 +1132,46 @@ fn output_thread_task(
                 stats:
                     SearchStats {
                         nodes_searched,
-                        nodes_searched_quiescence: _,
+                        nodes_searched_quiescence,
                         transposition_hits,
                         cached_nodes,
+                        first_move_prune,
                     },
                 hash_percentage,
             })) => {
-                let time_taken_ms = time_taken.whole_milliseconds();
                 let nps = nodes_searched as f64 / time_taken.as_seconds_f64();
+                let time_taken_ms = time_taken.whole_milliseconds();
 
-                let eval = eval.to_uci();
-                let hash_percentage = hash_percentage * 1000.0;
 
-                let hit_percentage = transposition_hits as f32
-                    / (nodes_searched + transposition_hits) as f32
+                let hash_percentage = hash_percentage * 100.0;
+
+                let hit_percentage = transposition_hits.as_ratio() * 100.0;
+                let cache_percentage = cached_nodes.as_ratio() * 100.0;
+                let first_prune_percentage = first_move_prune.as_ratio() * 100.0;
+
+                let transposition_hits = transposition_hits.hits;
+
+                let quiescence_rate = nodes_searched_quiescence as f32
+                    / (nodes_searched + nodes_searched_quiescence) as f32
                     * 100.0;
-                let cache_percentage =
-                    cached_nodes as f32 / (nodes_searched + cached_nodes) as f32 * 100.0;
 
                 writeln!(
                     writer,
                     "\
-                    {prefix}TranspositionTable\
+                    {prefix}TranspositionTable ({hash_percentage:.1}%)\
                   \n{prefix}    hits: {transposition_hits}\
                   \n{prefix}        hits/search: {hit_percentage:.1}%\
-                  \n{prefix}        cache: {cache_percentage:.1}%"
+                  \n{prefix}        cache: {cache_percentage:.1}%\
+                  \n{prefix}Search ({time_taken_ms} ms)\
+                  \n{prefix}    nodes: {nodes_searched} ({nps:.0} N/s)\
+                  \n{prefix}        quiescence: {nodes_searched_quiescence} ({quiescence_rate:.1}%)\
+                  \n{prefix}    pruning:\
+                  \n{prefix}        first move: {first_prune_percentage:.1}%"
                 )
                 .unwrap();
+
+                let eval = eval.to_uci();
+                let hash_permill = hash_percentage * 10.0;
 
                 writeln!(
                     writer,
@@ -1167,7 +1180,7 @@ fn output_thread_task(
                         score {eval} \
                         nodes {nodes_searched} \
                         nps {nps:.0} \
-                        hashfull {hash_percentage:.0} \
+                        hashfull {hash_permill:.0} \
                         time {time_taken_ms} \
                         pv {best_move}",
                 )

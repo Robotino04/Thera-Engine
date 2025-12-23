@@ -233,12 +233,16 @@ fn search(
         nodes_searched_quiescence: _,
         transposition_hits: _,
         cached_nodes: _,
+        first_move_prune: _,
     } = *stats;
 
     if let Some(entry) = transposition_table.get_if_improves(board, depth_left, &window) {
-        stats.cached_nodes += entry.subnodes;
-        stats.transposition_hits += 1;
+        stats.cached_nodes.hits += entry.subnodes;
+        stats.transposition_hits.hit();
         return Ok(entry.eval);
+    } else {
+        stats.transposition_hits.miss();
+        stats.cached_nodes.miss();
     }
 
     stats.nodes_searched += 1;
@@ -281,7 +285,7 @@ fn search(
 
     let moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
 
-    for m in moves {
+    for (i, m) in moves.into_iter().enumerate() {
         let eval = -search(
             &mut board.with_move(m),
             depth_left - 1,
@@ -292,9 +296,17 @@ fn search(
         )?;
 
         match window.update(eval, Some(m)) {
-            WindowUpdate::NoImprovement => {}
-            WindowUpdate::NewBest => {}
-            WindowUpdate::Prune => break,
+            WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
+                if i == 0 {
+                    stats.first_move_prune.miss()
+                }
+            }
+            WindowUpdate::Prune => {
+                if i == 0 {
+                    stats.first_move_prune.hit()
+                }
+                break;
+            }
         }
     }
 
@@ -354,7 +366,7 @@ fn quiescence_search(
 
     let captures = MoveOrdering::order_moves(captures, board, transposition_table).collect_vec();
 
-    for m in captures {
+    for (i, m) in captures.into_iter().enumerate() {
         let eval = -quiescence_search(
             &mut board.with_move(m),
             window.next_depth(),
@@ -364,9 +376,17 @@ fn quiescence_search(
         )?;
 
         match window.update(eval, Some(m)) {
-            WindowUpdate::NoImprovement => {}
-            WindowUpdate::NewBest => {}
-            WindowUpdate::Prune => break,
+            WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
+                if i == 0 {
+                    stats.first_move_prune.miss()
+                }
+            }
+            WindowUpdate::Prune => {
+                if i == 0 {
+                    stats.first_move_prune.hit()
+                }
+                break;
+            }
         }
     }
 
@@ -387,11 +407,31 @@ pub struct SearchOptions {
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct EventTracker {
+    pub hits: u64,
+    pub misses: u64,
+}
+
+impl EventTracker {
+    pub fn as_ratio(&self) -> f32 {
+        self.hits as f32 / (self.hits + self.misses) as f32
+    }
+
+    pub fn hit(&mut self) {
+        self.hits += 1;
+    }
+    pub fn miss(&mut self) {
+        self.misses += 1;
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct SearchStats {
     pub nodes_searched: u64,
     pub nodes_searched_quiescence: u64,
-    pub transposition_hits: u64,
-    pub cached_nodes: u64,
+    pub transposition_hits: EventTracker,
+    pub cached_nodes: EventTracker,
+    pub first_move_prune: EventTracker,
 }
 
 pub struct DepthSummary {
@@ -454,7 +494,7 @@ pub fn search_root(
         // keep order so after each iteration, it is already mostly sorted
         moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
 
-        for &m in &moves {
+        for (i, &m) in moves.iter().enumerate() {
             let eval = search(
                 &mut board.with_move(m),
                 depth - 1,
@@ -470,9 +510,17 @@ pub fn search_root(
             };
 
             match window.update(eval, Some(m)) {
-                WindowUpdate::NewBest => {}
-                WindowUpdate::NoImprovement => {}
-                WindowUpdate::Prune => break,
+                WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
+                    if i == 0 {
+                        search_stats.first_move_prune.miss()
+                    }
+                }
+                WindowUpdate::Prune => {
+                    if i == 0 {
+                        search_stats.first_move_prune.hit()
+                    }
+                    break;
+                }
             }
         }
 
