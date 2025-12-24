@@ -4,7 +4,7 @@ use itertools::Itertools;
 use time::{Duration, ext::InstantExt};
 
 use crate::{
-    alpha_beta_window::{AlphaBetaWindow, WindowUpdate},
+    alpha_beta_window::{AlphaBetaWindow, NodeEvalSummary, WindowUpdate},
     board::Board,
     centi_pawns::{CentiPawns, Evaluation},
     color::Color,
@@ -219,13 +219,13 @@ fn search(
     stats: &mut SearchStats,
     should_exit: &impl Fn() -> bool,
     transposition_table: &mut TranspositionTable,
-) -> Result<Evaluation, SearchExit> {
+) -> Result<NodeEvalSummary, SearchExit> {
     if should_exit() {
         return Err(SearchExit::Cancelled);
     }
 
     if board.is_draw_50() || board.is_draw_repetition() {
-        return Ok(Evaluation::DRAW);
+        return Ok(window.set_draw());
     }
 
     let SearchStats {
@@ -239,7 +239,7 @@ fn search(
     if let Some(entry) = transposition_table.get_if_improves(board, depth_left, &window) {
         stats.cached_nodes.hits += entry.subnodes;
         stats.transposition_hits.hit();
-        return Ok(entry.eval);
+        return Ok(window.set_exact(entry.eval, entry.best_move));
     } else {
         stats.transposition_hits.miss();
         stats.cached_nodes.miss();
@@ -250,36 +250,37 @@ fn search(
     let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
     if moves.is_empty() {
-        let eval = if movegen.is_check() {
-            Evaluation::Loss(window.plies())
+        let out = if movegen.is_check() {
+            window.set_loss()
         } else {
-            Evaluation::DRAW
+            window.set_draw()
         };
 
         transposition_table.insert(
             board,
             depth_left,
-            window.set_exact(eval),
+            out,
             stats.nodes_searched - prev_nodes_searched,
         );
-        return Ok(eval);
+        return Ok(out);
     } else {
         // only call static eval if there are moves. otherwise, we can store the draw or loss in the TT
         if depth_left == 0 {
-            let eval = quiescence_search(
+            let quiescence_out = quiescence_search(
                 board,
                 window.clone(),
                 stats,
                 transposition_table,
                 should_exit,
             )?;
+
             transposition_table.insert(
                 board,
                 depth_left,
-                window.set_exact(eval),
+                quiescence_out,
                 stats.nodes_searched - prev_nodes_searched,
             );
-            return Ok(eval);
+            return Ok(quiescence_out);
         }
     }
 
@@ -293,7 +294,8 @@ fn search(
             stats,
             should_exit,
             transposition_table,
-        )?;
+        )?
+        .eval;
 
         match window.update(eval, Some(m)) {
             WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
@@ -319,7 +321,7 @@ fn search(
         stats.nodes_searched - prev_nodes_searched,
     );
 
-    Ok(res.eval)
+    Ok(res)
 }
 
 fn quiescence_search(
@@ -328,13 +330,13 @@ fn quiescence_search(
     stats: &mut SearchStats,
     transposition_table: &TranspositionTable,
     should_exit: &impl Fn() -> bool,
-) -> Result<Evaluation, SearchExit> {
+) -> Result<NodeEvalSummary, SearchExit> {
     if should_exit() {
         return Err(SearchExit::Cancelled);
     }
 
     if board.is_draw_50() || board.is_draw_repetition() {
-        return Ok(Evaluation::DRAW);
+        return Ok(window.set_draw());
     }
 
     stats.nodes_searched_quiescence += 1;
@@ -348,20 +350,20 @@ fn quiescence_search(
         if all_moves.is_empty() {
             // and also no other moves => draw or checkmate
             if movegen.is_check() {
-                return Ok(Evaluation::Loss(window.plies()));
+                return Ok(window.set_loss());
             } else {
-                return Ok(Evaluation::DRAW);
+                return Ok(window.set_draw());
             }
         } else {
             // but non-captures => quiet position
-            return Ok(static_eval(board));
+            return Ok(window.set_exact(static_eval(board), None));
         }
     }
 
     match window.update(static_eval(board), None) {
         WindowUpdate::NoImprovement => {}
         WindowUpdate::NewBest => {}
-        WindowUpdate::Prune => return Ok(window.finalize().eval),
+        WindowUpdate::Prune => return Ok(window.finalize()),
     }
 
     let captures = MoveOrdering::order_moves(captures, board, transposition_table).collect_vec();
@@ -373,7 +375,8 @@ fn quiescence_search(
             stats,
             transposition_table,
             should_exit,
-        )?;
+        )?
+        .eval;
 
         match window.update(eval, Some(m)) {
             WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
@@ -390,7 +393,7 @@ fn quiescence_search(
         }
     }
 
-    Ok(window.finalize().eval)
+    Ok(window.finalize())
 }
 
 pub enum RootSearchExit {
@@ -473,15 +476,16 @@ pub fn search_root(
     };
 
     let movegen = MoveGenerator::with_attacks(board);
-    let mut moves = movegen.generate_all_moves(board);
+    let moves = movegen.generate_all_moves(board);
+    let moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
 
-    if moves.is_empty() {
+    let Some(&first_move) = moves.first() else {
         return Err(RootSearchExit::NoMove);
-    }
+    };
 
     let mut search_stats = SearchStats::default();
 
-    let mut prev_best_move = *moves.first().unwrap();
+    let mut prev_best_move = first_move;
     'search: for depth in 1..options.depth.unwrap_or(256) {
         if should_exit() {
             break 'search;
@@ -489,46 +493,24 @@ pub fn search_root(
 
         let depth_start = Instant::now();
 
-        let mut window = AlphaBetaWindow::default();
+        let search_result = search(
+            board,
+            depth,
+            AlphaBetaWindow::default(),
+            &mut search_stats,
+            &should_exit,
+            transposition_table,
+        );
 
-        // keep order so after each iteration, it is already mostly sorted
-        moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
+        let out = match search_result {
+            Ok(out) => out,
+            Err(SearchExit::Cancelled) => break 'search,
+        };
 
-        for (i, &m) in moves.iter().enumerate() {
-            let eval = search(
-                &mut board.with_move(m),
-                depth - 1,
-                window.next_depth(),
-                &mut search_stats,
-                &should_exit,
-                transposition_table,
-            );
-
-            let eval = match eval {
-                Ok(eval) => -eval,
-                Err(SearchExit::Cancelled) => break 'search,
-            };
-
-            match window.update(eval, Some(m)) {
-                WindowUpdate::NewBest | WindowUpdate::NoImprovement => {
-                    if i == 0 {
-                        search_stats.first_move_prune.miss()
-                    }
-                }
-                WindowUpdate::Prune => {
-                    if i == 0 {
-                        search_stats.first_move_prune.hit()
-                    }
-                    break;
-                }
-            }
-        }
-
-        let out = window.finalize();
-        let best_move = out.best_move.unwrap_or(*moves.first().unwrap());
+        prev_best_move = out.best_move.unwrap_or(prev_best_move);
 
         on_depth_finished(DepthSummary {
-            best_move,
+            best_move: prev_best_move,
             eval: out.eval,
             depth,
             time_taken: Instant::now().signed_duration_since(depth_start),
@@ -536,8 +518,6 @@ pub fn search_root(
             hash_percentage: transposition_table.used_slots() as f32
                 / transposition_table.capacity() as f32,
         });
-
-        prev_best_move = best_move;
     }
 
     Ok(prev_best_move)

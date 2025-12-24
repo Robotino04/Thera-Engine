@@ -76,13 +76,28 @@ impl AlphaBetaWindow {
     }
 
     #[must_use = "Providing an exact node value and not using it is likely a mistake"]
-    pub fn set_exact(self, eval: Evaluation) -> NodeEvalSummary {
+    pub fn set_exact(self, eval: Evaluation, m: Option<Move>) -> NodeEvalSummary {
         NodeEvalSummary {
             eval,
             kind: EvalKind::Exact,
             plies: self.plies,
-            best_move: self.best_move,
+            best_move: m,
         }
+    }
+
+    #[must_use = "Providing an exact node value and not using it is likely a mistake"]
+    pub fn set_loss(self) -> NodeEvalSummary {
+        let eval = Evaluation::Loss(self.plies());
+        self.set_exact(eval, None)
+    }
+    #[must_use = "Providing an exact node value and not using it is likely a mistake"]
+    pub fn set_win(self) -> NodeEvalSummary {
+        let eval = Evaluation::Win(self.plies());
+        self.set_exact(eval, None)
+    }
+    #[must_use = "Providing an exact node value and not using it is likely a mistake"]
+    pub fn set_draw(self) -> NodeEvalSummary {
+        self.set_exact(Evaluation::DRAW, None)
     }
 
     pub fn causes_cutoff(&self, eval: Evaluation) -> bool {
