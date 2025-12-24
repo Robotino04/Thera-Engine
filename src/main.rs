@@ -1125,7 +1125,7 @@ fn output_thread_task(
                 .unwrap();
             }
             Some(TaskOutput::DepthFinished(DepthSummary {
-                best_move,
+                pv,
                 eval,
                 depth,
                 time_taken,
@@ -1141,7 +1141,6 @@ fn output_thread_task(
             })) => {
                 let nps = nodes_searched as f64 / time_taken.as_seconds_f64();
                 let time_taken_ms = time_taken.whole_milliseconds();
-
 
                 let hash_percentage = hash_percentage * 100.0;
 
@@ -1173,6 +1172,8 @@ fn output_thread_task(
                 let eval = eval.to_uci();
                 let hash_permill = hash_percentage * 10.0;
 
+                let pv_str = pv.iter().map(ToString::to_string).join(" ");
+
                 writeln!(
                     writer,
                     "info \
@@ -1182,7 +1183,7 @@ fn output_thread_task(
                         nps {nps:.0} \
                         hashfull {hash_permill:.0} \
                         time {time_taken_ms} \
-                        pv {best_move}",
+                        pv {pv_str}",
                 )
                 .unwrap();
             }

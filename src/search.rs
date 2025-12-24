@@ -11,7 +11,7 @@ use crate::{
     move_generator::{Move, MoveGenerator},
     piece::{ByPiece, ByPieceTable, Piece},
     square::{BySquare, Square},
-    transposition_table::TranspositionTable,
+    transposition_table::{TranspositionEntry, TranspositionTable},
 };
 
 // https://www.chessprogramming.org/Simplified_Evaluation_Function
@@ -438,12 +438,35 @@ pub struct SearchStats {
 }
 
 pub struct DepthSummary {
-    pub best_move: Move,
+    pub pv: Vec<Move>,
     pub eval: Evaluation,
     pub depth: u32,
     pub time_taken: Duration,
     pub stats: SearchStats,
     pub hash_percentage: f32,
+}
+
+fn extract_pv(
+    board: &mut Board,
+    transposition_table: &TranspositionTable,
+    mut depth_left: u32,
+) -> Vec<Move> {
+    let mut pv = Vec::new();
+    while let Some(TranspositionEntry {
+        best_move: Some(best_move),
+        ..
+    }) = transposition_table.get(board)
+        && depth_left != 0
+    {
+        pv.push(best_move);
+        board.make_move_unguarded(best_move);
+        depth_left -= 1;
+    }
+    for m in pv.iter().rev() {
+        let undone_move = board.try_undo_move();
+        assert_eq!(*m, undone_move.unwrap());
+    }
+    pv
 }
 
 pub fn search_root(
@@ -510,7 +533,7 @@ pub fn search_root(
         prev_best_move = out.best_move.unwrap_or(prev_best_move);
 
         on_depth_finished(DepthSummary {
-            best_move: prev_best_move,
+            pv: extract_pv(board, transposition_table, depth),
             eval: out.eval,
             depth,
             time_taken: Instant::now().signed_duration_since(depth_start),
