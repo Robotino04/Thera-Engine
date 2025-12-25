@@ -124,20 +124,65 @@ fn eval_material(board: &Board, color: Color) -> CentiPawns {
     material
 }
 
+fn eval_endgame(
+    board: &Board,
+    color: Color,
+    my_material: CentiPawns,
+    their_material: CentiPawns,
+) -> CentiPawns {
+    let me = color;
+    let they = color.opposite();
+
+    let material_advantage = my_material - their_material;
+
+    let their_pawns = board.pawns(they).count_ones() as i32 * CentiPawns::piece_value(Piece::Pawn);
+
+    if material_advantage > 2 * CentiPawns::piece_value(Piece::Pawn) {
+        let endgame_material = 2 * CentiPawns::piece_value(Piece::Rook)
+            + 2 * CentiPawns::piece_value(Piece::Knight)
+            + 2 * CentiPawns::piece_value(Piece::Bishop)
+            + 1 * CentiPawns::piece_value(Piece::Queen);
+
+        let endgame_factor = 1.0
+            - ((their_material - their_pawns).0 as f32 / endgame_material.0 as f32).clamp(0.0, 1.0);
+
+        let my_king = board.king(me).first_piece_square().unwrap();
+        let their_king = board.king(they).first_piece_square().unwrap();
+
+        let close_king_advantage =
+            (14 - my_king.manhattan_distance(their_king) as i32) * CentiPawns(25);
+
+        let opponent_center_distance = ((their_king.column() as i32 * 2 - 7).abs()
+            + (their_king.row() as i32 * 2 - 7).abs())
+            / 2;
+
+        let opponent_in_corner_advantage = opponent_center_distance * CentiPawns(35);
+
+        let endgame_eval = close_king_advantage + opponent_in_corner_advantage;
+
+        CentiPawns((endgame_eval.0 as f32 * endgame_factor) as i32)
+    } else {
+        CentiPawns(0)
+    }
+}
+
 fn static_eval(board: &Board) -> Evaluation {
     let me = board.color_to_move();
     let they = board.color_to_move().opposite();
 
     let my_material = eval_material(board, me);
     let their_material = eval_material(board, they);
+    let material_advantage = my_material - their_material;
 
     let my_placement = eval_piece_placement(board, me);
     let their_placement = eval_piece_placement(board, they);
-
-    let material_advantage = my_material - their_material;
     let placement_advantage = my_placement - their_placement;
 
-    Evaluation::CentiPawns(material_advantage + placement_advantage)
+    let my_endgame = eval_endgame(board, me, my_material, their_material);
+    let their_endgame = eval_endgame(board, they, their_material, my_material);
+    let endgame_advantage = my_endgame - their_endgame;
+
+    Evaluation::CentiPawns(material_advantage + placement_advantage + endgame_advantage)
 }
 
 /// This relies on derive(Ord), which always treats later entries as greater.
