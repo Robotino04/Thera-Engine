@@ -186,6 +186,9 @@ impl MoveGenerator {
     pub fn is_double_check(&self) -> bool {
         self.is_double_check
     }
+    pub fn attacked_squares(&self) -> Bitboard {
+        self.attacked_squares
+    }
 
     fn pinned_pieces(
         board: &Board,

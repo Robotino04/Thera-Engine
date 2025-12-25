@@ -189,9 +189,8 @@ fn static_eval(board: &Board) -> Evaluation {
 /// But sort is ascending by default so we have to reverse it as well.
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 enum MoveOrdering {
-    QuietMove,
+    QuietMove(CentiPawns),
     Castle,
-    EnPassant,
     Capture(CentiPawns),
     Promotion(CentiPawns),
     PrincipalVariation,
@@ -201,17 +200,19 @@ impl MoveOrdering {
     fn order_moves(
         moves: impl IntoIterator<Item = Move>,
         board: &Board,
+        movegen: &MoveGenerator,
         transposition_table: &TranspositionTable,
     ) -> impl Iterator<Item = Move> {
         moves
             .into_iter()
-            .sorted_unstable_by_key(|m| Self::score_move(m, board, transposition_table))
+            .sorted_unstable_by_key(|m| Self::score_move(m, board, movegen, transposition_table))
             .rev()
     }
 
     fn score_move(
         m: &Move,
         board: &Board,
+        movegen: &MoveGenerator,
         transposition_table: &TranspositionTable,
     ) -> MoveOrdering {
         if let Some(entry) = transposition_table.get(board)
@@ -224,30 +225,64 @@ impl MoveOrdering {
             Move::Normal {
                 captured_piece,
                 moved_piece,
+                to_square,
                 ..
             } => {
-                if let Some(captured_piece) = captured_piece {
-                    MoveOrdering::Capture(
+                match (
+                    captured_piece,
+                    (movegen.attacked_squares() & *to_square).is_empty(),
+                ) {
+                    (None, true) => MoveOrdering::QuietMove(CentiPawns(0)),
+                    (None, false) => {
+                        MoveOrdering::QuietMove(-CentiPawns::piece_value(*moved_piece))
+                    }
+                    (Some(captured_piece), true) => {
+                        MoveOrdering::Capture(CentiPawns::piece_value(*captured_piece))
+                    }
+                    (Some(captured_piece), false) => MoveOrdering::Capture(
                         CentiPawns::piece_value(*captured_piece)
                             - CentiPawns::piece_value(*moved_piece),
-                    )
-                } else {
-                    MoveOrdering::QuietMove
+                    ),
                 }
             }
-            Move::DoublePawn { .. } => MoveOrdering::QuietMove,
-            Move::EnPassant { .. } => MoveOrdering::EnPassant,
+            Move::DoublePawn { to_square, .. } => {
+                if (movegen.attacked_squares() & *to_square).is_empty() {
+                    MoveOrdering::QuietMove(CentiPawns(0))
+                } else {
+                    MoveOrdering::QuietMove(-CentiPawns::piece_value(Piece::Pawn))
+                }
+            }
+            Move::EnPassant { to_square, .. } => {
+                if (movegen.attacked_squares() & *to_square).is_empty() {
+                    MoveOrdering::Capture(CentiPawns::piece_value(Piece::Pawn))
+                } else {
+                    MoveOrdering::Capture(CentiPawns(0))
+                }
+            }
             Move::Castle { .. } => MoveOrdering::Castle,
             Move::Promotion {
                 promotion_piece,
                 captured_piece,
+                to_square,
                 ..
-            } => MoveOrdering::Promotion(
-                CentiPawns::piece_value(*promotion_piece)
-                    + captured_piece
-                        .map(CentiPawns::piece_value)
-                        .unwrap_or_default(),
-            ),
+            } => {
+                if (movegen.attacked_squares() & *to_square).is_empty() {
+                    MoveOrdering::Promotion(
+                        CentiPawns::piece_value(*promotion_piece)
+                            - CentiPawns::piece_value(Piece::Pawn)
+                            + captured_piece
+                                .map(CentiPawns::piece_value)
+                                .unwrap_or_default(),
+                    )
+                } else {
+                    MoveOrdering::Promotion(
+                        -CentiPawns::piece_value(Piece::Pawn)
+                            + captured_piece
+                                .map(CentiPawns::piece_value)
+                                .unwrap_or_default(),
+                    )
+                }
+            }
         }
     }
 }
@@ -328,7 +363,8 @@ fn search(
         }
     }
 
-    let moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
+    let moves =
+        MoveOrdering::order_moves(moves, board, &movegen, transposition_table).collect_vec();
 
     for (i, m) in moves.into_iter().enumerate() {
         let eval = -search(
@@ -410,7 +446,8 @@ fn quiescence_search(
         WindowUpdate::Prune => return Ok(window.finalize()),
     }
 
-    let captures = MoveOrdering::order_moves(captures, board, transposition_table).collect_vec();
+    let captures =
+        MoveOrdering::order_moves(captures, board, &movegen, transposition_table).collect_vec();
 
     for (i, m) in captures.into_iter().enumerate() {
         let eval = -quiescence_search(
@@ -544,7 +581,8 @@ pub fn search_root(
 
     let movegen = MoveGenerator::with_attacks(board);
     let moves = movegen.generate_all_moves(board);
-    let moves = MoveOrdering::order_moves(moves, board, transposition_table).collect_vec();
+    let moves =
+        MoveOrdering::order_moves(moves, board, &movegen, transposition_table).collect_vec();
 
     let Some(&first_move) = moves.first() else {
         return Err(RootSearchExit::NoMove);
