@@ -102,8 +102,7 @@ fn eval_piece_placement(board: &Board, color: Color) -> CentiPawns {
     let mut eval = CentiPawns(0);
 
     for piece in Piece::ALL {
-        let mut pieces = board.get_piece_bitboard(piece, color);
-        while let Some(square) = pieces.bitscan_square() {
+        for square in board.get_piece_bitboard(piece, color).squares() {
             eval += PIECE_SQUARE_TABLE[piece][match color {
                 Color::White => square,
                 Color::Black => square.flipped(),

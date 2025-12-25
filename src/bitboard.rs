@@ -102,6 +102,78 @@ impl BitXorAssign for Bitboard {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct BitIter(Bitboard);
+
+impl Iterator for BitIter {
+    type Item = Bitboard;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.bitscan()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.0.count_ones() as usize;
+        (count, Some(count))
+    }
+}
+impl ExactSizeIterator for BitIter {}
+impl DoubleEndedIterator for BitIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.bitscan_reverse()
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct IndexIter(Bitboard);
+
+impl Iterator for IndexIter {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.bitscan_index()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.0.count_ones() as usize;
+        (count, Some(count))
+    }
+}
+impl ExactSizeIterator for IndexIter {}
+impl DoubleEndedIterator for IndexIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.bitscan_reverse_index()
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct SquareIter(Bitboard);
+
+impl Iterator for SquareIter {
+    type Item = Square;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.bitscan_square()
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.0.count_ones() as usize;
+        (count, Some(count))
+    }
+}
+impl ExactSizeIterator for SquareIter {}
+impl DoubleEndedIterator for SquareIter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.0.bitscan_reverse_square()
+    }
+}
+
+impl IntoIterator for Bitboard {
+    type Item = Bitboard;
+    type IntoIter = BitIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        BitIter(self)
+    }
+}
+
 impl Bitboard {
     pub const fn from_rows(rows: [u8; 8]) -> Self {
         Bitboard(u64::from_be_bytes(rows))
@@ -146,44 +218,104 @@ impl Bitboard {
         Self(self.0.rotate_left(amount as u32))
     }
 
-    pub const fn bitscan(&mut self) -> Option<Bitboard> {
-        if self.0 == 0 {
-            None
-        } else {
-            let mask = self.0 & self.0.wrapping_neg();
-            self.0 &= self.0 - 1;
-            Some(Bitboard(mask))
-        }
+    pub const fn bits(self) -> BitIter {
+        BitIter(self)
+    }
+    pub const fn indices(self) -> IndexIter {
+        IndexIter(self)
+    }
+    pub const fn squares(self) -> SquareIter {
+        SquareIter(self)
     }
 
-    pub const fn bitscan_index(&mut self) -> Option<u32> {
+    const fn least_significant_bit(&self) -> Option<Bitboard> {
         if self.0 == 0 {
             None
         } else {
-            let index = self.0.trailing_zeros();
-            self.0 &= self.0 - 1;
-            Some(index)
+            Some(Bitboard(self.0 & self.0.wrapping_neg()))
         }
     }
-    pub fn bitscan_square(&mut self) -> Option<Square> {
-        if self.0 == 0 {
-            None
-        } else {
-            let index = self.0.trailing_zeros();
-            self.0 &= self.0 - 1;
-            Some(Square::new(index).unwrap())
-        }
-    }
-    pub const fn first_piece_index(&self) -> Option<u32> {
+    const fn least_significant_bit_index(&self) -> Option<u32> {
         if self.0 == 0 {
             None
         } else {
             Some(self.0.trailing_zeros())
         }
     }
+    const fn clear_least_significant_bit(&mut self) {
+        self.0 &= self.0.wrapping_sub(1);
+    }
 
+    const fn most_significant_bit(&self) -> Option<Bitboard> {
+        if let Some(index) = self.most_significant_bit_index() {
+            Some(Bitboard(1 << index))
+        } else {
+            None
+        }
+    }
+    const fn most_significant_bit_index(&self) -> Option<u32> {
+        if self.0 == 0 {
+            None
+        } else {
+            Some(63 - self.0.leading_zeros())
+        }
+    }
+    const fn clear_most_significant_bit(&mut self) {
+        if let Some(mask) = self.most_significant_bit() {
+            self.0 &= !mask.0;
+        }
+    }
+
+    const fn bitscan(&mut self) -> Option<Bitboard> {
+        let mask = self.least_significant_bit();
+        self.clear_least_significant_bit();
+        mask
+    }
+    const fn bitscan_index(&mut self) -> Option<u32> {
+        let index = self.least_significant_bit_index();
+        self.clear_least_significant_bit();
+        index
+    }
+    fn bitscan_square(&mut self) -> Option<Square> {
+        self.bitscan_index().map(|x| Square::new(x).unwrap())
+    }
+
+    const fn bitscan_reverse(&mut self) -> Option<Bitboard> {
+        let mask = self.most_significant_bit();
+        self.clear_most_significant_bit();
+        mask
+    }
+    const fn bitscan_reverse_index(&mut self) -> Option<u32> {
+        let index = self.most_significant_bit_index();
+        self.clear_most_significant_bit();
+        index
+    }
+    fn bitscan_reverse_square(&mut self) -> Option<Square> {
+        self.bitscan_reverse_index()
+            .map(|x| Square::new(x).unwrap())
+    }
+
+    pub const fn first_piece(&self) -> Option<Bitboard> {
+        self.least_significant_bit()
+    }
+    pub const fn first_piece_index(&self) -> Option<u32> {
+        self.least_significant_bit_index()
+    }
     pub fn first_piece_square(&self) -> Option<Square> {
         self.first_piece_index().map(|x| Square::new(x).unwrap())
+    }
+
+    /// NOTE: you should always try to use `first_piece` instead if possible
+    pub const fn last_piece(&self) -> Option<Bitboard> {
+        self.most_significant_bit()
+    }
+    /// NOTE: you should always try to use `first_piece_index` instead if possible
+    pub const fn last_piece_index(&self) -> Option<u32> {
+        self.most_significant_bit_index()
+    }
+    /// NOTE: you should always try to use `first_piece_square` instead if possible
+    pub fn last_piece_square(&self) -> Option<Square> {
+        self.last_piece_index().map(|x| Square::new(x).unwrap())
     }
 
     pub const fn const_or(&self, rhs: Bitboard) -> Self {

@@ -98,20 +98,16 @@ fn magic_mask_for_bishop(piece: Bitboard) -> Bitboard {
     )
 }
 
-fn occupancies_for_mask(mut mask: Bitboard) -> impl Iterator<Item = Bitboard> {
+fn occupancies_for_mask(mask: Bitboard) -> impl Iterator<Item = Bitboard> {
     let num_bits = mask.0.count_ones();
     let num_occupancies = 1 << num_bits;
 
-    let mut indices = vec![];
-
-    while let Some(index) = mask.bitscan_index() {
-        indices.push(index);
-    }
+    let indices = mask.indices();
 
     (0..num_occupancies).map(move |occupancy| {
         let mut occupancy_bitboard = Bitboard(0);
 
-        for (index_i, index) in indices.iter().enumerate() {
+        for (index_i, index) in indices.enumerate() {
             let selected_bit = (occupancy >> index_i) & 0b1;
             occupancy_bitboard |= Bitboard(selected_bit << index);
         }

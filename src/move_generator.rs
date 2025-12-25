@@ -89,9 +89,9 @@ impl MoveGenerator {
 
         let mut attacks_to_square = BySquare::default();
         let mut attacked_squares = Bitboard(0);
-        for (i, mut bb) in attacks_from_square.as_ref().iter().cloned().enumerate() {
+        for (i, bb) in attacks_from_square.as_ref().iter().cloned().enumerate() {
             attacked_squares |= bb;
-            while let Some(target_index) = bb.bitscan_square() {
+            for target_index in bb.squares() {
                 attacks_to_square[target_index] |= Bitboard(1 << i);
             }
         }
@@ -129,8 +129,8 @@ impl MoveGenerator {
         let mut target_restrictions = BySquare::new([allowed_targets; Square::COUNT]);
         for dir in Direction::ALL {
             let pinned_squares = Self::pinned_pieces(board, blockers, king, dir);
-            let mut pinned_squares2 = pinned_squares;
-            while let Some(square) = pinned_squares2.bitscan_square() {
+            let pinned_squares2 = pinned_squares;
+            for square in pinned_squares2.squares() {
                 target_restrictions[square] &= pinned_squares;
             }
         }
@@ -234,9 +234,9 @@ impl MoveGenerator {
         moves: &mut Vec<Move>,
     ) {
         if ALL_MOVES {
-            let mut non_captures = targets & !board.all_piece_bitboard();
+            let non_captures = targets & !board.all_piece_bitboard();
 
-            while let Some(target) = non_captures.bitscan() {
+            for target in non_captures {
                 moves.push(Move::Normal {
                     from_square: origin,
                     to_square: target,
@@ -246,9 +246,9 @@ impl MoveGenerator {
             }
         }
 
-        let mut captures = targets & board.get_color_bitboard(board.color_to_move().opposite());
+        let captures = targets & board.get_color_bitboard(board.color_to_move().opposite());
 
-        while let Some(target) = captures.bitscan() {
+        for target in captures {
             moves.push(Move::Normal {
                 from_square: origin,
                 to_square: target,
@@ -320,17 +320,15 @@ impl MoveGenerator {
     }
 
     fn generate_rook_moves<const ALL_MOVES: bool>(&self, board: &Board, moves: &mut Vec<Move>) {
-        let mut pieces = board.rooks(board.color_to_move());
-
-        while let Some(single_piece) = pieces.bitscan_square() {
+        for rook in board.rooks(board.color_to_move()).squares() {
             let occupancy = board.all_piece_bitboard();
 
-            let targets = rook_magic_bitboard(single_piece, occupancy)
-                & self.allowed_targets[single_piece]
+            let targets = rook_magic_bitboard(rook, occupancy)
+                & self.allowed_targets[rook]
                 & !board.get_color_bitboard(board.color_to_move());
 
             Self::targets_to_moves::<ALL_MOVES>(
-                Bitboard::from_square(single_piece),
+                Bitboard::from_square(rook),
                 Piece::Rook,
                 targets,
                 board,
@@ -339,24 +337,21 @@ impl MoveGenerator {
         }
     }
     fn generate_rook_attacks(board: &Board, attacks_from_square: &mut BySquare<Bitboard>) {
-        let mut rooks = board.rooks(board.color_to_move());
-        while let Some(rook) = rooks.bitscan_square() {
+        for rook in board.rooks(board.color_to_move()).squares() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
             attacks_from_square[rook] |= rook_magic_bitboard(rook, occupancy);
         }
     }
     fn generate_bishop_moves<const ALL_MOVES: bool>(&self, board: &Board, moves: &mut Vec<Move>) {
-        let mut pieces = board.bishops(board.color_to_move());
-
-        while let Some(single_piece) = pieces.bitscan_square() {
+        for bishops in board.bishops(board.color_to_move()).squares() {
             let occupancy = board.all_piece_bitboard();
-            let targets = bishop_magic_bitboard(single_piece, occupancy)
-                & self.allowed_targets[single_piece]
+            let targets = bishop_magic_bitboard(bishops, occupancy)
+                & self.allowed_targets[bishops]
                 & !board.get_color_bitboard(board.color_to_move());
 
             Self::targets_to_moves::<ALL_MOVES>(
-                Bitboard::from_square(single_piece),
+                Bitboard::from_square(bishops),
                 Piece::Bishop,
                 targets,
                 board,
@@ -365,8 +360,7 @@ impl MoveGenerator {
         }
     }
     fn generate_bishop_attacks(board: &Board, attacks_from_square: &mut BySquare<Bitboard>) {
-        let mut bishops = board.bishops(board.color_to_move());
-        while let Some(bishop) = bishops.bitscan_square() {
+        for bishop in board.bishops(board.color_to_move()).squares() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
             let entry = bishop_magic_bitboard(bishop, occupancy);
@@ -376,17 +370,15 @@ impl MoveGenerator {
     }
 
     fn generate_queen_moves<const ALL_MOVES: bool>(&self, board: &Board, moves: &mut Vec<Move>) {
-        let mut pieces = board.queens(board.color_to_move());
-
-        while let Some(single_piece) = pieces.bitscan_square() {
+        for queen in board.queens(board.color_to_move()).squares() {
             let occupancy = board.all_piece_bitboard();
-            let targets = (bishop_magic_bitboard(single_piece, occupancy)
-                | rook_magic_bitboard(single_piece, occupancy))
-                & self.allowed_targets[single_piece]
+            let targets = (bishop_magic_bitboard(queen, occupancy)
+                | rook_magic_bitboard(queen, occupancy))
+                & self.allowed_targets[queen]
                 & !board.get_color_bitboard(board.color_to_move());
 
             Self::targets_to_moves::<ALL_MOVES>(
-                Bitboard::from_square(single_piece),
+                Bitboard::from_square(queen),
                 Piece::Queen,
                 targets,
                 board,
@@ -395,8 +387,7 @@ impl MoveGenerator {
         }
     }
     fn generate_queen_attacks(board: &Board, attacks_from_square: &mut BySquare<Bitboard>) {
-        let mut queens = board.queens(board.color_to_move());
-        while let Some(queen) = queens.bitscan_square() {
+        for queen in board.queens(board.color_to_move()).squares() {
             let occupancy =
                 board.all_piece_bitboard() ^ board.king(board.color_to_move().opposite());
             let rook_entry = rook_magic_bitboard(queen, occupancy);
@@ -445,8 +436,7 @@ impl MoveGenerator {
     }
 
     fn generate_knight_moves<const ALL_MOVES: bool>(&self, board: &Board, moves: &mut Vec<Move>) {
-        let mut knights = board.knights(board.color_to_move());
-        while let Some(knight) = knights.bitscan() {
+        for knight in board.knights(board.color_to_move()) {
             let targets = Self::generate_knight_targets(knight)
                 & self.allowed_targets[knight.first_piece_square().unwrap()];
 
@@ -454,8 +444,7 @@ impl MoveGenerator {
         }
     }
     fn generate_knight_attacks(board: &Board, attacks_from_square: &mut BySquare<Bitboard>) {
-        let mut knights = board.knights(board.color_to_move());
-        while let Some(knight) = knights.bitscan() {
+        for knight in board.knights(board.color_to_move()) {
             attacks_from_square[knight.first_piece_square().unwrap()] |=
                 Self::generate_knight_targets(knight);
         }
@@ -521,12 +510,11 @@ impl MoveGenerator {
             ),
         };
 
-        let mut pawns = board.pawns(board.color_to_move());
-        while let Some(pawn) = pawns.bitscan() {
+        for pawn in board.pawns(board.color_to_move()) {
             let pawn_square = pawn.first_piece_square().unwrap();
 
             let targets = pawn.shift(forwards) & !board.all_piece_bitboard();
-            let mut double_targets = (targets & shifted_baseline).shift(forwards)
+            let double_targets = (targets & shifted_baseline).shift(forwards)
                 & !board.all_piece_bitboard()
                 & self.allowed_targets[pawn_square];
 
@@ -538,14 +526,14 @@ impl MoveGenerator {
                 & board.get_color_bitboard(board.color_to_move().opposite())
                 & self.allowed_targets[pawn_square];
 
-            let mut promotion_targets = targets & promotion_line;
-            let mut normal_targets = targets & !promotion_line;
+            let promotion_targets = targets & promotion_line;
+            let normal_targets = targets & !promotion_line;
 
-            let mut promotion_attacks = attacks & promotion_line;
-            let mut normal_attacks = attacks & !promotion_line;
+            let promotion_attacks = attacks & promotion_line;
+            let normal_attacks = attacks & !promotion_line;
 
             if ALL_MOVES {
-                while let Some(target) = normal_targets.bitscan() {
+                for target in normal_targets {
                     moves.push(Move::Normal {
                         from_square: pawn,
                         to_square: target,
@@ -553,14 +541,14 @@ impl MoveGenerator {
                         moved_piece: Piece::Pawn,
                     })
                 }
-                while let Some(target) = double_targets.bitscan() {
+                for target in double_targets {
                     moves.push(Move::DoublePawn {
                         from_square: pawn,
                         to_square: target,
                     })
                 }
 
-                while let Some(target) = promotion_targets.bitscan() {
+                for target in promotion_targets {
                     for promotion_piece in [Piece::Bishop, Piece::Knight, Piece::Rook, Piece::Queen]
                     {
                         moves.push(Move::Promotion {
@@ -574,7 +562,7 @@ impl MoveGenerator {
             }
 
             // en passant
-            if let Some(target) = (attack_targets & board.enpassant_square()).bitscan()
+            if let Some(target) = (attack_targets & board.enpassant_square()).first_piece()
                 && let captured_pawn = target.wrapping_shift(forwards.opposite(), 1)
                 && !(self.allowed_targets[pawn.first_piece_square().unwrap()] & captured_pawn)
                     .is_empty()
@@ -615,7 +603,7 @@ impl MoveGenerator {
                 }
             }
 
-            while let Some(target) = normal_attacks.bitscan() {
+            for target in normal_attacks {
                 moves.push(Move::Normal {
                     from_square: pawn,
                     to_square: target,
@@ -624,7 +612,7 @@ impl MoveGenerator {
                 })
             }
 
-            while let Some(target) = promotion_attacks.bitscan() {
+            for target in promotion_attacks {
                 for promotion_piece in [Piece::Bishop, Piece::Knight, Piece::Rook, Piece::Queen] {
                     moves.push(Move::Promotion {
                         from_square: pawn,
@@ -646,8 +634,7 @@ impl MoveGenerator {
             Color::Black => Direction::SouthEast,
         };
 
-        let mut pawns = board.pawns(board.color_to_move());
-        while let Some(pawn) = pawns.bitscan() {
+        for pawn in board.pawns(board.color_to_move()) {
             let attacks = pawn.shift(forwards_west) | pawn.shift(forwards_east);
 
             attacks_from_square[pawn.first_piece_square().unwrap()] |= attacks;
