@@ -28,6 +28,12 @@ pub struct TranspositionTable {
     used_slots: usize,
 }
 
+impl Default for TranspositionTable {
+    fn default() -> Self {
+        Self::new(1 << 20)
+    }
+}
+
 impl TranspositionTable {
     pub fn new(size: usize) -> Self {
         Self {

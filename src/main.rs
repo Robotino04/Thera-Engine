@@ -731,7 +731,7 @@ fn repl_handle_uci(state: &mut ReplState) {
 }
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
-    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::new(1 << 20)));
+    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::default()));
 }
 fn repl_handle_isready(state: &mut ReplState) {
     state.output_queue.send(Some(TaskOutput::ReadyOk)).unwrap();
@@ -1370,7 +1370,7 @@ fn main() {
 
     let mut state = ReplState {
         board: Board::starting_position(),
-        transposition_table: Arc::new(Mutex::new(TranspositionTable::new(1 << 24))),
+        transposition_table: Arc::new(Mutex::new(TranspositionTable::default())),
         always_print: false,
         is_uci: Arc::new(AtomicBool::new(false)),
         cancel_flag,
