@@ -14,7 +14,6 @@ use crate::{
 pub struct MoveGenerator {
     #[expect(dead_code)]
     attacks_from_square: BySquare<Bitboard>,
-    #[expect(dead_code)]
     attacks_to_square: BySquare<Bitboard>,
     /// NOTE: this does not consider the king as a blocker for sliding pieces.
     /// That's a good thing for king move generation, but maybe not expected for other uses
@@ -188,6 +187,20 @@ impl MoveGenerator {
     }
     pub fn attacked_squares(&self) -> Bitboard {
         self.attacked_squares
+    }
+
+    pub fn least_valuable_attacker(&self, board: &Board, square: Square) -> Option<Piece> {
+        let attackers = self.attacks_to_square[square];
+        [
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ]
+        .into_iter()
+        .find(|&piece| !(board.get_piece_bitboard_colorless(piece) & attackers).is_empty())
     }
 
     fn pinned_pieces(

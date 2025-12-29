@@ -5,6 +5,7 @@ use time::{Duration, ext::InstantExt};
 
 use crate::{
     alpha_beta_window::{AlphaBetaWindow, NodeEvalSummary, WindowUpdate},
+    bitboard::Bitboard,
     board::Board,
     centi_pawns::{CentiPawns, Evaluation},
     color::Color,
@@ -215,49 +216,41 @@ impl MoveOrdering {
         movegen: &MoveGenerator,
         transposition_table: &TranspositionTable,
     ) -> MoveOrdering {
-        if let Some(entry) = transposition_table.get(board)
-            && entry.best_move.is_some_and(|m2| *m == m2)
+        if transposition_table
+            .get(board)
+            .and_then(|e| e.best_move)
+            .is_some_and(|m2| *m == m2)
         {
             return MoveOrdering::PrincipalVariation;
         }
 
-        match m {
+        let score_action =
+            |moved_piece: Piece, captured_piece: Option<Piece>, to_square: Bitboard| {
+                let value = captured_piece
+                    .map(CentiPawns::piece_value)
+                    .unwrap_or_default()
+                    + if (movegen.attacked_squares() & to_square).is_empty() {
+                        CentiPawns(0)
+                    } else {
+                        -CentiPawns::piece_value(moved_piece)
+                    };
+
+                match captured_piece {
+                    Some(_) => MoveOrdering::Capture(value),
+                    None => MoveOrdering::QuietMove(value),
+                }
+            };
+
+        match *m {
             Move::Normal {
                 captured_piece,
                 moved_piece,
                 to_square,
                 ..
-            } => {
-                match (
-                    captured_piece,
-                    (movegen.attacked_squares() & *to_square).is_empty(),
-                ) {
-                    (None, true) => MoveOrdering::QuietMove(CentiPawns(0)),
-                    (None, false) => {
-                        MoveOrdering::QuietMove(-CentiPawns::piece_value(*moved_piece))
-                    }
-                    (Some(captured_piece), true) => {
-                        MoveOrdering::Capture(CentiPawns::piece_value(*captured_piece))
-                    }
-                    (Some(captured_piece), false) => MoveOrdering::Capture(
-                        CentiPawns::piece_value(*captured_piece)
-                            - CentiPawns::piece_value(*moved_piece),
-                    ),
-                }
-            }
-            Move::DoublePawn { to_square, .. } => {
-                if (movegen.attacked_squares() & *to_square).is_empty() {
-                    MoveOrdering::QuietMove(CentiPawns(0))
-                } else {
-                    MoveOrdering::QuietMove(-CentiPawns::piece_value(Piece::Pawn))
-                }
-            }
+            } => score_action(moved_piece, captured_piece, to_square),
+            Move::DoublePawn { to_square, .. } => score_action(Piece::Pawn, None, to_square),
             Move::EnPassant { to_square, .. } => {
-                if (movegen.attacked_squares() & *to_square).is_empty() {
-                    MoveOrdering::Capture(CentiPawns::piece_value(Piece::Pawn))
-                } else {
-                    MoveOrdering::Capture(CentiPawns(0))
-                }
+                score_action(Piece::Pawn, Some(Piece::Pawn), to_square)
             }
             Move::Castle { .. } => MoveOrdering::Castle,
             Move::Promotion {
@@ -265,24 +258,17 @@ impl MoveOrdering {
                 captured_piece,
                 to_square,
                 ..
-            } => {
-                if (movegen.attacked_squares() & *to_square).is_empty() {
-                    MoveOrdering::Promotion(
-                        CentiPawns::piece_value(*promotion_piece)
-                            - CentiPawns::piece_value(Piece::Pawn)
-                            + captured_piece
-                                .map(CentiPawns::piece_value)
-                                .unwrap_or_default(),
-                    )
-                } else {
-                    MoveOrdering::Promotion(
-                        -CentiPawns::piece_value(Piece::Pawn)
-                            + captured_piece
-                                .map(CentiPawns::piece_value)
-                                .unwrap_or_default(),
-                    )
-                }
-            }
+            } => MoveOrdering::Promotion(
+                captured_piece
+                    .map(CentiPawns::piece_value)
+                    .unwrap_or_default()
+                    - CentiPawns::piece_value(Piece::Pawn)
+                    + CentiPawns::piece_value(promotion_piece)
+                    + movegen
+                        .least_valuable_attacker(board, to_square.first_piece_square().unwrap())
+                        .map(|_attacker| -CentiPawns::piece_value(promotion_piece))
+                        .unwrap_or_default(),
+            ),
         }
     }
 }
