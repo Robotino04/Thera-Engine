@@ -138,7 +138,7 @@ fn eval_endgame(
 
     let their_pawns = board.pawns(they).count_ones() as i32 * CentiPawns::piece_value(Piece::Pawn);
 
-    if material_advantage > 2 * CentiPawns::piece_value(Piece::Pawn) {
+    if material_advantage > CentiPawns(-200) {
         let endgame_material = 2 * CentiPawns::piece_value(Piece::Rook)
             + 2 * CentiPawns::piece_value(Piece::Knight)
             + 2 * CentiPawns::piece_value(Piece::Bishop)
