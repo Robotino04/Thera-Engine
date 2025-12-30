@@ -16,3 +16,7 @@ time = "0.3.44"
 [profile.release]
 lto = true
 debug = true
+
+[profile.fast-test]
+inherits = "test"
+opt-level = 3
