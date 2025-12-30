@@ -1,5 +1,3 @@
 build/
 .vscode/
-archive/
 /target/
-/backups/
