@@ -1,8 +1,8 @@
 #pragma once
 
-namespace Thera::Utils{
+namespace Thera::Utils {
 
-enum class Architecture{
+enum class Architecture {
     x86_64,
     // x86_32,
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 4.0)
 
 file(GLOB_RECURSE UCI_SRC "*.cpp" "*.hpp" "*.tpp")
 

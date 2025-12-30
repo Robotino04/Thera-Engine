@@ -4,37 +4,39 @@
 #include "Thera/Board.hpp"
 #include "Thera/MoveGenerator.hpp"
 
-#include <functional>
 
+namespace Thera {
 
-namespace Thera{
-
-struct PerftResult{
+struct PerftResult {
     uint64_t numNodesSearched = 0;
 
-    struct SingleMove{
+    struct SingleMove {
         Move move;
         uint64_t numNodesSearched = 0;
 
         /**
          * @brief Compare two moves
-         * 
+         *
          * Only used for sorting
-         * 
+         *
          * @param other the single move to compare to
-         * @return bool 
+         * @return bool
          */
-        bool operator < (SingleMove other) const{
-            if (move != other.move) return move < other.move;
-            else return numNodesSearched < other.numNodesSearched;
+        bool operator<(SingleMove other) const {
+            if (move != other.move)
+                return move < other.move;
+            else
+                return numNodesSearched < other.numNodesSearched;
         }
         /**
          * @brief Test if two moves are equal
-         * 
+         *
          * @param other the single move to compare to
          * @return bool are they equal
          */
-        bool operator == (SingleMove other) const{ return move == other.move && numNodesSearched == other.numNodesSearched; }
+        bool operator==(SingleMove other) const {
+            return move == other.move && numNodesSearched == other.numNodesSearched;
+        }
     };
     std::vector<SingleMove> moves;
     uint64_t numNodesFiltered = 0;
@@ -42,7 +44,7 @@ struct PerftResult{
 
 /**
  * @brief Run the perft algorithm on a given board.
- * 
+ *
  * @param board the board to run perft for
  * @param generator the move generator
  * @param depth the maximum search depth
@@ -51,11 +53,11 @@ struct PerftResult{
  * @param isInitialCall is this the first call, so not yet recursive
  * @return PerftResult the result
  */
-PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, bool isInitialCall=true);
+PerftResult perft_instrumented(Board& board, MoveGenerator& generator, int depth, bool bulkCounting, bool isInitialCall = true);
 
 /**
  * @brief Run the perft algorithm on a given board.
- * 
+ *
  * @param board the board to run perft for
  * @param generator the move generator
  * @param depth the maximum search depth

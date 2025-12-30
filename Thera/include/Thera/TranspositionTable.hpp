@@ -6,26 +6,26 @@
 #include <unordered_map>
 #include <optional>
 
-namespace Thera{
-    
-class TranspositionTable{
-    public:
-        struct Entry{
-            enum class Flag{
-                Exact,
-                LowerBound,
-                UpperBound,
-            } flag;
-            int eval;
-            int depth;
-        };
+namespace Thera {
 
-        void addEntry(Board const& board, int eval, NegamaxState nstate);
+class TranspositionTable {
+public:
+    struct Entry {
+        enum class Flag {
+            Exact,
+            LowerBound,
+            UpperBound,
+        } flag;
+        int eval;
+        int depth;
+    };
 
-        std::optional<int> readPotentialEntry(Board const& board, NegamaxState& nstate);
+    void addEntry(Board const& board, int eval, NegamaxState nstate);
 
-    private:
-        std::unordered_map<uint64_t, Entry> internalTable;
+    std::optional<int> readPotentialEntry(Board const& board, NegamaxState& nstate);
+
+private:
+    std::unordered_map<uint64_t, Entry> internalTable;
 };
 
 }

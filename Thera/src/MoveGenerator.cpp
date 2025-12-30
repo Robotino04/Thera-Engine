@@ -3,27 +3,26 @@
 #include "Thera/Utils/ChessTerms.hpp"
 #include "Thera/Utils/BuildType.hpp"
 
-#include <tuple>
 
-namespace Thera{
+namespace Thera {
 
-std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
+std::vector<Move> MoveGenerator::generateAllMoves(Board const& board) {
     generatedMoves.clear();
 
     generateAttackData(board);
 
-    if (capturesOnly){
+    if (capturesOnly) {
         possibleTargets &= board.getPieceBitboardForOneColor(board.getColorToNotMove());
         generateAllKingMoves(board, board.getPieceBitboardForOneColor(board.getColorToNotMove()));
-        if (!isDoubleCheck){
+        if (!isDoubleCheck) {
             generateAllSlidingMoves(board, possibleTargets);
             generateAllKnightMoves(board, possibleTargets);
             generateAllPawnMoves(board, possibleTargets);
         }
     }
-    else{
+    else {
         generateAllKingMoves(board, Utils::binaryOnes<uint64_t>(64));
-        if (!isDoubleCheck){
+        if (!isDoubleCheck) {
             generateAllSlidingMoves(board, possibleTargets);
             generateAllKnightMoves(board, possibleTargets);
             generateAllPawnMoves(board, possibleTargets);
@@ -34,25 +33,25 @@ std::vector<Move> MoveGenerator::generateAllMoves(Board const& board){
 }
 
 // Kogge-Stone Algorithm
-Bitboard occludedFill (Bitboard gen, Bitboard pro, int dir8){
-   int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
-   pro &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
-   gen |= pro & gen.rotateLeft(r);
-   pro &=       pro.rotateLeft(r);
-   gen |= pro & gen.rotateLeft(2*r);
-   pro &=       pro.rotateLeft(2*r);
-   gen |= pro & gen.rotateLeft(4*r);
-   return gen;
+Bitboard occludedFill(Bitboard gen, Bitboard pro, int dir8) {
+    int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
+    pro &= MoveGenerator::slidingPieceAvoidWrapping[dir8];
+    gen |= pro & gen.rotateLeft(r);
+    pro &= pro.rotateLeft(r);
+    gen |= pro & gen.rotateLeft(2 * r);
+    pro &= pro.rotateLeft(2 * r);
+    gen |= pro & gen.rotateLeft(4 * r);
+    return gen;
 }
 
-Bitboard shiftOne (Bitboard b, int dir8){
-   int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
-   return b.rotateLeft(r) & MoveGenerator::slidingPieceAvoidWrapping[dir8];
+Bitboard shiftOne(Bitboard b, int dir8) {
+    int r = MoveGenerator::slidingPieceShiftAmounts[dir8];
+    return b.rotateLeft(r) & MoveGenerator::slidingPieceAvoidWrapping[dir8];
 }
 
-Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8){
-   Bitboard fill = occludedFill(sliders, empty, dir8);
-   return shiftOne(fill, dir8);
+Bitboard slidingAttacks(Bitboard sliders, Bitboard empty, int dir8) {
+    Bitboard fill = occludedFill(sliders, empty, dir8);
+    return shiftOne(fill, dir8);
 }
 
 // Dumb7fill
@@ -70,11 +69,11 @@ Bitboard slidingAttacks (Bitboard sliders, Bitboard empty, int dir8){
 // }
 
 template <int startDirectionIndex, int endDirectionIndex>
-Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){
+Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square) {
     static_assert(startDirectionIndex < endDirectionIndex, "Infinite loop prevented");
     Bitboard targetSquares;
 
-    for (int directionIdx = startDirectionIndex; directionIdx < endDirectionIndex; directionIdx++){
+    for (int directionIdx = startDirectionIndex; directionIdx < endDirectionIndex; directionIdx++) {
         targetSquares |= slidingAttacks(square, ~occupied, directionIdx);
     }
     targetSquares &= ~square;
@@ -84,12 +83,12 @@ Bitboard allDirectionSlidingAttacks(Bitboard occupied, Bitboard square){
 
 template <int startDirectionIndex, int endDirectionIndex>
 Bitboard xRayAttacks(Bitboard occupiedSquares, Bitboard blockers, Bitboard square) {
-   Bitboard attacks = allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares, square);
-   blockers &= attacks;
-   return attacks ^ allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares ^ blockers, square);
+    Bitboard attacks = allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares, square);
+    blockers &= attacks;
+    return attacks ^ allDirectionSlidingAttacks<startDirectionIndex, endDirectionIndex>(occupiedSquares ^ blockers, square);
 }
 
-bool MoveGenerator::isInCheck(Board const& board) const{
+bool MoveGenerator::isInCheck(Board const& board) const {
     return (attackedSquares & board.getBitboard({PieceType::King, board.getColorToMove()})).hasPieces();
 }
 
@@ -103,13 +102,13 @@ void MoveGenerator::generatePins(Board const& board) {
     const auto occupiedSquares = board.getAllPieceBitboard();
     const auto ownPieces = board.getAllPieceBitboard();
 
-    const auto helper = [&]<int idx>(Bitboard oppositePieces){
+    const auto helper = [&]<int idx>(Bitboard oppositePieces) {
         static_assert(idx >= 0 && idx < 8, "Index has to be between 0 and 7");
-        Bitboard pinner = xRayAttacks<idx, idx+1>(occupiedSquares, ownPieces, squareOfKing) & oppositePieces;
+        Bitboard pinner = xRayAttacks<idx, idx + 1>(occupiedSquares, ownPieces, squareOfKing) & oppositePieces;
         if (pinner.hasPieces()) {
             Bitboard result = MoveGenerator::obstructedLUT.at(pinner.getLS1B()).at(squareOfKingIndex) & ownPieces;
             pinnedPieces |= result;
-            switch(idx){
+            switch (idx) {
                 case 0: pinDirection.at(result.getLS1B()) = {0, 3}; break;
                 case 1: pinDirection.at(result.getLS1B()) = {1, 2}; break;
                 case 2: pinDirection.at(result.getLS1B()) = {2, 1}; break;
@@ -122,7 +121,7 @@ void MoveGenerator::generatePins(Board const& board) {
         }
     };
 
-    pinDirection.fill({0,0});
+    pinDirection.fill({0, 0});
     pinnedPieces = 0;
     possibleTargets = 0;
     // stupid syntax but helper<0>(oppositeRooks) could mean that the variable "helper" is templated, instead of the lambda
@@ -137,7 +136,7 @@ void MoveGenerator::generatePins(Board const& board) {
     helper.operator()<7>(oppositeBishops);
 }
 
-void MoveGenerator::generateAttackData(Board const& board){
+void MoveGenerator::generateAttackData(Board const& board) {
     attackedSquares = 0;
     squaresAttackedBySquare.fill(Bitboard(0));
     squaresAttackingSquare.fill(Bitboard(0));
@@ -146,18 +145,20 @@ void MoveGenerator::generateAttackData(Board const& board){
     // sliding pieces
     // rook and queen
     Bitboard oppositeSlidingPiecesAndPawns;
-    const Bitboard slidingBlockers = board.getAllPieceBitboard() ^ board.getBitboard({PieceType::King, board.getColorToMove()});
+    const Bitboard slidingBlockers = board.getAllPieceBitboard()
+                                   ^ board.getBitboard({PieceType::King, board.getColorToMove()});
 
-    Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
+    Bitboard bitboard = board.getBitboard({PieceType::Rook, board.getColorToNotMove()})
+                      | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
     oppositeSlidingPiecesAndPawns |= bitboard;
 
-    while (bitboard.hasPieces()){
+    while (bitboard.hasPieces()) {
         auto const origin_square = bitboard.getLS1B();
         Bitboard targetSquares = allDirectionSlidingAttacks<0, 4>(slidingBlockers, Bitboard::fromIndex64(origin_square));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[origin_square] |= targetSquares;
-        while (targetSquares.hasPieces()){
+        while (targetSquares.hasPieces()) {
             squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(origin_square);
 
             targetSquares.clearLS1B();
@@ -167,16 +168,17 @@ void MoveGenerator::generateAttackData(Board const& board){
     }
 
     // bishop and queen
-    bitboard = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
+    bitboard = board.getBitboard({PieceType::Bishop, board.getColorToNotMove()})
+             | board.getBitboard({PieceType::Queen, board.getColorToNotMove()});
     oppositeSlidingPiecesAndPawns |= bitboard;
 
-    while (bitboard.hasPieces()){
+    while (bitboard.hasPieces()) {
         auto const origin_square = bitboard.getLS1B();
         Bitboard targetSquares = allDirectionSlidingAttacks<4, 8>(slidingBlockers, Bitboard::fromIndex64(origin_square));
 
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[origin_square] |= targetSquares;
-        while (targetSquares.hasPieces()){
+        while (targetSquares.hasPieces()) {
             squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(origin_square);
 
             targetSquares.clearLS1B();
@@ -189,12 +191,12 @@ void MoveGenerator::generateAttackData(Board const& board){
     // knight moves
     bitboard = board.getBitboard({PieceType::Knight, board.getColorToNotMove()});
 
-    while (bitboard.hasPieces()){
+    while (bitboard.hasPieces()) {
         auto const knightSquare = bitboard.getLS1B();
         Bitboard targetSquares = knightSquaresValid.at(knightSquare);
         attackedSquares |= targetSquares;
         squaresAttackedBySquare[knightSquare] |= targetSquares;
-        while (targetSquares.hasPieces()){
+        while (targetSquares.hasPieces()) {
             squaresAttackingSquare.at(targetSquares.getLS1B()).setBit(knightSquare);
 
             targetSquares.clearLS1B();
@@ -204,19 +206,20 @@ void MoveGenerator::generateAttackData(Board const& board){
 
     // king moves
     bitboard = board.getBitboard({PieceType::King, board.getColorToNotMove()});
-    if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug){
-        if (!bitboard.hasPieces()) throw std::runtime_error("No king for the opposite color found.");
+    if constexpr (Utils::BuildType::Current == Utils::BuildType::Debug) {
+        if (!bitboard.hasPieces())
+            throw std::runtime_error("No king for the opposite color found.");
     }
 
     const auto kingSquare = bitboard.getLS1B();
     bitboard = kingSquaresValid.at(kingSquare);
     attackedSquares |= bitboard;
     squaresAttackedBySquare[kingSquare] |= bitboard;
-    while(bitboard.hasPieces()){
+    while (bitboard.hasPieces()) {
         squaresAttackingSquare.at(bitboard.getLS1B()).setBit(kingSquare);
         bitboard.clearLS1B();
     }
-    
+
     // pawn moves
     {
         const Bitboard pawns = board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
@@ -230,7 +233,7 @@ void MoveGenerator::generateAttackData(Board const& board){
         Bitboard captures_right = ((pawns & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E));
         attackedSquares |= captures_left;
         attackedSquares |= captures_right;
-        
+
         while (captures_left.hasPieces()) {
             const int target_square = captures_left.getLS1B();
             const int origin_square = target_square + reverseDirectionLeft;
@@ -253,15 +256,15 @@ void MoveGenerator::generateAttackData(Board const& board){
     Bitboard attackers = squaresAttackingSquare.at(kingBB.getLS1B());
     const auto preselection = obstructedLUT.at(kingBB.getLS1B());
     isDoubleCheck = attackers.getNumPieces() >= 2;
-    
-    if (attackers.getNumPieces() >= 2){
+
+    if (attackers.getNumPieces() >= 2) {
         possibleTargets = 0;
     }
 
-    if ((attackers & board.getBitboard({PieceType::Knight, board.getColorToNotMove()})).hasPieces()){
+    if ((attackers & board.getBitboard({PieceType::Knight, board.getColorToNotMove()})).hasPieces()) {
         possibleTargets = attackers;
     }
-    else if (attackers.hasPieces()){
+    else if (attackers.hasPieces()) {
         attackers &= oppositeSlidingPiecesAndPawns;
         possibleTargets |= attackers;
         while (attackers.hasPieces()) {
@@ -269,53 +272,65 @@ void MoveGenerator::generateAttackData(Board const& board){
             attackers.clearLS1B();
         }
     }
-    else{
+    else {
         possibleTargets = Utils::binaryOnes<uint64_t>(64);
     }
 }
 
-void MoveGenerator::generateAllSlidingMoves(Board const& board, Bitboard targetMask){
-    auto const helper = [&]<int startIdx, int endIdx>(PieceType pieceType){
+void MoveGenerator::generateAllSlidingMoves(Board const& board, Bitboard targetMask) {
+    auto const helper = [&]<int startIdx, int endIdx>(PieceType pieceType) {
         const PieceColor colorToMove = board.getColorToMove();
         const Piece piece = {pieceType, colorToMove};
         const Bitboard bitboard = board.getBitboard(piece);
         Bitboard unpinnedBitboard = bitboard & ~pinnedPieces;
         Bitboard pinnedBitboard = bitboard & pinnedPieces;
 
-        while (unpinnedBitboard.hasPieces()){
-            Bitboard targetSquares = allDirectionSlidingAttacks<startIdx, endIdx>(board.getAllPieceBitboard(), Bitboard::fromIndex64(unpinnedBitboard.getLS1B()));
+        while (unpinnedBitboard.hasPieces()) {
+            Bitboard targetSquares = allDirectionSlidingAttacks<startIdx, endIdx>(
+                board.getAllPieceBitboard(),
+                Bitboard::fromIndex64(unpinnedBitboard.getLS1B())
+            );
             targetSquares &= ~board.getPieceBitboardForOneColor(colorToMove);
             targetSquares &= targetMask;
 
             const Coordinate origin = Coordinate(unpinnedBitboard.getLS1B());
-            while (targetSquares.hasPieces()){
+            while (targetSquares.hasPieces()) {
                 generatedMoves.emplace_back(origin, Coordinate(targetSquares.getLS1B()), piece);
                 targetSquares.clearLS1B();
             }
-            
+
             unpinnedBitboard.clearLS1B();
         }
 
-        while (pinnedBitboard.hasPieces()){
-            if (pinDirection.at(pinnedBitboard.getLS1B()).dir1 < startIdx || pinDirection.at(pinnedBitboard.getLS1B()).dir1 >= endIdx){
+        while (pinnedBitboard.hasPieces()) {
+            if (pinDirection.at(pinnedBitboard.getLS1B()).dir1 < startIdx
+                || pinDirection.at(pinnedBitboard.getLS1B()).dir1 >= endIdx) {
                 // the piece is pinned in a direction it can never move in
                 pinnedBitboard.clearLS1B();
                 continue;
             }
 
             Bitboard originBB = Bitboard::fromIndex64(pinnedBitboard.getLS1B());
-            Bitboard targetSquares = slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir1);
-            targetSquares |=         slidingAttacks(originBB, ~board.getAllPieceBitboard(), pinDirection.at(pinnedBitboard.getLS1B()).dir2);
+            Bitboard targetSquares = slidingAttacks(
+                originBB,
+                ~board.getAllPieceBitboard(),
+                pinDirection.at(pinnedBitboard.getLS1B()).dir1
+            );
+            targetSquares |= slidingAttacks(
+                originBB,
+                ~board.getAllPieceBitboard(),
+                pinDirection.at(pinnedBitboard.getLS1B()).dir2
+            );
 
             targetSquares &= ~board.getPieceBitboardForOneColor(colorToMove);
             targetSquares &= targetMask;
 
             const Coordinate origin = Coordinate(pinnedBitboard.getLS1B());
-            while (targetSquares.hasPieces()){
+            while (targetSquares.hasPieces()) {
                 generatedMoves.emplace_back(origin, Coordinate(targetSquares.getLS1B()), piece);
                 targetSquares.clearLS1B();
             }
-            
+
             pinnedBitboard.clearLS1B();
         }
     };
@@ -324,75 +339,81 @@ void MoveGenerator::generateAllSlidingMoves(Board const& board, Bitboard targetM
     helper.operator()<0, 8>(PieceType::Queen);
 }
 
-void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square, Bitboard targetMask){
-    Bitboard targets = knightSquaresValid.at(square.getIndex64()) & ~board.getPieceBitboardForOneColor(board.getColorToMove()) & targetMask;
+void MoveGenerator::generateKnightMoves(Board const& board, Coordinate square, Bitboard targetMask) {
+    Bitboard targets = knightSquaresValid.at(square.getIndex64())
+                     & ~board.getPieceBitboardForOneColor(board.getColorToMove()) & targetMask;
     const Piece piece = {PieceType::Knight, board.getColorToMove()};
 
-    while (targets.hasPieces()){
+    while (targets.hasPieces()) {
         auto const target = targets.getLS1B();
         generatedMoves.emplace_back(square, Coordinate(target), piece);
         targets.clearLS1B();
     }
 }
 
-void MoveGenerator::generateAllKnightMoves(Board const& board, Bitboard targetMask){
+void MoveGenerator::generateAllKnightMoves(Board const& board, Bitboard targetMask) {
     Bitboard bitboard = board.getBitboard({PieceType::Knight, board.getColorToMove()}) & ~pinnedPieces;
 
-    while (bitboard.hasPieces()){
+    while (bitboard.hasPieces()) {
         generateKnightMoves(board, Coordinate(bitboard.getLS1B()), targetMask);
         bitboard.clearLS1B();
     }
 }
 
-void MoveGenerator::generateAllKingMoves(Board const& board, Bitboard targetMask){
+void MoveGenerator::generateAllKingMoves(Board const& board, Bitboard targetMask) {
     Bitboard bitboard = board.getBitboard({PieceType::King, board.getColorToMove()});
     const Piece piece = {PieceType::King, board.getColorToMove()};
 
     // TODO: maybe remove this since every position should have a king. Only there for debugging
-    if (!bitboard.hasPieces()) return;
+    if (!bitboard.hasPieces())
+        return;
     Coordinate square = Coordinate(bitboard.getLS1B());
 
-    Bitboard targets = kingSquaresValid.at(bitboard.getLS1B()) & ~(board.getPieceBitboardForOneColor(board.getColorToMove())  | attackedSquares);
+    Bitboard targets = kingSquaresValid.at(bitboard.getLS1B())
+                     & ~(board.getPieceBitboardForOneColor(board.getColorToMove()) | attackedSquares);
     targets &= targetMask;
 
-    while (targets.hasPieces()){
+    while (targets.hasPieces()) {
         auto const target = targets.getLS1B();
         generatedMoves.emplace_back(square, Coordinate(target), piece);
         targets.clearLS1B();
     }
 
-    if (!capturesOnly){
-        const int shiftAmount = (board.getCurrentState().isWhiteToMove ? 0 : DirectionIndex64::N*7);
+    if (!capturesOnly) {
+        const int shiftAmount = (board.getCurrentState().isWhiteToMove ? 0 : DirectionIndex64::N * 7);
         const Bitboard leftCastlingMap = Bitboard(0x00000000000000000e) << shiftAmount;
         const Bitboard rightCastlingMap = Bitboard(0x000000000000000060) << shiftAmount;
         const Bitboard leftCastlingMapKing = Bitboard(0x00000000000000001c) << shiftAmount;
         const Bitboard rightCastlingMapKing = Bitboard(0x000000000000000070) << shiftAmount;
 
         // add castling moves
-        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleRight : board.getCurrentState().canBlackCastleRight){
-            if (!uint64_t(rightCastlingMap & board.getAllPieceBitboard()) && !uint64_t(rightCastlingMapKing & attackedSquares)){
-                    // king movement
-                    Move& move = generatedMoves.emplace_back(square, square + Direction::E*2, piece);
-                    move.isCastling = true;
-                    // rook movement
-                    move.castlingStart = square + Direction::E*3;
-                    move.castlingEnd = square + Direction::E;
-                }
+        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleRight
+                                                  : board.getCurrentState().canBlackCastleRight) {
+            if (!uint64_t(rightCastlingMap & board.getAllPieceBitboard())
+                && !uint64_t(rightCastlingMapKing & attackedSquares)) {
+                // king movement
+                Move& move = generatedMoves.emplace_back(square, square + Direction::E * 2, piece);
+                move.isCastling = true;
+                // rook movement
+                move.castlingStart = square + Direction::E * 3;
+                move.castlingEnd = square + Direction::E;
+            }
         }
-        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleLeft : board.getCurrentState().canBlackCastleLeft){
-            if (!uint64_t(leftCastlingMap & board.getAllPieceBitboard()) && !uint64_t(leftCastlingMapKing & attackedSquares)){
-                    // king movement
-                    Move& move = generatedMoves.emplace_back(square, square + Direction::W*2, piece);
-                    move.isCastling = true;
-                    // rook movement
-                    move.castlingStart = square + Direction::W*4;
-                    move.castlingEnd = square + Direction::W;
-                }
+        if (board.getCurrentState().isWhiteToMove ? board.getCurrentState().canWhiteCastleLeft
+                                                  : board.getCurrentState().canBlackCastleLeft) {
+            if (!uint64_t(leftCastlingMap & board.getAllPieceBitboard()) && !uint64_t(leftCastlingMapKing & attackedSquares)) {
+                // king movement
+                Move& move = generatedMoves.emplace_back(square, square + Direction::W * 2, piece);
+                move.isCastling = true;
+                // rook movement
+                move.castlingStart = square + Direction::W * 4;
+                move.castlingEnd = square + Direction::W;
+            }
         }
     }
 }
 
-void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask){
+void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask) {
     const auto colorToMove = board.getColorToMove();
     const Piece piece = {PieceType::Pawn, colorToMove};
 
@@ -401,11 +422,11 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     const Bitboard occupied = board.getAllPieceBitboard();
     const Bitboard occupied_other_color = board.getPieceBitboardForOneColor(board.getColorToNotMove());
 
-    Bitboard unpinnedPawnsLeft = unpinnedPawns, unpinnedPawnsRight = unpinnedPawns; 
+    Bitboard unpinnedPawnsLeft = unpinnedPawns, unpinnedPawnsRight = unpinnedPawns;
 
     Bitboard pawns = unpinnedPawns;
     Bitboard pinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & pinnedPieces;
-    while (pinnedPawns.hasPieces()){
+    while (pinnedPawns.hasPieces()) {
         if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == 0 || pinDirection.at(pinnedPawns.getLS1B()).dir2 == 0)
             pawns.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
@@ -424,15 +445,17 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     const int allowedRightDirection2 = board.getCurrentState().isWhiteToMove ? 6 : 4;
 
     pinnedPawns = board.getBitboard({PieceType::Pawn, colorToMove}) & pinnedPieces;
-    while (pinnedPawns.hasPieces()){
-        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection1 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection2)
+    while (pinnedPawns.hasPieces()) {
+        if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection1
+            || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedLeftDirection2)
             unpinnedPawnsLeft.setBit(pinnedPawns.getLS1B());
-        else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection1 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection2)
+        else if (pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection1
+                 || pinDirection.at(pinnedPawns.getLS1B()).dir1 == allowedRightDirection2)
             unpinnedPawnsRight.setBit(pinnedPawns.getLS1B());
         pinnedPawns.clearLS1B();
     }
-    
-    if (!capturesOnly){
+
+    if (!capturesOnly) {
         Bitboard single_pushes = (pawns << mainDirection) & ~occupied;
         Bitboard double_pushes = ((single_pushes & doublePushMask) << mainDirection) & ~occupied & targetMask;
         single_pushes &= targetMask;
@@ -445,16 +468,18 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
         }
         while (double_pushes.hasPieces()) {
             const int target_square = double_pushes.getLS1B();
-            const int origin_square = target_square + reverseDirection*2;
+            const int origin_square = target_square + reverseDirection * 2;
             Move& move = generatedMoves.emplace_back(Coordinate(origin_square), Coordinate(target_square), piece);
             move.isDoublePawnMove = true;
             double_pushes.clearLS1B();
         }
     }
-    
-    Bitboard captures_left = ((unpinnedPawnsLeft & 0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W)) & occupied_other_color & targetMask;
-    Bitboard captures_right = ((unpinnedPawnsRight & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E)) & occupied_other_color & targetMask;
-    
+
+    Bitboard captures_left = ((unpinnedPawnsLeft & 0xfefefefefefefefe) << (mainDirection + DirectionIndex64::W))
+                           & occupied_other_color & targetMask;
+    Bitboard captures_right = ((unpinnedPawnsRight & 0x7f7f7f7f7f7f7f7f) << (mainDirection + DirectionIndex64::E))
+                            & occupied_other_color & targetMask;
+
     while (captures_left.hasPieces()) {
         const int target_square = captures_left.getLS1B();
         const int origin_square = target_square + reverseDirectionLeft;
@@ -469,36 +494,43 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
     }
 
     // en passant
-    if (board.hasEnPassant()){
+    if (board.hasEnPassant()) {
         auto const epCaptureSquare = board.getEnPassantSquareToCapture();
-        const Coordinate kingSquare = Coordinate(board.getBitboard({PieceType::King, colorToMove}).getLS1B()); 
+        const Coordinate kingSquare = Coordinate(board.getBitboard({PieceType::King, colorToMove}).getLS1B());
         const int correctY = board.getCurrentState().isWhiteToMove ? 4 : 3;
-        const Bitboard QandRsOnCorrectY = Bitboard(Utils::binaryOnes<uint64_t>(8) << correctY*8) & (board.getBitboard({PieceType::Rook, board.getColorToNotMove()}) | board.getBitboard({PieceType::Queen, board.getColorToNotMove()}));
+        const Bitboard QandRsOnCorrectY = Bitboard(Utils::binaryOnes<uint64_t>(8) << correctY * 8)
+                                        & (board.getBitboard({PieceType::Rook, board.getColorToNotMove()})
+                                           | board.getBitboard({PieceType::Queen, board.getColorToNotMove()}));
         // intentional shadow
-        const auto pawns = board.getBitboard({PieceType::Pawn, colorToMove}) | board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
+        const auto pawns = board.getBitboard({PieceType::Pawn, colorToMove})
+                         | board.getBitboard({PieceType::Pawn, board.getColorToNotMove()});
 
-        auto const oneSideEP = [&](int side, Coordinate direction, int ignoreX){
+        auto const oneSideEP = [&](int side, Coordinate direction, int ignoreX) {
             auto const originSquare = epCaptureSquare + direction;
-            if (epCaptureSquare.x == ignoreX || !board.getBitboard({PieceType::Pawn, colorToMove}).isOccupied(originSquare)) return;
+            if (epCaptureSquare.x == ignoreX || !board.getBitboard({PieceType::Pawn, colorToMove}).isOccupied(originSquare))
+                return;
 
-            const Bitboard theTwoPawnsBB = Bitboard::fromIndex64(epCaptureSquare.getIndex64()) | Bitboard::fromIndex64(epCaptureSquare.getIndex64()+side);
+            const Bitboard theTwoPawnsBB = Bitboard::fromIndex64(epCaptureSquare.getIndex64())
+                                         | Bitboard::fromIndex64(epCaptureSquare.getIndex64() + side);
             const Bitboard modifiedOccupied = occupied & ~theTwoPawnsBB;
-            if (kingSquare.y == correctY){
+            if (kingSquare.y == correctY) {
                 // the pawns might be "pinned"
                 int dir = kingSquare.getIndex64() < epCaptureSquare.getIndex64() ? 1 : -1;
                 int stopSquare = (kingSquare.getIndex64() / 8) * 8 + (dir == 1 ? 8 : -1);
                 // loop until queen or rook
-                for (int square = kingSquare.getIndex64()+dir; square != stopSquare; square += dir){
-                    if (QandRsOnCorrectY.isOccupied(square)) return;
-                    if (modifiedOccupied.isOccupied(square)) break;
+                for (int square = kingSquare.getIndex64() + dir; square != stopSquare; square += dir) {
+                    if (QandRsOnCorrectY.isOccupied(square))
+                        return;
+                    if (modifiedOccupied.isOccupied(square))
+                        break;
                 }
             }
 
             // handle individually pinned pawns
             // the moving pawn
-            if (pinnedPieces.isOccupied(originSquare)){
+            if (pinnedPieces.isOccupied(originSquare)) {
                 int allowedPinDirection;
-                switch(mainDirection - side){
+                switch (mainDirection - side) {
                     case DirectionIndex64::NW: allowedPinDirection = 4; break;
                     case DirectionIndex64::NE: allowedPinDirection = 5; break;
                     case DirectionIndex64::SW: allowedPinDirection = 6; break;
@@ -507,41 +539,44 @@ void MoveGenerator::generateAllPawnMoves(Board const& board, Bitboard targetMask
                 auto actualDirection = pinDirection.at(originSquare.getIndex64());
 
                 // test if the pawn is pinned
-                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection) return;
+                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection)
+                    return;
             }
 
             // the pawn getting captured
-            if (pinnedPieces.isOccupied(epCaptureSquare)){
+            if (pinnedPieces.isOccupied(epCaptureSquare)) {
                 const int allowedPinDirection = 0; // vertical pins are fine
                 auto actualDirection = pinDirection.at(epCaptureSquare.getIndex64());
 
                 // test if the pawn is pinned
-                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection) return;
+                if (actualDirection.dir1 != allowedPinDirection && actualDirection.dir2 != allowedPinDirection)
+                    return;
             }
 
             Move& move = generatedMoves.emplace_back(originSquare, board.getEnPassantSquareForFEN(), piece);
             move.isEnPassant = true;
         };
 
-        bool onlyPossibleMove = targetMask.getNumPieces() == 1 && targetMask.isOccupied(board.getEnPassantSquareForFEN().getIndex64() + reverseDirection);
-        if (targetMask.isOccupied(board.getEnPassantSquareForFEN()) || onlyPossibleMove){
+        bool onlyPossibleMove = targetMask.getNumPieces() == 1
+                             && targetMask.isOccupied(board.getEnPassantSquareForFEN().getIndex64() + reverseDirection);
+        if (targetMask.isOccupied(board.getEnPassantSquareForFEN()) || onlyPossibleMove) {
             oneSideEP(-1, Direction::W, 0);
             oneSideEP(1, Direction::E, 7);
         }
     }
 }
 
-void MoveGenerator::addPawnMovePossiblyPromotion(Move move, Board const& board){
+void MoveGenerator::addPawnMovePossiblyPromotion(Move move, Board const& board) {
     const uint8_t targetLine = board.getCurrentState().isWhiteToMove ? 7 : 0;
     move.piece = {PieceType::Pawn, board.getColorToMove()};
-    if (move.endIndex.y == targetLine){
+    if (move.endIndex.y == targetLine) {
         // promotion
-        for (PieceType promotionType : Utils::promotionPieces){
+        for (PieceType promotionType : Utils::promotionPieces) {
             Move& newMove = generatedMoves.emplace_back(move);
             newMove.promotionType = promotionType;
         }
     }
-    else{
+    else {
         generatedMoves.push_back(move);
     }
 }

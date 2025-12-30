@@ -1,108 +1,104 @@
 #pragma once
 // #warning "This file is temporary and shouldn't be needed in the end"
 
-#include "Thera/Utils/Math.hpp"
 #include "Thera/Utils/Bits.hpp"
 
-#include <stdexcept>
 #include <cstdint>
-#include <array>
-#include <type_traits>
 
-namespace Thera{
+namespace Thera {
 
 /**
  * @brief A position on the board stored using 0x88.
- * 
- * Allows for fast access to x, y and conversion to array indices. 
- * 
+ *
+ * Allows for fast access to x, y and conversion to array indices.
+ *
  */
-struct Coordinate{
-    uint8_t x:3;
-    uint8_t y:3;
+struct Coordinate {
+    uint8_t x : 3;
+    uint8_t y : 3;
 
-    constexpr explicit Coordinate(uint8_t pos){
+    constexpr explicit Coordinate(uint8_t pos) {
         x = pos & Utils::binaryOnes<uint8_t>(3);
         y = (pos >> 3) & Utils::binaryOnes<uint8_t>(3);
     }
-    constexpr explicit Coordinate(uint8_t x, uint8_t y){
+    constexpr explicit Coordinate(uint8_t x, uint8_t y) {
         this->x = x;
         this->y = y;
     }
-    constexpr Coordinate(){
+    constexpr Coordinate() {
         x = 0;
         y = 0;
     }
 
     /**
      * @brief Get the 0-63 index.
-     * 
+     *
      * @return constexpr uint8_t index into array of size 64
      */
-    constexpr uint8_t getIndex64() const{
-        return x + y*8;
+    constexpr uint8_t getIndex64() const {
+        return x + y * 8;
     }
 
     /**
      * @brief Apply an offset to a coordinate.
-     * 
+     *
      */
-    constexpr Coordinate operator + (Coordinate other) const{
+    constexpr Coordinate operator+(Coordinate other) const {
         return Coordinate(this->x + other.x, this->y + other.y);
     }
 
     /**
      * @brief Apply an offset to a coordinate.
-     * 
+     *
      */
-    constexpr Coordinate operator += (Coordinate other){
+    constexpr Coordinate operator+=(Coordinate other) {
         this->x += other.x;
         this->y += other.y;
-        
+
         return *this;
     };
     /**
      * @brief Apply an offset to a coordinate.
-     * 
+     *
      */
-    constexpr Coordinate operator - (Coordinate other) const{
+    constexpr Coordinate operator-(Coordinate other) const {
         return Coordinate(this->x - other.x, this->y - other.y);
     }
 
     /**
      * @brief Apply an offset to a coordinate.
-     * 
+     *
      */
-    constexpr Coordinate operator -= (Coordinate other){
+    constexpr Coordinate operator-=(Coordinate other) {
         this->x -= other.x;
         this->y -= other.y;
-        
+
         return *this;
     };
 
-    constexpr Coordinate operator * (int factor) const{
+    constexpr Coordinate operator*(int factor) const {
         return Coordinate(this->x * factor, this->y * factor);
     }
-    
+
     /**
      * @brief Apply an offset to a coordinate.
-     * 
+     *
      */
-    constexpr Coordinate operator - () const{
+    constexpr Coordinate operator-() const {
         return Coordinate(-x, -y);
     }
 
-    constexpr bool operator == (Coordinate other) const{
+    constexpr bool operator==(Coordinate other) const {
         return this->getIndex64() == other.getIndex64();
     }
-    constexpr bool operator < (Coordinate other) const{
+    constexpr bool operator<(Coordinate other) const {
         return this->getIndex64() < other.getIndex64();
     }
 };
 
 
 namespace DirectionIndex64 {
-    enum : int{
+    enum : int {
         N = 8,
         E = 1,
         S = -8,
@@ -116,10 +112,10 @@ namespace DirectionIndex64 {
 };
 
 namespace Direction {
-    constexpr Coordinate N = Coordinate( 0,  1);
-    constexpr Coordinate E = Coordinate( 1,  0);
-    constexpr Coordinate S = Coordinate( 0, -1);
-    constexpr Coordinate W = Coordinate(-1,  0);
+    constexpr Coordinate N = Coordinate(0, 1);
+    constexpr Coordinate E = Coordinate(1, 0);
+    constexpr Coordinate S = Coordinate(0, -1);
+    constexpr Coordinate W = Coordinate(-1, 0);
 
 
     constexpr Coordinate NE = N + E;
@@ -130,7 +126,8 @@ namespace Direction {
 
 
 namespace SquareIndex64 {
-    enum : int{
+    enum : int {
+        // clang-format off
         a1, b1, c1, d1, e1, f1, g1, h1,
         a2, b2, c2, d2, e2, f2, g2, h2,
         a3, b3, c3, d3, e3, f3, g3, h3,
@@ -139,12 +136,15 @@ namespace SquareIndex64 {
         a6, b6, c6, d6, e6, f6, g6, h6,
         a7, b7, c7, d7, e7, f7, g7, h7,
         a8, b8, c8, d8, e8, f8, g8, h8
+        // clang-format on
     };
 };
 
-namespace Square{
-    #define defSq(NAME) constexpr Coordinate NAME = Coordinate(SquareIndex64::NAME);
-    #define defRow(NAME) defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) defSq(NAME##8)
+namespace Square {
+#define defSq(NAME) constexpr Coordinate NAME = Coordinate(SquareIndex64::NAME);
+#define defRow(NAME)                                                                                         \
+    defSq(NAME##1) defSq(NAME##2) defSq(NAME##3) defSq(NAME##4) defSq(NAME##5) defSq(NAME##6) defSq(NAME##7) \
+        defSq(NAME##8)
 
     defRow(a);
     defRow(b);
@@ -155,8 +155,8 @@ namespace Square{
     defRow(g);
     defRow(h);
 
-    #undef defSq
-    #undef defRow
+#undef defSq
+#undef defRow
 }
 
 }
