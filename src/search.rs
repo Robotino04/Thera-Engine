@@ -549,7 +549,10 @@ pub fn search_root(
         Color::Black => (options.btime, options.binc),
     };
 
-    let max_search_time = my_time.map(|my_time| my_time / 40 + my_inc.unwrap_or_default());
+    let max_search_time = my_time.map(|my_time| {
+        let preferred_time: Duration = my_time / 40 + my_inc.unwrap_or_default() * 0.9;
+        preferred_time.min(my_time)
+    });
 
     let max_search_time = match (options.movetime, max_search_time) {
         (None, None) => None,
