@@ -573,46 +573,48 @@ pub fn search_root(
     let moves =
         MoveOrdering::order_moves(moves, board, &movegen, transposition_table).collect_vec();
 
-    let Some(&first_move) = moves.first() else {
-        return Err(RootSearchExit::NoMove);
-    };
+    match moves.as_slice() {
+        [] => Err(RootSearchExit::NoMove),
+        [single_move] => Ok(*single_move),
+        [first_move, ..] => {
+            let mut search_stats = SearchStats::default();
 
-    let mut search_stats = SearchStats::default();
+            let mut prev_best_move = *first_move;
+            'search: for depth in 1..options.depth.unwrap_or(256) {
+                if should_exit() {
+                    break 'search;
+                }
 
-    let mut prev_best_move = first_move;
-    'search: for depth in 1..options.depth.unwrap_or(256) {
-        if should_exit() {
-            break 'search;
+                let depth_start = Instant::now();
+
+                let search_result = search(
+                    board,
+                    depth,
+                    AlphaBetaWindow::default(),
+                    &mut search_stats,
+                    &should_exit,
+                    transposition_table,
+                );
+
+                let out = match search_result {
+                    Ok(out) => out,
+                    Err(SearchExit::Cancelled) => break 'search,
+                };
+
+                prev_best_move = out.best_move.unwrap_or(prev_best_move);
+
+                on_depth_finished(DepthSummary {
+                    pv: extract_pv(board, transposition_table, depth),
+                    eval: out.eval,
+                    depth,
+                    time_taken: Instant::now().signed_duration_since(depth_start),
+                    stats: search_stats,
+                    hash_percentage: transposition_table.used_slots() as f32
+                        / transposition_table.capacity() as f32,
+                });
+            }
+
+            Ok(prev_best_move)
         }
-
-        let depth_start = Instant::now();
-
-        let search_result = search(
-            board,
-            depth,
-            AlphaBetaWindow::default(),
-            &mut search_stats,
-            &should_exit,
-            transposition_table,
-        );
-
-        let out = match search_result {
-            Ok(out) => out,
-            Err(SearchExit::Cancelled) => break 'search,
-        };
-
-        prev_best_move = out.best_move.unwrap_or(prev_best_move);
-
-        on_depth_finished(DepthSummary {
-            pv: extract_pv(board, transposition_table, depth),
-            eval: out.eval,
-            depth,
-            time_taken: Instant::now().signed_duration_since(depth_start),
-            stats: search_stats,
-            hash_percentage: transposition_table.used_slots() as f32
-                / transposition_table.capacity() as f32,
-        });
     }
-
-    Ok(prev_best_move)
 }
