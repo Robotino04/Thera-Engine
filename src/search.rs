@@ -612,6 +612,17 @@ pub fn search_root(
                     hash_percentage: transposition_table.used_slots() as f32
                         / transposition_table.capacity() as f32,
                 });
+
+                match out.eval {
+                    Evaluation::Loss(end_depth) | Evaluation::Win(end_depth) => {
+                        // only accept a Loss/Win as unavoidable if it was reached without any
+                        // extensions
+                        if end_depth <= depth {
+                            break 'search;
+                        }
+                    }
+                    Evaluation::CentiPawns(_) => {}
+                }
             }
 
             Ok(prev_best_move)
