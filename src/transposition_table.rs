@@ -30,16 +30,19 @@ pub struct TranspositionTable {
 
 impl Default for TranspositionTable {
     fn default() -> Self {
-        Self::new(1 << 20)
+        Self::with_size(256 * 1024 * 1024)
     }
 }
 
 impl TranspositionTable {
-    pub fn new(size: usize) -> Self {
+    pub fn with_slots(size: usize) -> Self {
         Self {
             table: vec![None; size],
             used_slots: 0,
         }
+    }
+    pub fn with_size(size: usize) -> Self {
+        Self::with_slots(size / size_of::<Option<TranspositionEntry>>())
     }
 
     pub fn get_if_improves(

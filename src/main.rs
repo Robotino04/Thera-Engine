@@ -1,5 +1,6 @@
-use std::fmt::Write;
+use std::fmt::{Display, Write};
 use std::io::{BufRead, BufReader, stdin, stdout};
+use std::num::{NonZero, NonZeroU32};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -142,7 +143,7 @@ enum TaskOutput {
     PrintBoard(Board, Option<Bitboard>),
 
     ReadyOk,
-    Identify(Identification),
+    IdentifyAndOptions(Identification),
 }
 
 type BackgroundTask =
@@ -154,6 +155,7 @@ struct ReplState {
 
     always_print: bool,
     is_uci: Arc<AtomicBool>,
+    uci_options: UciOptions,
 
     cancel_flag: Arc<AtomicBool>,
     work_queue: Sender<BackgroundTask>,
@@ -468,6 +470,40 @@ impl ReplCommand for PositionCommand {
         )
     }
 }
+
+struct SetOptionCommand {
+    name: String,
+    value: Option<String>,
+}
+impl ReplCommand for SetOptionCommand {
+    fn parse<'a, I: Iterator<Item = &'a str> + Clone>(tokens: &mut I) -> Result<Self, String> {
+        Ok(
+            match tokens
+                .next()
+                .ok_or_else(|| missing_subcommand_text("setoption command"))?
+            {
+                "name" => {
+                    let name = tokens
+                        .next()
+                        .ok_or_else(|| missing_argument_text("name", "setoption command"))?
+                        .to_string();
+                    Self {
+                        name,
+                        value: if let Some("value") = tokens.clone().next() {
+                            tokens.next().unwrap();
+
+                            Some(tokens.collect_vec().join(" "))
+                        } else {
+                            None
+                        },
+                    }
+                }
+                other => return Err(invalid_subcommand_text(other, "setoption command")),
+            },
+        )
+    }
+}
+
 enum TopLevelCommand {
     /// Runs a perft test on the current position. Outputs a breakdown of nodes for each move as
     /// well as the total number of nodes in the same format as stockfish.
@@ -499,6 +535,8 @@ enum TopLevelCommand {
     Magic(MagicCommand),
     /// Start searching for the best move
     Go(GoCommand),
+    /// Set a UCI option to a certain value
+    SetOption(SetOptionCommand),
 }
 
 impl ReplCommand for TopLevelCommand {
@@ -518,6 +556,7 @@ impl ReplCommand for TopLevelCommand {
                 "isready" => TopLevelCommand::IsReady,
                 "magic" => TopLevelCommand::Magic(MagicCommand::parse(tokens)?),
                 "go" => TopLevelCommand::Go(GoCommand::parse(tokens)?),
+                "setoption" => TopLevelCommand::SetOption(SetOptionCommand::parse(tokens)?),
                 other => return Err(format!("Invalid command {other}")),
             },
         )
@@ -562,6 +601,9 @@ fn repl_handle_line(state: &mut ReplState, line: &str) -> Result<bool, String> {
         }
         TopLevelCommand::Go(subcmd) => {
             repl_handle_go(state, subcmd);
+        }
+        TopLevelCommand::SetOption(subcmd) => {
+            let _: () = repl_handle_setoption(state, subcmd)?;
         }
         TopLevelCommand::Quit => return Ok(true),
     }
@@ -723,7 +765,7 @@ fn repl_handle_uci(state: &mut ReplState) {
 
     state
         .output_queue
-        .send(Some(TaskOutput::Identify(Identification {
+        .send(Some(TaskOutput::IdentifyAndOptions(Identification {
             name: format!("Thera v{}", env!("CARGO_PKG_VERSION")),
             author: "Robotino".to_string(),
         })))
@@ -731,7 +773,9 @@ fn repl_handle_uci(state: &mut ReplState) {
 }
 fn repl_handle_ucinewgame(state: &mut ReplState) {
     state.board = Board::starting_position();
-    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::default()));
+    state.transposition_table = Arc::new(Mutex::new(TranspositionTable::with_size(
+        Into::<u32>::into(state.uci_options.hash_size_mb) as usize * 1024 * 1024,
+    )));
 }
 fn repl_handle_isready(state: &mut ReplState) {
     state.output_queue.send(Some(TaskOutput::ReadyOk)).unwrap();
@@ -955,6 +999,41 @@ fn repl_handle_go(state: &mut ReplState, cmd: GoCommand) {
             }
         },
     );
+}
+fn repl_handle_setoption(state: &mut ReplState, cmd: SetOptionCommand) -> Result<(), String> {
+    let UciOptions { hash_size_mb } = &mut state.uci_options;
+
+    match cmd.name.as_str() {
+        "Hash" => {
+            *hash_size_mb = cmd
+                .value
+                .ok_or_else(|| missing_argument_text("value", "setoption command"))?
+                .parse()
+                .map_err(|_| {
+                    invalid_argument_text(
+                        "value",
+                        "Not an integer in the correct range",
+                        "setoption command",
+                    )
+                })?;
+        }
+        // "Ponder" => {
+        //     *ponder = cmd
+        //         .value
+        //         .ok_or_else(|| missing_argument_text("value", "setoption command"))?
+        //         .parse()
+        //         .map_err(|_| {
+        //             invalid_argument_text(
+        //                 "value",
+        //                 "Not a boolean (true or false)",
+        //                 "setoption command",
+        //             )
+        //         })?;
+        // }
+        other => return Err(invalid_value_text("name", other, "setoption command")),
+    }
+
+    Ok(())
 }
 
 struct ExternalPrinterWriter<P: ExternalPrinter + Send> {
@@ -1193,12 +1272,18 @@ fn output_thread_task(
             Some(TaskOutput::ReadyOk) => {
                 writeln!(writer, "readyok").unwrap();
             }
-            Some(TaskOutput::Identify(Identification { name, author })) => {
+            Some(TaskOutput::IdentifyAndOptions(Identification { name, author })) => {
+                let mut option_str = UciOptions::option_declarations().trim().to_string();
+                let has_options = !option_str.is_empty();
+                if has_options {
+                    option_str.push('\n');
+                }
+
                 writeln!(
                     writer,
                     "id name {name}\n\
                      id author {author}\n\
-                     uciok",
+                    {option_str}uciok",
                 )
                 .unwrap();
             }
@@ -1347,6 +1432,110 @@ fn output_thread_task(
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct UciOptions {
+    hash_size_mb: NonZero<u32>,
+}
+
+impl Default for UciOptions {
+    fn default() -> Self {
+        Self {
+            hash_size_mb: NonZero::new(256).unwrap(),
+        }
+    }
+}
+
+enum UciOptionKind {
+    Checkbox,
+    Spinwheel,
+    Combobox,
+    Button,
+    String,
+}
+
+impl UciOptions {
+    fn option_declaration(
+        name: impl AsRef<str>,
+        kind: UciOptionKind,
+        default: Option<String>,
+        parameters: Option<String>,
+    ) -> String {
+        format!(
+            "option name {} type {}{}{}",
+            name.as_ref(),
+            match kind {
+                UciOptionKind::Checkbox => "check",
+                UciOptionKind::Spinwheel => "spin",
+                UciOptionKind::Combobox => "combo",
+                UciOptionKind::Button => "button",
+                UciOptionKind::String => "string",
+            },
+            default.map(|x| format!(" default {x}")).unwrap_or_default(),
+            parameters.map(|x| format!(" {x}")).unwrap_or_default(),
+        )
+    }
+
+    #[expect(dead_code)]
+    fn bool_option_declaration(name: impl AsRef<str>, default: bool) -> String {
+        Self::option_declaration(
+            name,
+            UciOptionKind::Checkbox,
+            Some(default.to_string()),
+            None,
+        )
+    }
+    fn range_option_declaration<T: Display>(
+        name: impl AsRef<str>,
+        default: T,
+        min: T,
+        max: T,
+    ) -> String {
+        Self::option_declaration(
+            name,
+            UciOptionKind::Spinwheel,
+            Some(default.to_string()),
+            Some(format!("min {min} max {max}")),
+        )
+    }
+
+    #[expect(dead_code)]
+    fn enum_option_declaration(
+        name: impl AsRef<str>,
+        default: String,
+        options: &[String],
+    ) -> String {
+        Self::option_declaration(
+            name,
+            UciOptionKind::Combobox,
+            Some(default),
+            Some(options.iter().map(|x| format!("var {x}")).join(" ")),
+        )
+    }
+
+    #[expect(dead_code)]
+    fn trigger_option_declaration(name: impl AsRef<str>) -> String {
+        Self::option_declaration(name, UciOptionKind::Button, None, None)
+    }
+
+    #[expect(dead_code)]
+    fn string_option_declaration(name: impl AsRef<str>, default: String) -> String {
+        Self::option_declaration(name, UciOptionKind::String, Some(default), None)
+    }
+
+    pub fn option_declarations() -> String {
+        let UciOptions { hash_size_mb } = Self::default();
+
+        [Self::range_option_declaration(
+            "Hash",
+            hash_size_mb,
+            NonZeroU32::MIN,
+            // advertise only 1TB because cutechess doesn't like u32::MAX
+            NonZeroU32::new(1024 * 1024).unwrap(),
+        )]
+        .join("\n")
+    }
+}
+
 fn main() {
     let (task_sender, task_receiver) = bounded::<BackgroundTask>(0);
     let (result_sender, result_receiver) = unbounded::<Option<TaskOutput>>();
@@ -1368,11 +1557,18 @@ fn main() {
         })
         .unwrap();
 
+    let uci_options = UciOptions::default();
+
     let mut state = ReplState {
         board: Board::starting_position(),
-        transposition_table: Arc::new(Mutex::new(TranspositionTable::default())),
+        transposition_table: Arc::new(Mutex::new(TranspositionTable::with_size(
+            Into::<u32>::into(uci_options.hash_size_mb) as usize * 1024 * 1024,
+        ))),
+
         always_print: false,
         is_uci: Arc::new(AtomicBool::new(false)),
+        uci_options,
+
         cancel_flag,
         work_queue: task_sender,
         output_queue: result_sender,
@@ -1463,8 +1659,11 @@ fn main() {
     let ReplState {
         board: _,
         transposition_table: _,
+
         always_print: _,
         is_uci: _,
+        uci_options: _,
+
         cancel_flag,
         work_queue,
         output_queue,
