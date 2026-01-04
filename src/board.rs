@@ -901,7 +901,7 @@ impl Board {
     pub fn make_null_move_unguarded(&mut self) {
         self.color_to_move = self.color_to_move.opposite();
     }
-    pub fn make_null_move<'a>(&'a mut self) -> NullMoveUndoGuard<'a> {
+    pub fn with_null_move<'a>(&'a mut self) -> NullMoveUndoGuard<'a> {
         // this is in no way unwind safe. But if we panic in search, we don't really care because
         // it uses a copy anyways.
         self.make_null_move_unguarded();

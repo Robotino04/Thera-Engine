@@ -76,7 +76,7 @@ impl MoveGenerator {
         let mut attacks_from_square = BySquare::default();
 
         {
-            let board = board.make_null_move();
+            let board = board.with_null_move();
 
             Self::generate_king_attacks(&board, &mut attacks_from_square);
             Self::generate_bishop_attacks(&board, &mut attacks_from_square);
