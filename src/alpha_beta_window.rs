@@ -74,6 +74,13 @@ impl AlphaBetaWindow {
 
         Self::new(new_alpha, new_beta, new_plies)
     }
+    pub fn next_depth_null(&self) -> Self {
+        let new_alpha = -self.beta;
+        let new_beta = new_alpha.next_best();
+        let new_plies = self.plies + 1;
+
+        Self::new(new_alpha, new_beta, new_plies)
+    }
 
     #[must_use = "Providing an exact node value and not using it is likely a mistake"]
     pub fn set_exact(self, eval: Evaluation, m: Option<Move>) -> NodeEvalSummary {

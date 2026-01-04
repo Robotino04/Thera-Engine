@@ -15,7 +15,7 @@ use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, ExternalPrinter};
 
 use thera::bitboard::Bitboard;
-use thera::board::FenParseError;
+use thera::board::{FenParseError, MoveUndoError};
 use thera::magic_bitboard::{
     BISHOP_MAGIC_VALUES, MagicTableEntry, ROOK_MAGIC_VALUES, generate_magic_entry,
 };
@@ -139,7 +139,7 @@ enum TaskOutput {
     PlayImpossibleMove(String),
 
     UndidMove(Move),
-    UndoMoveFailed,
+    UndoMoveFailed(MoveUndoError),
     PrintBoard(Board, Option<Bitboard>),
 
     ReadyOk,
@@ -738,16 +738,19 @@ fn repl_handle_stop(state: &mut ReplState) {
 }
 
 fn repl_handle_undo(state: &mut ReplState) {
-    if let Some(m) = state.board.try_undo_move() {
-        state
-            .output_queue
-            .send(Some(TaskOutput::UndidMove(m)))
-            .unwrap();
-    } else {
-        state
-            .output_queue
-            .send(Some(TaskOutput::UndoMoveFailed))
-            .unwrap();
+    match state.board.try_undo_move() {
+        Ok(m) => {
+            state
+                .output_queue
+                .send(Some(TaskOutput::UndidMove(m)))
+                .unwrap();
+        }
+        Err(err) => {
+            state
+                .output_queue
+                .send(Some(TaskOutput::UndoMoveFailed(err)))
+                .unwrap();
+        }
     }
 }
 
@@ -1422,9 +1425,14 @@ fn output_thread_task(
             Some(TaskOutput::UndidMove(m)) => {
                 writeln!(writer, "{prefix}Undid move {m}.",).unwrap();
             }
-            Some(TaskOutput::UndoMoveFailed) => {
-                writeln!(writer, "{prefix}There are no moves on the stack.").unwrap();
-            }
+            Some(TaskOutput::UndoMoveFailed(err)) => match err {
+                MoveUndoError::NoMove => {
+                    writeln!(writer, "{prefix}There are no moves on the stack.").unwrap()
+                }
+                MoveUndoError::NullMove => {
+                    panic!("Null moves should never reach the top level")
+                }
+            },
             None => {
                 writeln!(writer, "{prefix}Task was interrupted.").unwrap();
             }

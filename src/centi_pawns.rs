@@ -105,6 +105,21 @@ impl Evaluation {
             Evaluation::CentiPawns(CentiPawns(centi_pawns)) => format!("cp {centi_pawns}"),
         }
     }
+
+    pub fn next_best(&self) -> Self {
+        match self {
+            Evaluation::Win(x) => Evaluation::Win(x.saturating_sub(1)),
+            Evaluation::Loss(x) => Evaluation::Loss(*x + 1),
+            Evaluation::CentiPawns(cp) => Evaluation::CentiPawns(*cp + CentiPawns(1)),
+        }
+    }
+    pub fn next_worst(&self) -> Self {
+        match self {
+            Evaluation::Win(x) => Evaluation::Win(*x + 1),
+            Evaluation::Loss(x) => Evaluation::Loss(x.saturating_sub(1)),
+            Evaluation::CentiPawns(cp) => Evaluation::CentiPawns(*cp - CentiPawns(1)),
+        }
+    }
 }
 
 impl Mul<NonZeroI32> for Evaluation {

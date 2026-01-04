@@ -30,13 +30,24 @@ pub struct Board {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct MoveUndoState {
+struct NormalUndoState {
     move_: Move,
     can_castle: Bitboard,
     enpassant_square: Bitboard,
     halfmove_clock: u32,
     fullmove_counter: u32,
     zobrist_hash: u64,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct NullUndoState {
+    enpassant_square: Bitboard,
+}
+
+#[derive(Debug, Copy, Clone)]
+enum MoveUndoState {
+    Normal(NormalUndoState),
+    Null(NullUndoState),
 }
 
 #[derive(Debug)]
@@ -58,8 +69,16 @@ impl<'a> DerefMut for MoveUndoGuard<'a> {
 
 impl<'a> Drop for MoveUndoGuard<'a> {
     fn drop(&mut self) {
-        self.0.try_undo_move();
+        self.0
+            .try_undo_move()
+            .expect("A guarded move should never be undone manually");
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MoveUndoError {
+    NoMove,
+    NullMove,
 }
 
 #[derive(Debug)]
@@ -81,8 +100,16 @@ impl<'a> DerefMut for NullMoveUndoGuard<'a> {
 
 impl<'a> Drop for NullMoveUndoGuard<'a> {
     fn drop(&mut self) {
-        self.0.undo_null_move();
+        self.0
+            .try_undo_null_move()
+            .expect("A guarded move should never be undone manually");
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NullMoveUndoError {
+    NoMove,
+    NormalMove,
 }
 
 #[derive(Debug)]
@@ -483,6 +510,11 @@ impl Board {
 
         for undo_data in &self.undo_data {
             // stop searching if we made an irreversible move
+            let undo_data = match undo_data {
+                MoveUndoState::Normal(normal) => normal,
+                MoveUndoState::Null(_) => continue,
+            };
+
             match undo_data.move_ {
                 Move::Normal {
                     captured_piece: Some(_),
@@ -513,14 +545,14 @@ impl Board {
     }
 
     pub fn make_move_unguarded(&mut self, m: Move) {
-        let undo_state = MoveUndoState {
+        let undo_state = MoveUndoState::Normal(NormalUndoState {
             move_: m,
             can_castle: self.can_castle,
             enpassant_square: self.enpassant_square,
             halfmove_clock: self.halfmove_clock,
             fullmove_counter: self.fullmove_counter,
             zobrist_hash: self.zobrist_hash,
-        };
+        });
 
         self.halfmove_clock += 1;
         if self.color_to_move() == Color::Black {
@@ -712,10 +744,14 @@ impl Board {
                 self.toggle_castling_hashes();
             }
         }
-        self.color_to_move = self.color_to_move.opposite();
-        self.zobrist_hash ^= ZOBRIST_KEYS.black();
+        self.toggle_side_to_move();
 
         self.undo_data.push(undo_state);
+    }
+
+    fn toggle_side_to_move(&mut self) {
+        self.color_to_move = self.color_to_move.opposite();
+        self.zobrist_hash ^= ZOBRIST_KEYS.black();
     }
 
     pub fn with_move<'a>(&'a mut self, m: Move) -> MoveUndoGuard<'a> {
@@ -748,17 +784,23 @@ impl Board {
         self.enpassant_square = Bitboard(0);
     }
 
-    pub fn try_undo_move(&mut self) -> Option<Move> {
+    pub fn try_undo_move(&mut self) -> Result<Move, MoveUndoError> {
         self.color_to_move = self.color_to_move.opposite();
 
-        let MoveUndoState {
+        let undo_state = self.undo_data.pop().ok_or(MoveUndoError::NoMove)?;
+
+        let MoveUndoState::Normal(NormalUndoState {
             move_,
             can_castle,
             enpassant_square,
             halfmove_clock,
             fullmove_counter,
             zobrist_hash,
-        } = self.undo_data.pop()?;
+        }) = undo_state
+        else {
+            self.undo_data.push(undo_state);
+            return Err(MoveUndoError::NullMove);
+        };
 
         self.can_castle = can_castle;
         self.enpassant_square = enpassant_square;
@@ -841,7 +883,7 @@ impl Board {
             }
         }
 
-        Some(move_)
+        Ok(move_)
     }
 
     pub fn pawns(&self, color: Color) -> Bitboard {
@@ -899,7 +941,14 @@ impl Board {
     }
 
     pub fn make_null_move_unguarded(&mut self) {
-        self.color_to_move = self.color_to_move.opposite();
+        let undo_state = MoveUndoState::Null(NullUndoState {
+            enpassant_square: self.enpassant_square(),
+        });
+
+        self.enpassant_square = Bitboard(0);
+
+        self.toggle_side_to_move();
+        self.undo_data.push(undo_state);
     }
     pub fn with_null_move<'a>(&'a mut self) -> NullMoveUndoGuard<'a> {
         // this is in no way unwind safe. But if we panic in search, we don't really care because
@@ -907,8 +956,19 @@ impl Board {
         self.make_null_move_unguarded();
         NullMoveUndoGuard(self)
     }
-    pub fn undo_null_move(&mut self) {
-        self.color_to_move = self.color_to_move.opposite();
+    pub fn try_undo_null_move(&mut self) -> Result<(), NullMoveUndoError> {
+        let undo_state = self.undo_data.pop().ok_or(NullMoveUndoError::NoMove)?;
+
+        let MoveUndoState::Null(NullUndoState { enpassant_square }) = undo_state else {
+            self.undo_data.push(undo_state);
+            return Err(NullMoveUndoError::NormalMove);
+        };
+
+        self.toggle_side_to_move();
+
+        self.enpassant_square = enpassant_square;
+
+        Ok(())
     }
 
     pub fn can_castle_kingside(&self, color: Color) -> bool {
