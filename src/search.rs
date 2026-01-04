@@ -349,6 +349,35 @@ fn search(
         }
     }
 
+    if !movegen.is_check() {
+        const NULL_MOVE_REDUCTION: u32 = 2;
+
+        let null_move_eval = -search(
+            &mut board.with_null_move(),
+            depth_left.saturating_sub(NULL_MOVE_REDUCTION),
+            window.next_depth_null(),
+            stats,
+            should_exit,
+            transposition_table,
+        )?
+        .eval;
+
+        if window.causes_cutoff(null_move_eval) {
+            match window.update(null_move_eval, None) {
+                WindowUpdate::NoImprovement | WindowUpdate::NewBest => unreachable!(),
+                WindowUpdate::Prune => {}
+            };
+            let out = window.finalize();
+            transposition_table.insert(
+                board,
+                depth_left,
+                out,
+                stats.nodes_searched - prev_nodes_searched,
+            );
+            return Ok(out);
+        }
+    }
+
     let moves =
         MoveOrdering::order_moves(moves, board, &movegen, transposition_table).collect_vec();
 
