@@ -349,12 +349,14 @@ fn search(
         }
     }
 
-    if !movegen.is_check() {
+    if !movegen.is_check()
+        && !(board.all_piece_bitboard() == board.both_pawns() | board.both_kings())
+    {
         const NULL_MOVE_REDUCTION: u32 = 2;
 
         let null_move_eval = -search(
             &mut board.with_null_move(),
-            depth_left.saturating_sub(NULL_MOVE_REDUCTION),
+            (depth_left - 1).saturating_sub(NULL_MOVE_REDUCTION),
             window.next_depth_null(),
             stats,
             should_exit,
