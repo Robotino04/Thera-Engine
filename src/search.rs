@@ -12,7 +12,7 @@ use crate::{
     move_generator::{Move, MoveGenerator},
     piece::{ByPiece, ByPieceTable, Piece},
     square::{BySquare, Square},
-    transposition_table::{TranspositionEntry, TranspositionTable},
+    transposition_table::{EvalKind, TranspositionEntry, TranspositionTable},
 };
 
 // https://www.chessprogramming.org/Simplified_Evaluation_Function
@@ -299,6 +299,7 @@ fn search(
         transposition_hits: _,
         cached_nodes: _,
         first_move_prune: _,
+        aspiration_researches: _,
     } = *stats;
 
     if let Some(entry) = transposition_table.get_if_improves(board, depth_left, &window) {
@@ -533,6 +534,7 @@ pub struct SearchStats {
     pub transposition_hits: EventTracker,
     pub cached_nodes: EventTracker,
     pub first_move_prune: EventTracker,
+    pub aspiration_researches: u64,
 }
 
 pub struct DepthSummary {
@@ -611,28 +613,72 @@ pub fn search_root(
             let mut search_stats = SearchStats::default();
 
             let mut prev_best_move = *first_move;
+            let mut prev_eval = Evaluation::DRAW;
             'search: for depth in 1..options.depth.unwrap_or(256) {
                 if should_exit() {
                     break 'search;
                 }
 
+                search_stats.aspiration_researches = 0;
+
                 let depth_start = Instant::now();
 
-                let search_result = search(
-                    board,
-                    depth,
-                    AlphaBetaWindow::default(),
-                    &mut search_stats,
-                    &should_exit,
-                    transposition_table,
-                );
+                let mut alpha_offset = CentiPawns(2);
+                let mut beta_offset = CentiPawns(2);
+                let out = 'aspiration: loop {
+                    let mut window = AlphaBetaWindow::new(
+                        match prev_eval {
+                            Evaluation::Win(_) => Evaluation::MIN,
+                            Evaluation::Loss(_) => Evaluation::MIN,
+                            Evaluation::CentiPawns(_) if alpha_offset > CentiPawns(5_00) => {
+                                Evaluation::MIN
+                            }
+                            Evaluation::CentiPawns(cp) => Evaluation::CentiPawns(cp - alpha_offset),
+                        },
+                        match prev_eval {
+                            Evaluation::Win(_) => Evaluation::MAX,
+                            Evaluation::Loss(_) => Evaluation::MAX,
+                            Evaluation::CentiPawns(_) if beta_offset > CentiPawns(5_00) => {
+                                Evaluation::MAX
+                            }
+                            Evaluation::CentiPawns(cp) => Evaluation::CentiPawns(cp + beta_offset),
+                        },
+                        0,
+                    );
 
-                let out = match search_result {
-                    Ok(out) => out,
-                    Err(SearchExit::Cancelled) => break 'search,
+                    let search_result = search(
+                        board,
+                        depth,
+                        window.clone(),
+                        &mut search_stats,
+                        &should_exit,
+                        transposition_table,
+                    );
+
+                    let out = match search_result {
+                        Ok(out) => out,
+                        Err(SearchExit::Cancelled) => break 'search,
+                    };
+                    let _ = window.update(out.eval, out.best_move);
+
+                    let out = window.finalize();
+                    match out.kind {
+                        EvalKind::Exact => {
+                            break 'aspiration out;
+                        }
+                        EvalKind::UpperBound => {
+                            alpha_offset *= 2;
+                            search_stats.aspiration_researches += 1;
+                        }
+                        EvalKind::LowerBound => {
+                            beta_offset *= 2;
+                            search_stats.aspiration_researches += 1;
+                        }
+                    }
                 };
 
                 prev_best_move = out.best_move.unwrap_or(prev_best_move);
+                prev_eval = out.eval;
 
                 on_depth_finished(DepthSummary {
                     pv: extract_pv(board, transposition_table, depth),

@@ -45,6 +45,20 @@ impl AlphaBetaWindow {
             plies,
         }
     }
+    pub fn new_null(alpha: Evaluation, plies: u32) -> Self {
+        let beta = alpha.next_best();
+
+        Self::new(alpha, beta, plies)
+    }
+    pub fn new_extended(mut other: Self, eval: Evaluation) -> AlphaBetaWindow {
+        if eval > other.beta {
+            other.beta = eval;
+        }
+        if eval < other.alpha {
+            other.alpha = eval;
+        }
+        Self::new(other.alpha, other.beta, other.plies)
+    }
 
     #[must_use = "You should always handle potential beta-cutoffs"]
     pub fn update(&mut self, eval: Evaluation, m: Option<Move>) -> WindowUpdate {
@@ -76,10 +90,9 @@ impl AlphaBetaWindow {
     }
     pub fn next_depth_null(&self) -> Self {
         let new_alpha = -self.beta;
-        let new_beta = new_alpha.next_best();
         let new_plies = self.plies + 1;
 
-        Self::new(new_alpha, new_beta, new_plies)
+        Self::new_null(new_alpha, new_plies)
     }
 
     #[must_use = "Providing an exact node value and not using it is likely a mistake"]

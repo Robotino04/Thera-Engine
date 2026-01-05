@@ -1218,6 +1218,7 @@ fn output_thread_task(
                         transposition_hits,
                         cached_nodes,
                         first_move_prune,
+                        aspiration_researches,
                     },
                 hash_percentage,
             })) => {
@@ -1247,7 +1248,8 @@ fn output_thread_task(
                   \n{prefix}    nodes: {nodes_searched} ({nps:.0} N/s)\
                   \n{prefix}        quiescence: {nodes_searched_quiescence} ({quiescence_rate:.1}%)\
                   \n{prefix}    pruning:\
-                  \n{prefix}        first move: {first_prune_percentage:.1}%"
+                  \n{prefix}        first move: {first_prune_percentage:.1}%\
+                  \n{prefix}        aspiration researches: {aspiration_researches}"
                 )
                 .unwrap();
 
